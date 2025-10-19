@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { Linkedin, BookOpen } from "lucide-react";
+import { Linkedin, BookOpen, Mail } from "lucide-react";
 import iniAvatar from "@/assets/ini-avatar.jpeg";
+import { Button } from "@/components/ui/button";
 
 const Hero = () => {
   return (
@@ -82,7 +83,7 @@ const Hero = () => {
         />
       </svg>
 
-      <div className="max-w-6xl mx-auto relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-12">
+      <div className="max-w-6xl mx-auto relative z-10 flex flex-col md:flex-row items-center gap-12 md:gap-16">
         {/* Avatar - Left Side */}
         <motion.div
           initial={{ opacity: 0, x: -50 }}
@@ -93,7 +94,7 @@ const Hero = () => {
           <img 
             src={iniAvatar} 
             alt="Ini Karunwi" 
-            className="w-64 h-64 md:w-80 md:h-80 rounded-full object-cover border-4 border-primary shadow-2xl"
+            className="w-72 h-72 md:w-[400px] md:h-[400px] rounded-full object-cover border-4 border-primary shadow-[0_0_80px_rgba(159,255,96,0.4)]"
           />
         </motion.div>
 
@@ -104,10 +105,10 @@ const Hero = () => {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="flex-1 text-center md:text-left"
         >
-          <h1 className="text-5xl md:text-6xl font-bold mb-4">
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-4">
             Hi, I'm{" "}
             <motion.span 
-              className="text-primary"
+              className="text-white"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ 
@@ -117,54 +118,69 @@ const Hero = () => {
               }}
             >
               Ini Karunwi
-            </motion.span>.
+            </motion.span>
           </h1>
           
-          <p className="text-xl md:text-2xl text-muted-foreground mb-6">
-            Product & Project Manager • No-Code Developer
+          <p className="text-lg md:text-xl text-muted-foreground mb-6">
+            Product Builder • No-Code Advocate • Community Educator
           </p>
           
-          <div className="mb-8 text-foreground/90 leading-relaxed">
-            <p className="mb-4">
-              Experienced PM (5+ years). Helped scale{" "}
-              <a href="https://welovenocode.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                WeLoveNoCode
-              </a>{" "}
-              from $500k → $3M ARR. Founding member of{" "}
-              <a href="https://proptechbuzz.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                ProptechBuzz.com
-              </a>{" "}
-              — 15,000+ innovators across 20+ countries.
-            </p>
-            <p>
-              Collaborated with{" "}
-              <a href="https://aerdf.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                AERDF (Bill & Melinda Gates Foundation)
-              </a>.
-            </p>
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mb-10">
+            <Button
+              variant="outline"
+              size="lg"
+              asChild
+              className="border-muted-foreground/30 hover:border-primary hover:bg-primary/10"
+            >
+              <a
+                href="https://www.linkedin.com/in/inioluwa-karunwi/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2"
+              >
+                <Linkedin className="w-5 h-5" />
+                <span>LinkedIn</span>
+              </a>
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              asChild
+              className="border-muted-foreground/30 hover:border-primary hover:bg-primary/10"
+            >
+              <a
+                href="https://medium.com/@ini-karunwi"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2"
+              >
+                <BookOpen className="w-5 h-5" />
+                <span>Medium</span>
+              </a>
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              asChild
+              className="border-muted-foreground/30 hover:border-primary hover:bg-primary/10"
+            >
+              <a
+                href="mailto:ini@example.com"
+                className="flex items-center gap-2"
+              >
+                <Mail className="w-5 h-5" />
+                <span>Email Me</span>
+              </a>
+            </Button>
           </div>
 
-          <div className="flex items-center justify-center md:justify-start gap-6">
-            <a
-              href="https://www.linkedin.com/in/inioluwa-karunwi/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors"
-            >
-              <Linkedin className="w-5 h-5" />
-              <span>LinkedIn</span>
-            </a>
-            <span className="text-muted-foreground">•</span>
-            <a
-              href="https://medium.com/@ini-karunwi"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors"
-            >
-              <BookOpen className="w-5 h-5" />
-              <span>Medium</span>
-            </a>
-          </div>
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 leading-tight">
+            Shipped 50+ no-code products, mentored 1k+ makers, and led product at fast-growing communities.
+          </h2>
+          
+          <p className="text-lg md:text-xl text-muted-foreground/80 leading-relaxed">
+            I combine lean, no-code execution with thoughtful product strategy to help teams move from idea to traction quickly.
+          </p>
         </motion.div>
       </div>
     </section>
