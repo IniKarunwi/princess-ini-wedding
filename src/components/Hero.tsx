@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Linkedin, BookOpen } from "lucide-react";
-import headshot from "@/assets/headshot.jpeg";
+import iniAvatar from "@/assets/ini-avatar.jpeg";
 
 const Hero = () => {
   return (
@@ -82,34 +82,49 @@ const Hero = () => {
         />
       </svg>
 
-      <div className="max-w-4xl mx-auto text-center relative z-10">
+      <div className="max-w-6xl mx-auto relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-12">
+        {/* Avatar - Left Side */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6 }}
-          className="mb-8"
+          className="flex-shrink-0"
         >
           <img 
-            src={headshot} 
+            src={iniAvatar} 
             alt="Ini Karunwi" 
-            className="w-40 h-40 rounded-full mx-auto object-cover border-4 border-primary shadow-2xl"
+            className="w-64 h-64 md:w-80 md:h-80 rounded-full object-cover border-4 border-primary shadow-2xl"
           />
         </motion.div>
 
+        {/* Text Content - Right Side */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
+          className="flex-1 text-center md:text-left"
         >
           <h1 className="text-5xl md:text-6xl font-bold mb-4">
-            Hi, I'm <span className="text-primary">Ini Karunwi</span>.
+            Hi, I'm{" "}
+            <motion.span 
+              className="text-primary"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ 
+                duration: 1.2,
+                delay: 0.4,
+                ease: "easeOut"
+              }}
+            >
+              Ini Karunwi
+            </motion.span>.
           </h1>
           
           <p className="text-xl md:text-2xl text-muted-foreground mb-6">
             Product & Project Manager • No-Code Developer
           </p>
           
-          <div className="max-w-3xl mx-auto mb-8 text-foreground/90 leading-relaxed">
+          <div className="mb-8 text-foreground/90 leading-relaxed">
             <p className="mb-4">
               Experienced PM (5+ years). Helped scale{" "}
               <a href="https://welovenocode.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
@@ -129,7 +144,7 @@ const Hero = () => {
             </p>
           </div>
 
-          <div className="flex items-center justify-center gap-6">
+          <div className="flex items-center justify-center md:justify-start gap-6">
             <a
               href="https://www.linkedin.com/in/inioluwa-karunwi/"
               target="_blank"
