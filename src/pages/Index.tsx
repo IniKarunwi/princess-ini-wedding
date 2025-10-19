@@ -9,6 +9,7 @@ import SpeakingCard from "@/components/SpeakingCard";
 import ContactModal from "@/components/ContactModal";
 import miniTranslateImage from "@/assets/mini-translate.jpeg";
 import roomspaceImage from "@/assets/roomspace.jpeg";
+import trustlensImage from "@/assets/trustlens.jpeg";
 
 const Index = () => {
   const [contactOpen, setContactOpen] = useState(false);
@@ -181,10 +182,11 @@ const Index = () => {
               image={roomspaceImage}
             />
             <ProjectCard
-              title="Creator Analytics"
-              description="Campaign insights and growth"
+              title="TrustLens"
+              description="Verify product authenticity with AI-powered analysis"
               href="https://lovable.dev/projects/577778dc-bbff-48d4-b546-970ccd05da2c"
               delay={0.2}
+              image={trustlensImage}
             />
           </div>
         </div>
