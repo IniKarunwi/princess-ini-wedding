@@ -8,6 +8,7 @@ import ProjectCard from "@/components/ProjectCard";
 import SpeakingCard from "@/components/SpeakingCard";
 import ContactModal from "@/components/ContactModal";
 import miniTranslateImage from "@/assets/mini-translate.jpeg";
+import roomspaceImage from "@/assets/roomspace.jpeg";
 
 const Index = () => {
   const [contactOpen, setContactOpen] = useState(false);
@@ -173,10 +174,11 @@ const Index = () => {
               image={miniTranslateImage}
             />
             <ProjectCard
-              title="Events Hub"
-              description="Ticketing and speaker profiles"
+              title="RoomSpace"
+              description="Redesign your room in seconds"
               href="https://lovable.dev/projects/41a4bb3d-44ef-4527-b4ab-8a6823a9de38"
               delay={0.1}
+              image={roomspaceImage}
             />
             <ProjectCard
               title="Creator Analytics"
