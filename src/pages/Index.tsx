@@ -216,8 +216,10 @@ const Index = () => {
           <div className="grid md:grid-cols-2 gap-6">
             <SpeakingCard title="Reside Summit" href="https://residesummit.co.za/" delay={0} />
             <SpeakingCard title="ARCE Conference" href="https://arceconference.com/" delay={0.1} />
-            <SpeakingCard title="Skyewise Conference" href="https://skyewise.com.ng/" delay={0.2} />
+            <SpeakingCard title="Skywise Foundation" href="https://skyewise.com.ng/" delay={0.2} />
             <SpeakingCard title="Treford Africa" href="https://treford.africa/" delay={0.3} />
+            <SpeakingCard title="Act+ Con" href="https://emmanuelolugbemi.com/actcon" delay={0.4} />
+            <SpeakingCard title="Money Africa" href="https://themoneyafrica.com/" delay={0.5} />
           </div>
         </div>
       </section>
