@@ -16,6 +16,7 @@ import skyewiseImage from "@/assets/skyewise-foundation.jpeg";
 import trefordImage from "@/assets/treford-masterclass.jpeg";
 import actconImage from "@/assets/actcon.jpeg";
 import moneyAfricaImage from "@/assets/money-africa.jpeg";
+import trefordCourses from "@/assets/treford-courses.jpeg";
 
 const Index = () => {
   const [contactOpen, setContactOpen] = useState(false);
@@ -302,6 +303,25 @@ const Index = () => {
           >
             I teach in AI Product Management and the Product Management Accelerator (2022—present).
           </motion.p>
+
+          {/* Clickable Image Card */}
+          <motion.a
+            href="https://live.treford.africa/?_gl=1%2A1gs578%2A_ga%2AMTMzMzkyMTU1OS4xNzYwODMwNDY5%2A_ga_Y2WLHNC7VV%2AczE3NjA4MzA0NjkkbzEkZzEkdDE3NjA4MzA2MjUkajM1JGwwJGgw"
+            target="_blank"
+            rel="noopener noreferrer"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.15 }}
+            className="block w-full max-w-[1100px] mx-auto mb-8 rounded-2xl overflow-hidden shadow-lg border-2 border-transparent hover:border-primary/40 transition-all duration-300"
+          >
+            <img 
+              src={trefordCourses} 
+              alt="Treford live courses screenshot" 
+              className="w-full h-auto object-cover"
+            />
+            <p className="text-center text-sm text-muted-foreground mt-3 mb-2">Explore live Treford courses</p>
+          </motion.a>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
