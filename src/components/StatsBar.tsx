@@ -14,7 +14,7 @@ const StatsBar = () => {
       viewport={{ once: true }}
       transition={{ duration: 0.6 }}
       className="w-full border-t border-b border-border/30 py-3 md:py-5"
-      style={{ backgroundColor: '#0B0F0C' }}
+      style={{ backgroundColor: '#1A1A1A' }}
     >
       <div className="max-w-6xl mx-auto px-6">
         <div className="flex flex-row items-center justify-between gap-4 md:gap-6">
