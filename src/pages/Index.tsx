@@ -97,7 +97,20 @@ const Index = () => {
               </p>
             </JobCard>
 
-            <JobCard title="Bojale Labs" role="Product Owner" delay={0.2}>
+            <JobCard 
+              title="Bojale Labs" 
+              role="Product Owner" 
+              delay={0.2}
+              expandedContent={
+                <>
+                  <p className="font-semibold text-foreground">Product Manager | 2020 - 2021</p>
+                  <ul className="list-disc list-inside space-y-2 ml-4">
+                    <li>Initially joined as a Product Manager, developing and optimizing MVP features, which led to a 40% reduction in development time and a 50% increase in user engagement.</li>
+                    <li>Promoted to Product Owner, refining agile processes, implementing a product analytics tool, and improving retention rates by 25%.</li>
+                  </ul>
+                </>
+              }
+            >
               <p className="mb-3">Executed multi-product roadmap including:</p>
               <ul className="list-disc list-inside space-y-2 ml-4">
                 <li>

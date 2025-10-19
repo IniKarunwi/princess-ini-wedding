@@ -22,28 +22,31 @@ const JobCard = ({ title, role, children, delay = 0, expandedContent }: JobCardP
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay }}
       whileHover={{ scale: 1.02, rotateX: 2 }}
-      className="bg-card border border-border rounded-2xl p-6 hover:border-primary/50 transition-all duration-300"
+      className="bg-card border border-border rounded-2xl hover:border-primary/50 transition-all duration-300"
     >
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <h3 className="text-2xl font-bold mb-2">{title}</h3>
-            {role && <p className="text-primary font-medium mb-4">{role}</p>}
-          </div>
-          {isExpandable && (
-            <CollapsibleTrigger className="mt-1">
+        <CollapsibleTrigger 
+          className="w-full text-left p-6 cursor-pointer"
+          disabled={!isExpandable}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h3 className="text-2xl font-bold mb-2">{title}</h3>
+              {role && <p className="text-primary font-medium mb-4">{role}</p>}
+            </div>
+            {isExpandable && (
               <ChevronDown 
                 className={`w-6 h-6 text-muted-foreground transition-transform duration-300 ${
                   isOpen ? "rotate-180" : ""
                 }`}
               />
-            </CollapsibleTrigger>
-          )}
-        </div>
-        
-        <div className="text-muted-foreground space-y-3">
-          {children}
-        </div>
+            )}
+          </div>
+          
+          <div className="text-muted-foreground space-y-3">
+            {children}
+          </div>
+        </CollapsibleTrigger>
 
         {expandedContent && (
           <CollapsibleContent className="mt-4 pt-4 border-t border-border animate-accordion-down">
