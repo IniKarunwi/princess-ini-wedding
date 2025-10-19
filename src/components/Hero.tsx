@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Linkedin, BookOpen, Mail } from "lucide-react";
-import iniAvatar from "@/assets/ini-avatar.jpeg";
+import headshot from "@/assets/headshot.jpeg";
 import rocketDrawing from "@/assets/rocket-drawing.png";
 import { Button } from "@/components/ui/button";
 
@@ -48,7 +48,7 @@ const Hero = () => {
           className="flex-shrink-0"
         >
           <img 
-            src={iniAvatar} 
+            src={headshot} 
             alt="Ini Karunwi" 
             className="w-72 h-72 md:w-[400px] md:h-[400px] rounded-full object-cover border-4 border-primary shadow-[0_0_80px_rgba(159,255,96,0.4)]"
           />
