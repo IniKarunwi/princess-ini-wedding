@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
+import StatsBar from "@/components/StatsBar";
 import JobCard from "@/components/JobCard";
 import ProjectCard from "@/components/ProjectCard";
 import SpeakingCard from "@/components/SpeakingCard";
@@ -15,6 +16,8 @@ const Index = () => {
       <Navbar onContactClick={() => setContactOpen(true)} />
       
       <Hero />
+
+      <StatsBar />
 
       {/* Career History */}
       <section id="career" className="py-20 px-6 bg-background">
