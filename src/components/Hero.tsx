@@ -138,39 +138,33 @@ const Hero = () => {
             </Button>
           </motion.div>
 
-          <motion.div 
+          <motion.p 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="text-xl md:text-2xl font-semibold leading-relaxed space-y-2"
+            className="text-xl md:text-2xl font-semibold leading-relaxed"
             style={{ color: '#EAEAEA', lineHeight: '1.5' }}
           >
-            <p>Experienced Product & Project Manager (5+ years).</p>
-            <p>
-              Helped scale{" "}
-              <a 
-                href="https://www.toptal.com/no-code" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-primary hover:underline transition-all"
-              >
-                WeLoveNoCode
-              </a>
-              {" "}from $500k → $3M ARR.
-            </p>
-            <p>
-              Founding member of{" "}
-              <a 
-                href="https://www.proptechbuzz.com/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-primary hover:underline transition-all"
-              >
-                ProptechBuzz.com
-              </a>
-              {" "}— connecting 15,000+ innovators across 20+ countries.
-            </p>
-          </motion.div>
+            Experienced Product & Project Manager (5+ years). Helped scale{" "}
+            <a 
+              href="https://www.toptal.com/no-code" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline transition-all"
+            >
+              WeLoveNoCode
+            </a>
+            {" "}from $500k → $3M ARR. Founding member of{" "}
+            <a 
+              href="https://www.proptechbuzz.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline transition-all"
+            >
+              ProptechBuzz.com
+            </a>
+            {" "}— connecting 15,000+ innovators across 20+ countries.
+          </motion.p>
           
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
