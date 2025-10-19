@@ -78,7 +78,7 @@ const Hero = () => {
           </h1>
           
           <p className="text-lg md:text-xl text-muted-foreground mb-6">
-            Product Builder • No-Code Advocate • Community Educator
+            Product & Project Manager • No-Code Developer
           </p>
           
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mb-10">
@@ -131,11 +131,11 @@ const Hero = () => {
           </div>
 
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 leading-tight">
-            Shipped 50+ no-code products, mentored 1k+ makers, and led product at fast-growing communities.
+            Experienced PM (5+ years). Helped scale WeLoveNoCode from $500k → $3M ARR. Founding member of ProptechBuzz.com — 15,000+ innovators across 20+ countries.
           </h2>
           
           <p className="text-lg md:text-xl text-muted-foreground/80 leading-relaxed">
-            I combine lean, no-code execution with thoughtful product strategy to help teams move from idea to traction quickly.
+            Collaborated with AERDF (Bill & Melinda Gates Foundation).
           </p>
         </motion.div>
       </div>
