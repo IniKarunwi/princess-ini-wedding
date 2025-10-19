@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Linkedin, BookOpen, Mail } from "lucide-react";
 import iniAvatar from "@/assets/ini-avatar.jpeg";
+import rocketDrawing from "@/assets/rocket-drawing.png";
 import { Button } from "@/components/ui/button";
 
 const Hero = () => {
@@ -26,62 +27,17 @@ const Hero = () => {
         }}
       />
       
-      {/* Abstract Rocket Line Art */}
-      <svg 
-        className="absolute top-1/2 left-1/2 w-[800px] h-[800px] pointer-events-none -z-10"
+      {/* Rocket Drawing Background */}
+      <img 
+        src={rocketDrawing}
+        alt=""
+        className="absolute top-1/2 right-0 w-[600px] h-[600px] md:w-[700px] md:h-[700px] pointer-events-none -z-10"
         style={{
-          transform: 'translate(-20%, -50%) rotate(-15deg)',
-          opacity: 0.07,
+          transform: 'translate(20%, -50%) rotate(15deg)',
+          opacity: 0.04,
           mixBlendMode: 'overlay'
         }}
-        viewBox="0 0 400 600"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        {/* Rocket body - elongated rounded triangle */}
-        <path 
-          d="M 200 50 Q 220 60, 220 100 L 220 400 Q 220 420, 200 430 Q 180 420, 180 400 L 180 100 Q 180 60, 200 50 Z" 
-          stroke="#FFFFFF" 
-          strokeWidth="1.5" 
-          fill="none"
-        />
-        {/* Nose cone circle */}
-        <circle 
-          cx="200" 
-          cy="50" 
-          r="15" 
-          stroke="#FFFFFF" 
-          strokeWidth="1.5" 
-          fill="none"
-        />
-        {/* Left fin */}
-        <path 
-          d="M 180 300 L 140 380 L 180 360 Z" 
-          stroke="#FFFFFF" 
-          strokeWidth="1.5" 
-          fill="none"
-        />
-        {/* Right fin */}
-        <path 
-          d="M 220 300 L 260 380 L 220 360 Z" 
-          stroke="#FFFFFF" 
-          strokeWidth="1.5" 
-          fill="none"
-        />
-        {/* Flame arc */}
-        <path 
-          d="M 180 430 Q 200 470, 220 430" 
-          stroke="#FFFFFF" 
-          strokeWidth="2" 
-          fill="none"
-        />
-        <path 
-          d="M 185 430 Q 200 455, 215 430" 
-          stroke="#FFFFFF" 
-          strokeWidth="1.5" 
-          fill="none"
-        />
-      </svg>
+      />
 
       <div className="max-w-6xl mx-auto relative z-10 flex flex-col md:flex-row items-center gap-12 md:gap-16">
         {/* Avatar - Left Side */}
