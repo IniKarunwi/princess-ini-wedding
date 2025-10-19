@@ -7,6 +7,7 @@ import JobCard from "@/components/JobCard";
 import ProjectCard from "@/components/ProjectCard";
 import SpeakingCard from "@/components/SpeakingCard";
 import ContactModal from "@/components/ContactModal";
+import miniTranslateImage from "@/assets/mini-translate.jpeg";
 
 const Index = () => {
   const [contactOpen, setContactOpen] = useState(false);
@@ -165,10 +166,11 @@ const Index = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             <ProjectCard
-              title="Community CRM"
-              description="Manage pipelines and members"
+              title="Mini translate app"
+              description="Translate from English to other languages"
               href="https://lovable.dev/projects/a31080e1-313b-43ae-8b0a-d04d36689b7e"
               delay={0}
+              image={miniTranslateImage}
             />
             <ProjectCard
               title="Events Hub"

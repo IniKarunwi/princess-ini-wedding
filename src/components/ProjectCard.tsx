@@ -7,9 +7,10 @@ interface ProjectCardProps {
   description: string;
   href: string;
   delay?: number;
+  image?: string;
 }
 
-const ProjectCard = ({ title, description, href, delay = 0 }: ProjectCardProps) => {
+const ProjectCard = ({ title, description, href, delay = 0, image }: ProjectCardProps) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -20,8 +21,12 @@ const ProjectCard = ({ title, description, href, delay = 0 }: ProjectCardProps) 
       className="bg-card border border-border rounded-2xl p-6 hover:border-primary/50 transition-all duration-300 flex flex-col h-full"
     >
       <div className="flex-1">
-        <div className="bg-secondary rounded-lg h-40 mb-4 flex items-center justify-center">
-          <span className="text-6xl">💻</span>
+        <div className="bg-secondary rounded-lg h-40 mb-4 flex items-center justify-center overflow-hidden">
+          {image ? (
+            <img src={image} alt={title} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-6xl">💻</span>
+          )}
         </div>
         <h3 className="text-xl font-bold mb-2">{title}</h3>
         <p className="text-muted-foreground text-sm mb-4">{description}</p>
