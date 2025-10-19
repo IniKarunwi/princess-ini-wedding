@@ -49,9 +49,11 @@ const JobCard = ({ title, role, children, delay = 0, expandedContent }: JobCardP
         </CollapsibleTrigger>
 
         {expandedContent && (
-          <CollapsibleContent className="mt-4 pt-4 border-t border-border animate-accordion-down">
-            <div className="text-muted-foreground space-y-3">
-              {expandedContent}
+          <CollapsibleContent className="animate-accordion-down">
+            <div className="px-4 pb-6 pt-4 md:px-8 md:pb-8 md:pt-6 mx-6 md:mx-6 mt-4 border-t border-border rounded-b-2xl bg-card/50">
+              <div className="text-muted-foreground space-y-3 leading-relaxed" style={{ lineHeight: '1.6' }}>
+                {expandedContent}
+              </div>
             </div>
           </CollapsibleContent>
         )}

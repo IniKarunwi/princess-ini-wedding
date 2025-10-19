@@ -56,8 +56,8 @@ const Index = () => {
               delay={0}
               expandedContent={
                 <>
-                  <p className="font-semibold text-foreground">Product Manager to Global Lead of Growth and Partnerships | 2023 - Present</p>
-                  <ul className="list-disc list-inside space-y-2 ml-4">
+                  <p className="font-semibold text-foreground mb-3">Product Manager to Global Lead of Growth and Partnerships | 2023 - Present</p>
+                  <ul className="list-disc space-y-3 pl-4">
                     <li>Started as a product manager, focusing on MVP development and early-stage product scaling. Conducted regular client feedback sessions, leading to a 20% increase in product usage and a 15% boost in customer referrals.</li>
                     <li>Promoted to Global Lead of Growth and Partnerships, closing 5 major conference partnerships, highest in Q2 - Q4, and growing the internal community from 0 to 6,000 members.</li>
                     <li>Planned the discovery and execution of our MVP product (proptechbuzz.com) with the main module built in React and the media module built with WordPress which went live within 3 months.</li>
@@ -80,8 +80,8 @@ const Index = () => {
               delay={0.1}
               expandedContent={
                 <>
-                  <p className="font-semibold text-foreground">Product Manager to Head of Client Success | 2021 - 2023</p>
-                  <ul className="list-disc list-inside space-y-2 ml-4">
+                  <p className="font-semibold text-foreground mb-3">Product Manager to Head of Client Success | 2021 - 2023</p>
+                  <ul className="list-disc space-y-3 pl-4">
                     <li>Initially joined as a Product Manager, leading product development, client engagement, and agile project management efforts across multiple projects.</li>
                     <li>Promoted to Head of Client Success within a year due to strong client relationships and repeat business, driving monthly revenue from $500k to $3M in MRR and achieving the highest NPS and CSAT scores.</li>
                     <li>Led a cross-functional team of developers, designers, marketing, sales, and QA, ensuring the smooth translation of business requirements into technical documents (PRDs, user stories, flow diagrams, wireframes).</li>
@@ -103,8 +103,8 @@ const Index = () => {
               delay={0.2}
               expandedContent={
                 <>
-                  <p className="font-semibold text-foreground">Product Manager | 2020 - 2021</p>
-                  <ul className="list-disc list-inside space-y-2 ml-4">
+                  <p className="font-semibold text-foreground mb-3">Product Manager | 2020 - 2021</p>
+                  <ul className="list-disc space-y-3 pl-4">
                     <li>Initially joined as a Product Manager, developing and optimizing MVP features, which led to a 40% reduction in development time and a 50% increase in user engagement.</li>
                     <li>Promoted to Product Owner, refining agile processes, implementing a product analytics tool, and improving retention rates by 25%.</li>
                   </ul>
