@@ -13,23 +13,23 @@ const StatsBar = () => {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6 }}
-      className="w-full border-t border-b border-border/30 py-6 md:py-10"
+      className="w-full border-t border-b border-border/30 py-3 md:py-5"
       style={{ backgroundColor: '#0B0F0C' }}
     >
       <div className="max-w-6xl mx-auto px-6">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
+        <div className="flex flex-row items-center justify-between gap-4 md:gap-6">
           {stats.map((stat, index) => (
-            <div key={index} className="flex items-center gap-8 md:gap-12">
-              <div className="text-center">
-                <div className="text-4xl md:text-5xl font-bold mb-2" style={{ color: '#9FFF60' }}>
+            <div key={index} className="flex items-center gap-3 md:gap-6">
+              <div className="text-center whitespace-nowrap">
+                <div className="text-2xl md:text-3xl font-bold mb-1" style={{ color: '#9FFF60' }}>
                   {stat.number}
                 </div>
-                <div className="text-sm md:text-base text-muted-foreground">
+                <div className="text-xs md:text-sm text-muted-foreground">
                   / {stat.label}
                 </div>
               </div>
               {index < stats.length - 1 && (
-                <div className="hidden md:block text-2xl" style={{ color: '#9FFF60' }}>
+                <div className="text-xl md:text-2xl" style={{ color: '#9FFF60' }}>
                   ✦
                 </div>
               )}
