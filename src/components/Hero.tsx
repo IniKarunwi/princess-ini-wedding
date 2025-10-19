@@ -34,7 +34,7 @@ const Hero = () => {
         className="absolute top-1/2 right-0 w-[600px] h-[600px] md:w-[700px] md:h-[700px] pointer-events-none -z-10"
         style={{
           transform: 'translate(20%, -50%) rotate(15deg)',
-          opacity: 0.04,
+          opacity: 0.15,
           mixBlendMode: 'overlay'
         }}
       />
