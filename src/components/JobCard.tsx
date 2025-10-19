@@ -1,14 +1,20 @@
 import { motion } from "framer-motion";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface JobCardProps {
   title: string;
   role?: string;
   children: ReactNode;
   delay?: number;
+  expandedContent?: ReactNode;
 }
 
-const JobCard = ({ title, role, children, delay = 0 }: JobCardProps) => {
+const JobCard = ({ title, role, children, delay = 0, expandedContent }: JobCardProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const isExpandable = !!expandedContent;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -18,11 +24,35 @@ const JobCard = ({ title, role, children, delay = 0 }: JobCardProps) => {
       whileHover={{ scale: 1.02, rotateX: 2 }}
       className="bg-card border border-border rounded-2xl p-6 hover:border-primary/50 transition-all duration-300"
     >
-      <h3 className="text-2xl font-bold mb-2">{title}</h3>
-      {role && <p className="text-primary font-medium mb-4">{role}</p>}
-      <div className="text-muted-foreground space-y-3">
-        {children}
-      </div>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h3 className="text-2xl font-bold mb-2">{title}</h3>
+            {role && <p className="text-primary font-medium mb-4">{role}</p>}
+          </div>
+          {isExpandable && (
+            <CollapsibleTrigger className="mt-1">
+              <ChevronDown 
+                className={`w-6 h-6 text-muted-foreground transition-transform duration-300 ${
+                  isOpen ? "rotate-180" : ""
+                }`}
+              />
+            </CollapsibleTrigger>
+          )}
+        </div>
+        
+        <div className="text-muted-foreground space-y-3">
+          {children}
+        </div>
+
+        {expandedContent && (
+          <CollapsibleContent className="mt-4 pt-4 border-t border-border animate-accordion-down">
+            <div className="text-muted-foreground space-y-3">
+              {expandedContent}
+            </div>
+          </CollapsibleContent>
+        )}
+      </Collapsible>
     </motion.div>
   );
 };
