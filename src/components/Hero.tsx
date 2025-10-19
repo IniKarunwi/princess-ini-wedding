@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Linkedin, BookOpen, Mail } from "lucide-react";
-import headshot from "@/assets/headshot.jpeg";
+import headshot from "@/assets/ini-profile.jpg";
 import rocketDrawing from "@/assets/rocket-drawing.png";
 import { Button } from "@/components/ui/button";
 
