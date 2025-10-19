@@ -198,7 +198,7 @@ const Hero = () => {
             className="text-xl md:text-2xl font-semibold leading-relaxed"
             style={{ color: '#EAEAEA', lineHeight: '1.5' }}
           >
-            Experienced Product & Project Manager (5+ years). Helped scale{" "}
+            Experienced Product & Project Manager (4+ years). Helped scale{" "}
             <a 
               href="https://www.toptal.com/no-code" 
               target="_blank" 
