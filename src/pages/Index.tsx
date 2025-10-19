@@ -10,6 +10,12 @@ import ContactModal from "@/components/ContactModal";
 import miniTranslateImage from "@/assets/mini-translate.jpeg";
 import roomspaceImage from "@/assets/roomspace.jpeg";
 import trustlensImage from "@/assets/trustlens.jpeg";
+import resideSummitImage from "@/assets/reside-summit.jpeg";
+import arceConferenceImage from "@/assets/arce-conference.jpeg";
+import skyewiseImage from "@/assets/skyewise-foundation.jpeg";
+import trefordImage from "@/assets/treford-masterclass.jpeg";
+import actconImage from "@/assets/actcon.jpeg";
+import moneyAfricaImage from "@/assets/money-africa.jpeg";
 
 const Index = () => {
   const [contactOpen, setContactOpen] = useState(false);
@@ -193,8 +199,11 @@ const Index = () => {
       </section>
 
       {/* Speaking */}
-      <section id="speaking" className="py-20 px-6 bg-background">
-        <div className="max-w-6xl mx-auto">
+      <section id="speaking" className="py-20 px-6 bg-[#0B0F0C] relative overflow-hidden">
+        {/* Gradient accent background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+        
+        <div className="max-w-6xl mx-auto relative">
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -210,16 +219,52 @@ const Index = () => {
             transition={{ delay: 0.1 }}
             className="text-muted-foreground text-center mb-12"
           >
-            Talks and research on no-code, product strategy, and community building.
+            Talks and sessions on product management, AI, community growth, and digital innovation.
           </motion.p>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <SpeakingCard title="Reside Summit" href="https://residesummit.co.za/" delay={0} />
-            <SpeakingCard title="ARCE Conference" href="https://arceconference.com/" delay={0.1} />
-            <SpeakingCard title="Skywise Foundation" href="https://skyewise.com.ng/" delay={0.2} />
-            <SpeakingCard title="Treford Africa" href="https://treford.africa/" delay={0.3} />
-            <SpeakingCard title="Act+ Con" href="https://emmanuelolugbemi.com/actcon" delay={0.4} />
-            <SpeakingCard title="Money Africa" href="https://themoneyafrica.com/" delay={0.5} />
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <SpeakingCard 
+              title="Reside Summit" 
+              description="Presented on digital transformation and community growth in PropTech."
+              href="https://residesummit.co.za/" 
+              delay={0}
+              image={resideSummitImage}
+            />
+            <SpeakingCard 
+              title="ARCE Conference" 
+              description="Speaker at the Africa Real Estate Conference & Expo (ARCE 2024), Ghana."
+              href="https://arceconference.com/" 
+              delay={0.1}
+              image={arceConferenceImage}
+            />
+            <SpeakingCard 
+              title="Skyewise Foundation" 
+              description="Delivered a session on digital skills and training for entrepreneurs."
+              href="https://skyewise.com.ng/" 
+              delay={0.2}
+              image={skyewiseImage}
+            />
+            <SpeakingCard 
+              title="Treford Africa" 
+              description="Taught effective strategies for staying updated in product ecosystems."
+              href="https://treford.africa/" 
+              delay={0.3}
+              image={trefordImage}
+            />
+            <SpeakingCard 
+              title="Act+ Con" 
+              description="Panelist on place branding, storytelling, and influencer strategy."
+              href="https://emmanuelolugbemi.com/actcon" 
+              delay={0.4}
+              image={actconImage}
+            />
+            <SpeakingCard 
+              title="Money Africa" 
+              description="Panelist for Money Africa Student Community Career Series."
+              href="https://themoneyafrica.com/" 
+              delay={0.5}
+              image={moneyAfricaImage}
+            />
           </div>
         </div>
       </section>
