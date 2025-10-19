@@ -1,14 +1,17 @@
 import { motion } from "framer-motion";
+import { useState } from "react";
 
 const StatsBar = () => {
+  const [isPaused, setIsPaused] = useState(false);
+  
   const stats = [
-    { number: "5+", label: "years of experience" },
     { number: "$3M+", label: "ARR contributed" },
     { number: "60+", label: "projects built" },
+    { number: "5+", label: "years of experience" },
   ];
 
-  // Duplicate stats for infinite loop effect
-  const duplicatedStats = [...stats, ...stats];
+  // Duplicate stats multiple times for seamless infinite loop
+  const duplicatedStats = [...stats, ...stats, ...stats, ...stats];
 
   return (
     <motion.section
@@ -16,34 +19,40 @@ const StatsBar = () => {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6 }}
-      className="w-full border-t border-b border-border/30 py-3 md:py-5 overflow-hidden"
-      style={{ backgroundColor: '#1A1A1A' }}
+      className="w-full border-t border-b border-border/30 overflow-hidden"
+      style={{ 
+        backgroundColor: '#1A1A1A',
+        height: '60px'
+      }}
     >
       <motion.div
-        className="flex items-center gap-6 md:gap-12"
+        className="flex items-center h-full gap-8 md:gap-12"
         animate={{
-          x: [0, -50 + '%'],
+          x: isPaused ? undefined : [0, '-50%'],
         }}
         transition={{
           x: {
             repeat: Infinity,
             repeatType: "loop",
-            duration: 20,
+            duration: 30,
             ease: "linear",
           },
         }}
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        style={{ cursor: 'grab' }}
       >
         {duplicatedStats.map((stat, index) => (
-          <div key={index} className="flex items-center gap-6 md:gap-12 flex-shrink-0">
-            <div className="text-center whitespace-nowrap px-8">
-              <div className="text-2xl md:text-3xl font-bold mb-1" style={{ color: '#9FFF60' }}>
+          <div key={index} className="flex items-center gap-8 md:gap-12 flex-shrink-0">
+            <div className="flex items-baseline gap-2 whitespace-nowrap px-4">
+              <span className="text-2xl md:text-3xl font-bold" style={{ color: '#9FFF60' }}>
                 {stat.number}
-              </div>
-              <div className="text-xs md:text-sm text-muted-foreground">
+              </span>
+              <span className="text-xs md:text-sm" style={{ color: '#9CA3AF' }}>
                 / {stat.label}
-              </div>
+              </span>
             </div>
-            <div className="text-xl md:text-2xl" style={{ color: '#9FFF60' }}>
+            <div className="text-lg" style={{ color: '#9FFF60' }}>
               ✦
             </div>
           </div>
