@@ -1,92 +1,100 @@
 import { motion } from "framer-motion";
 import { Linkedin, BookOpen, Mail } from "lucide-react";
 import headshot from "@/assets/ini-profile.jpg";
-import rocketDrawing from "@/assets/rocket-drawing.png";
 import { Button } from "@/components/ui/button";
 
 const Hero = () => {
   return (
-    <section className="min-h-screen flex items-center justify-center px-6 pt-24 pb-16 relative overflow-hidden">
-      {/* Gradient Glows */}
+    <section 
+      className="min-h-screen flex items-center justify-center px-6 pt-16 pb-12 relative overflow-hidden"
+      style={{ backgroundColor: '#0B0F0C' }}
+    >
+      {/* Faint radial gradient glow */}
       <div 
-        className="absolute top-0 right-0 w-[900px] h-[900px] md:w-[1200px] md:h-[1200px] rounded-full pointer-events-none -z-10"
+        className="absolute top-1/2 right-1/2 w-[1000px] h-[1000px] rounded-full pointer-events-none -z-10"
         style={{
-          background: 'radial-gradient(circle, #9FFF60 0%, transparent 70%)',
-          opacity: 0.06,
-          filter: 'blur(100px)',
-          transform: 'translate(30%, -30%)'
-        }}
-      />
-      <div 
-        className="absolute bottom-0 left-0 w-[900px] h-[900px] md:w-[1100px] md:h-[1100px] rounded-full pointer-events-none -z-10"
-        style={{
-          background: 'radial-gradient(circle, #6AA6FF 0%, transparent 70%)',
-          opacity: 0.05,
-          filter: 'blur(120px)',
-          transform: 'translate(-35%, 35%)'
+          background: 'radial-gradient(circle, rgba(159,255,96,0.05) 0%, transparent 70%)',
+          filter: 'blur(80px)',
+          transform: 'translate(50%, -50%)'
         }}
       />
       
-      {/* Rocket Drawing Background */}
-      <img 
-        src={rocketDrawing}
-        alt=""
-        className="absolute top-1/2 right-0 w-[600px] h-[600px] md:w-[700px] md:h-[700px] pointer-events-none -z-10"
+      {/* Vertical gradient behind text */}
+      <div 
+        className="absolute inset-0 pointer-events-none -z-10"
         style={{
-          transform: 'translate(20%, -50%) rotate(15deg)',
-          opacity: 0.15,
-          mixBlendMode: 'overlay'
+          background: 'linear-gradient(180deg, rgba(11,15,12,0.95), rgba(18,22,18,0.8))'
         }}
       />
 
-      <div className="max-w-6xl mx-auto relative z-10 flex flex-col md:flex-row items-center gap-12 md:gap-16">
-        {/* Avatar - Left Side */}
+      <div className="max-w-6xl mx-auto relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
+        {/* Profile Photo - Left Side */}
         <motion.div
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6 }}
-          className="flex-shrink-0"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          className="flex justify-center md:justify-end"
         >
-          <img 
-            src={headshot} 
-            alt="Ini Karunwi" 
-            className="w-72 h-72 md:w-[400px] md:h-[400px] rounded-full object-cover border-4 border-primary shadow-[0_0_80px_rgba(159,255,96,0.4)]"
-          />
+          <motion.div
+            animate={{ 
+              boxShadow: [
+                '0 0 20px rgba(159, 255, 96, 0.35)',
+                '0 0 30px rgba(159, 255, 96, 0.5)',
+                '0 0 20px rgba(159, 255, 96, 0.35)'
+              ]
+            }}
+            transition={{ 
+              duration: 3,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="rounded-full"
+          >
+            <img 
+              src={headshot} 
+              alt="Ini Karunwi profile photo" 
+              className="w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 rounded-full object-cover border-2 border-primary/30"
+            />
+          </motion.div>
         </motion.div>
 
         {/* Text Content - Right Side */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex-1 text-center md:text-left"
-        >
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-4">
-            Hi, I'm{" "}
-            <motion.span 
-              className="text-white"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ 
-                duration: 1.2,
-                delay: 0.4,
-                ease: "easeOut"
-              }}
-            >
-              Ini Karunwi
-            </motion.span>
-          </h1>
+        <div className="flex flex-col gap-6 text-center md:text-left">
+          <motion.h1 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="font-bold leading-tight"
+            style={{ 
+              fontSize: 'clamp(36px, 5vw, 54px)',
+              lineHeight: '1.1',
+              color: '#FFFFFF'
+            }}
+          >
+            Hi, I'm Ini Karunwi
+          </motion.h1>
           
-          <p className="text-lg md:text-xl text-muted-foreground mb-6">
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-lg md:text-xl font-medium tracking-wide"
+            style={{ color: '#B3B3B3' }}
+          >
             Product & Project Manager • No-Code Developer
-          </p>
+          </motion.p>
           
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mb-10">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3, type: "spring" }}
+            className="flex flex-wrap items-center justify-center md:justify-start gap-3"
+          >
             <Button
               variant="outline"
               size="lg"
               asChild
-              className="border-muted-foreground/30 hover:border-primary hover:bg-primary/10"
+              className="border-muted-foreground/30 hover:border-primary hover:bg-primary/10 transition-all duration-300"
             >
               <a
                 href="https://www.linkedin.com/in/inioluwa-karunwi/"
@@ -94,7 +102,7 @@ const Hero = () => {
                 rel="noopener noreferrer"
                 className="flex items-center gap-2"
               >
-                <Linkedin className="w-5 h-5" />
+                <Linkedin className="w-4 h-4" />
                 <span>LinkedIn</span>
               </a>
             </Button>
@@ -102,7 +110,7 @@ const Hero = () => {
               variant="outline"
               size="lg"
               asChild
-              className="border-muted-foreground/30 hover:border-primary hover:bg-primary/10"
+              className="border-muted-foreground/30 hover:border-primary hover:bg-primary/10 transition-all duration-300"
             >
               <a
                 href="https://medium.com/@ini-karunwi"
@@ -110,7 +118,7 @@ const Hero = () => {
                 rel="noopener noreferrer"
                 className="flex items-center gap-2"
               >
-                <BookOpen className="w-5 h-5" />
+                <BookOpen className="w-4 h-4" />
                 <span>Medium</span>
               </a>
             </Button>
@@ -118,26 +126,71 @@ const Hero = () => {
               variant="outline"
               size="lg"
               asChild
-              className="border-muted-foreground/30 hover:border-primary hover:bg-primary/10"
+              className="border-muted-foreground/30 hover:border-primary hover:bg-primary/10 transition-all duration-300"
             >
               <a
-                href="mailto:ini@example.com"
+                href="mailto:joel.karunwini@gmail.com"
                 className="flex items-center gap-2"
               >
-                <Mail className="w-5 h-5" />
+                <Mail className="w-4 h-4" />
                 <span>Email Me</span>
               </a>
             </Button>
-          </div>
+          </motion.div>
 
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 leading-tight">
-            Experienced PM (5+ years). Helped scale WeLoveNoCode from $500k → $3M ARR. Founding member of ProptechBuzz.com — 15,000+ innovators across 20+ countries.
-          </h2>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="text-xl md:text-2xl font-semibold leading-relaxed space-y-2"
+            style={{ color: '#EAEAEA', lineHeight: '1.5' }}
+          >
+            <p>Experienced Product & Project Manager (5+ years).</p>
+            <p>
+              Helped scale{" "}
+              <a 
+                href="https://www.toptal.com/no-code" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-primary hover:underline transition-all"
+              >
+                WeLoveNoCode
+              </a>
+              {" "}from $500k → $3M ARR.
+            </p>
+            <p>
+              Founding member of{" "}
+              <a 
+                href="https://www.proptechbuzz.com/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-primary hover:underline transition-all"
+              >
+                ProptechBuzz.com
+              </a>
+              {" "}— connecting 15,000+ innovators across 20+ countries.
+            </p>
+          </motion.div>
           
-          <p className="text-lg md:text-xl text-muted-foreground/80 leading-relaxed">
-            Collaborated with AERDF (Bill & Melinda Gates Foundation).
-          </p>
-        </motion.div>
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+            className="text-sm leading-relaxed mt-2"
+            style={{ color: '#777777' }}
+          >
+            Collaborated with{" "}
+            <a 
+              href="https://aerdf.org/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary transition-all"
+            >
+              AERDF
+            </a>
+            {" "}(Bill & Melinda Gates Foundation) on global education innovation initiatives.
+          </motion.p>
+        </div>
       </div>
     </section>
   );
