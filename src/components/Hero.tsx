@@ -37,7 +37,7 @@ const Hero = () => {
 
   return (
     <section 
-      className="min-h-screen flex items-center justify-center px-6 pt-16 pb-12 relative overflow-hidden"
+      className="min-h-screen flex items-center justify-center pt-16 pb-12 relative overflow-hidden"
       style={{ backgroundColor: '#0B0F0C' }}
     >
       {/* Faint radial gradient glow */}
@@ -58,39 +58,46 @@ const Hero = () => {
         }}
       />
 
-      <div className="max-w-6xl mx-auto relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
-        {/* Profile Photo - Left Side */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          className="flex justify-center md:justify-end"
-        >
+      {/* Centered container with max-width: 1200px and side padding 24px */}
+      <div className="max-w-[1200px] mx-auto px-6 relative z-10 w-full">
+        {/* 2-column grid: 5fr / 7fr (image / text) with 40px gap */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+          {/* Profile Photo - Left Side (5fr on desktop) */}
           <motion.div
-            animate={{ 
-              boxShadow: [
-                '0 0 20px rgba(159, 255, 96, 0.35)',
-                '0 0 30px rgba(159, 255, 96, 0.5)',
-                '0 0 20px rgba(159, 255, 96, 0.35)'
-              ]
-            }}
-            transition={{ 
-              duration: 3,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="rounded-full"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8 }}
+            className="lg:col-span-5 flex justify-center lg:justify-start"
           >
-            <img 
-              src={headshot} 
-              alt="Ini Karunwi profile photo" 
-              className="w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 rounded-full object-cover border-2 border-primary/30"
-            />
+            <motion.div
+              animate={{ 
+                boxShadow: [
+                  '0 0 20px rgba(159, 255, 96, 0.35)',
+                  '0 0 30px rgba(159, 255, 96, 0.5)',
+                  '0 0 20px rgba(159, 255, 96, 0.35)'
+                ]
+              }}
+              transition={{ 
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="rounded-full lg:-ml-[60px]"
+            >
+              <img 
+                src={headshot} 
+                alt="Ini Karunwi profile photo" 
+                className="rounded-full object-cover border-2 border-primary/30"
+                style={{
+                  width: 'clamp(280px, 28vw, 440px)',
+                  height: 'clamp(280px, 28vw, 440px)'
+                }}
+              />
+            </motion.div>
           </motion.div>
-        </motion.div>
 
-        {/* Text Content - Right Side */}
-        <div className="flex flex-col gap-6 text-center md:text-left">
+          {/* Text Content - Right Side (7fr on desktop) */}
+          <div className="lg:col-span-7 flex flex-col gap-6 text-center lg:text-left">
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -230,6 +237,7 @@ const Hero = () => {
             </a>
             {" "}(Bill & Melinda Gates Foundation) on global education innovation initiatives.
           </motion.p>
+          </div>
         </div>
       </div>
     </section>
