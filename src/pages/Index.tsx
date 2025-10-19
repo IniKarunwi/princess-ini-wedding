@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
+import StatsBar from "@/components/StatsBar";
 import JobCard from "@/components/JobCard";
 import ProjectCard from "@/components/ProjectCard";
 import SpeakingCard from "@/components/SpeakingCard";
@@ -15,6 +16,8 @@ const Index = () => {
       <Navbar onContactClick={() => setContactOpen(true)} />
       
       <Hero />
+
+      <StatsBar />
 
       {/* Career History */}
       <section id="career" className="py-20 px-6 bg-background">
@@ -38,7 +41,23 @@ const Index = () => {
           </motion.p>
 
           <div className="space-y-6">
-            <JobCard title="ProptechBuzz.com" role="Global Lead, Growth & Partnerships" delay={0}>
+            <JobCard 
+              title="ProptechBuzz.com" 
+              role="Global Lead, Growth & Partnerships" 
+              delay={0}
+              expandedContent={
+                <>
+                  <p className="font-semibold text-foreground">Product Manager to Global Lead of Growth and Partnerships | 2023 - Present</p>
+                  <ul className="list-disc list-inside space-y-2 ml-4">
+                    <li>Started as a product manager, focusing on MVP development and early-stage product scaling. Conducted regular client feedback sessions, leading to a 20% increase in product usage and a 15% boost in customer referrals.</li>
+                    <li>Promoted to Global Lead of Growth and Partnerships, closing 5 major conference partnerships, highest in Q2 - Q4, and growing the internal community from 0 to 6,000 members.</li>
+                    <li>Planned the discovery and execution of our MVP product (proptechbuzz.com) with the main module built in React and the media module built with WordPress which went live within 3 months.</li>
+                    <li>Played a pivotal role in coordinating the cross-functional team of developers, marketers, sales, designers, and QA engineers using tools like Click-up, Linear, and Google Suite tools with major feature releases happening weekly.</li>
+                    <li>Conducted regular client review calls and implemented new ideas and features that grew business revenue by $120,000 ARR, focusing on community-building and ad-hoc marketing offerings.</li>
+                  </ul>
+                </>
+              }
+            >
               <p>
                 First Product Manager from idea → execution (web + v1 mobile). Grew 0 → 15,000 innovators in 20+ countries;
                 media reach 250k+. Drove partnerships with Africa Valuation Conference, Reside Summit (South Africa),
@@ -46,7 +65,23 @@ const Index = () => {
               </p>
             </JobCard>
 
-            <JobCard title="WeLoveNoCode (acquired by Toptal)" role="Product Manager" delay={0.1}>
+            <JobCard 
+              title="WeLoveNoCode (acquired by Toptal)" 
+              role="Product Manager" 
+              delay={0.1}
+              expandedContent={
+                <>
+                  <p className="font-semibold text-foreground">Product Manager to Head of Client Success | 2021 - 2023</p>
+                  <ul className="list-disc list-inside space-y-2 ml-4">
+                    <li>Initially joined as a Product Manager, leading product development, client engagement, and agile project management efforts across multiple projects.</li>
+                    <li>Promoted to Head of Client Success within a year due to strong client relationships and repeat business, driving monthly revenue from $500k to $3M in MRR and achieving the highest NPS and CSAT scores.</li>
+                    <li>Led a cross-functional team of developers, designers, marketing, sales, and QA, ensuring the smooth translation of business requirements into technical documents (PRDs, user stories, flow diagrams, wireframes).</li>
+                    <li>Managed the largest portfolio of product development clients &gt;50% of the company's portfolio with the highest reactivation percentage of &gt;70%.</li>
+                    <li>Built more than 50 MVP websites and mobile apps with different client projects over different No-code stacks like Bubble, Webflow, WordPress, Adalo, Flutterflow, etc.</li>
+                  </ul>
+                </>
+              }
+            >
               <p>
                 Led cross-functional squads shipping 50+ MVPs. Company scaled $500k → $3M ARR;
                 my portfolio contributed 60%+ of MRR.
