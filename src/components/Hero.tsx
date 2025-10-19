@@ -1,9 +1,40 @@
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import { Linkedin, BookOpen, Mail } from "lucide-react";
 import headshot from "@/assets/ini-profile.jpg";
 import { Button } from "@/components/ui/button";
 
 const Hero = () => {
+  const fullName = "Ini Karunwi.";
+  const [displayedName, setDisplayedName] = useState("");
+  const [showCursor, setShowCursor] = useState(true);
+  const [isComplete, setIsComplete] = useState(false);
+
+  useEffect(() => {
+    const startDelay = 400;
+    const charDelay = 65; // 60-70ms per character
+    
+    const timeout = setTimeout(() => {
+      let currentIndex = 0;
+      
+      const typeInterval = setInterval(() => {
+        if (currentIndex < fullName.length) {
+          setDisplayedName(fullName.slice(0, currentIndex + 1));
+          currentIndex++;
+        } else {
+          clearInterval(typeInterval);
+          setIsComplete(true);
+          // Fade out cursor after completion
+          setTimeout(() => setShowCursor(false), 500);
+        }
+      }, charDelay);
+
+      return () => clearInterval(typeInterval);
+    }, startDelay);
+
+    return () => clearTimeout(timeout);
+  }, []);
+
   return (
     <section 
       className="min-h-screen flex items-center justify-center px-6 pt-16 pb-12 relative overflow-hidden"
@@ -71,7 +102,22 @@ const Hero = () => {
               color: '#FFFFFF'
             }}
           >
-            Hi, I'm Ini Karunwi
+            Hi, I'm{" "}
+            <span 
+              className="inline-block transition-all duration-300 hover:brightness-105"
+              style={{ color: '#9FFF60' }}
+            >
+              {displayedName}
+              {showCursor && (
+                <span 
+                  className="inline-block ml-0.5 w-0.5 h-[0.9em] bg-current align-middle animate-pulse"
+                  style={{ 
+                    opacity: isComplete ? 0 : 1,
+                    transition: 'opacity 0.5s ease-out'
+                  }}
+                />
+              )}
+            </span>
           </motion.h1>
           
           <motion.p 
