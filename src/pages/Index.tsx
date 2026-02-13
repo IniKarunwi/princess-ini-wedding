@@ -145,12 +145,12 @@ const Index = () => {
                   </a>
                 </li>
                 <li>
-                  <a href="https://www.notion.so/My-website-content-2901f09e7a2f8096b147c2fcc1cea2a4?pvs=21" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  <a href="https://babafi.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                     Babafi
                   </a>
                 </li>
                 <li>
-                  <a href="https://www.notion.so/2401f09e7a2f8021956ef12643fcf893?pvs=21" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  <a href="https://rentberry.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                     Digital Ark
                   </a>
                 </li>
