@@ -4,35 +4,16 @@ interface LandingProps {
   onNext: () => void;
 }
 
-const LANDING_BG = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.appspot.com/o/reference-images%2Fd62d4227-36a4-4315-a204-31d5edd5b01a?alt=media&token=60dd1bf9-31b0-4738-b105-6b2d335fd535';
-
 export default function Landing({ onNext }: LandingProps) {
   return (
+    // Content-only overlay — background is managed by the world camera in Wedding.tsx
     <motion.div
-      className="relative w-full h-full overflow-hidden"
+      className="relative w-full h-full"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 1.14 }}
-      transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
     >
-      {/* Background */}
-      <motion.img
-        src={LANDING_BG}
-        alt="Wedding couple watercolour illustration"
-        className="absolute inset-0 w-full h-full object-cover object-top"
-        initial={{ scale: 1 }}
-        animate={{ scale: 1.04 }}
-        transition={{ duration: 18, ease: 'easeInOut', repeat: Infinity, repeatType: 'reverse' }}
-      />
-
-      {/* Fades */}
-      <div className="absolute inset-0 z-[2]" style={{
-        background: 'linear-gradient(180deg, rgba(253,249,243,0.92) 0%, rgba(253,249,243,0.8) 35%, rgba(253,249,243,0) 100%)'
-      }} />
-      <div className="absolute bottom-0 left-0 right-0 h-[20%] z-[2]" style={{
-        background: 'linear-gradient(0deg, rgba(253,249,243,0.6) 0%, rgba(253,249,243,0) 100%)'
-      }} />
-
       {/* Floral SVG frame */}
       <svg
         className="absolute inset-0 w-full h-full z-[3] pointer-events-none"
@@ -58,7 +39,6 @@ export default function Landing({ onNext }: LandingProps) {
         <path d="M376 798 Q 346 738 366 698" stroke="#a8c890" strokeWidth="1.8" fill="none" opacity="0.7"/>
         <circle cx="354" cy="780" r="8" fill="#e8b8b0" opacity="0.75"/>
         <circle cx="354" cy="780" r="5" fill="#d4948c" opacity="0.65"/>
-        {/* Top center ornament */}
         <path d="M170 0 Q 180 18 188 10 Q 196 18 206 0" stroke="#b0c888" strokeWidth="1.2" fill="none" opacity="0.5"/>
         <circle cx="188" cy="12" r="4" fill="#f0c8b8" opacity="0.6"/>
         <circle cx="188" cy="12" r="2" fill="#dca898" opacity="0.55"/>
@@ -76,16 +56,8 @@ export default function Landing({ onNext }: LandingProps) {
             left: `${10 + i * 11}%`,
             top: `${20 + (i % 3) * 20}%`,
           }}
-          animate={{
-            y: [0, -12, 0],
-            opacity: [0.4, 0.9, 0.4],
-          }}
-          transition={{
-            duration: 3 + i * 0.5,
-            repeat: Infinity,
-            delay: i * 0.4,
-            ease: 'easeInOut',
-          }}
+          animate={{ y: [0, -12, 0], opacity: [0.4, 0.9, 0.4] }}
+          transition={{ duration: 3 + i * 0.5, repeat: Infinity, delay: i * 0.4, ease: 'easeInOut' }}
         />
       ))}
 
@@ -111,21 +83,13 @@ export default function Landing({ onNext }: LandingProps) {
         <div className="leading-none text-center mt-0.5">
           <span
             className="block text-[76px] leading-none"
-            style={{
-              fontFamily: 'Pinyon Script, cursive',
-              color: '#7a1a2e',
-              textShadow: '0 1px 18px rgba(253,249,243,1), 0 0 56px rgba(253,249,243,0.9)',
-            }}
+            style={{ fontFamily: 'Pinyon Script, cursive', color: '#7a1a2e', textShadow: '0 1px 18px rgba(253,249,243,1), 0 0 56px rgba(253,249,243,0.9)' }}
           >
             Princess &amp;
           </span>
           <span
             className="block text-[76px] leading-none"
-            style={{
-              fontFamily: 'Pinyon Script, cursive',
-              color: '#7a1a2e',
-              textShadow: '0 1px 18px rgba(253,249,243,1), 0 0 56px rgba(253,249,243,0.9)',
-            }}
+            style={{ fontFamily: 'Pinyon Script, cursive', color: '#7a1a2e', textShadow: '0 1px 18px rgba(253,249,243,1), 0 0 56px rgba(253,249,243,0.9)' }}
           >
             IniOluwa
           </span>

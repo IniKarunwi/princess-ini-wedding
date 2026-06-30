@@ -6,8 +6,6 @@ interface ChairProps {
   onNext: () => void;
 }
 
-const CHAIR_BG = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.appspot.com/o/reference-images%2Fee3e746a-48b4-46f7-980b-17b9cac93870?alt=media&token=ddb6776b-257e-49c1-b642-0f32242d8932';
-
 export default function Chair({ onNext }: ChairProps) {
   const [arrowVisible, setArrowVisible] = useState(false);
   const [arrowGone, setArrowGone] = useState(false);
@@ -25,23 +23,20 @@ export default function Chair({ onNext }: ChairProps) {
     let cancelled = false;
     let idleTimer: ReturnType<typeof setTimeout>;
 
-    const runSequence = async () => {
+    const run = async () => {
       if (cancelled) return;
       setArrowVisible(true);
       await new Promise(r => setTimeout(r, 500));
       if (cancelled) return;
       await bounceArrow();
       if (cancelled) return;
-      idleTimer = setTimeout(runSequence, 7000);
+      idleTimer = setTimeout(run, 7000);
     };
 
-    const initialTimer = setTimeout(runSequence, 2000);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(initialTimer);
-      clearTimeout(idleTimer);
-    };
+    // Delay slightly longer than the camera spring settles (~1.5s) so
+    // the arrow appears after the scene has arrived, not mid-zoom.
+    const initial = setTimeout(run, 2000);
+    return () => { cancelled = true; clearTimeout(initial); clearTimeout(idleTimer); };
   }, [bounceArrow]);
 
   function handleTap() {
@@ -52,38 +47,25 @@ export default function Chair({ onNext }: ChairProps) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleTap();
-    }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTap(); }
   }
 
   return (
+    // Content-only overlay — background is managed by the world camera in Wedding.tsx.
+    // Fade in with a delay so the camera spring has time to zoom in before UI appears.
     <motion.div
-      className="relative w-full h-full overflow-hidden"
-      initial={{ opacity: 0, scale: 1.35 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.94, filter: 'blur(3px)' }}
-      transition={{ duration: 1.05, ease: [0.22, 1, 0.36, 1] }}
+      className="relative w-full h-full"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ delay: 0.55, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
     >
-      {/* Background */}
-      <img
-        src={CHAIR_BG}
-        alt="Wedding venue with chair"
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ objectPosition: 'center 10%' }}
-      />
-
-      <div className="absolute inset-0 bg-black/7" />
-
-      {/* Pulsing warm glow behind chair */}
+      {/* Pulsing warm glow — positioned behind the chair in the artwork */}
       <motion.div
         className="absolute z-[2] rounded-full pointer-events-none"
         style={{
-          width: '52%',
-          paddingBottom: '52%',
-          left: '24%',
-          top: '18%',
+          width: '52%', paddingBottom: '52%',
+          left: '24%', top: '18%',
           background: 'radial-gradient(circle, rgba(201,168,76,0.22) 0%, rgba(201,168,76,0) 70%)',
           filter: 'blur(18px)',
         }}
@@ -91,7 +73,7 @@ export default function Chair({ onNext }: ChairProps) {
         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      {/* Chair hit area — floats + tappable */}
+      {/* Chair hit area — floats gently, covers the full chair */}
       <motion.div
         role="button"
         tabIndex={0}
@@ -99,14 +81,7 @@ export default function Chair({ onNext }: ChairProps) {
         onClick={handleTap}
         onKeyDown={handleKeyDown}
         className="absolute z-[5]"
-        style={{
-          top: '10%',
-          left: '18%',
-          width: '64%',
-          height: '60%',
-          cursor: 'pointer',
-          outline: 'none',
-        }}
+        style={{ top: '10%', left: '18%', width: '64%', height: '60%', cursor: 'pointer', outline: 'none' }}
         animate={tapped ? { scale: 0.98 } : { y: [0, -3, 0] }}
         transition={tapped
           ? { duration: 0.18, ease: 'easeOut' }
@@ -115,7 +90,7 @@ export default function Chair({ onNext }: ChairProps) {
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.98 }}
       >
-        {/* Floral shimmer */}
+        {/* Occasional floral shimmer */}
         <motion.div
           className="absolute inset-0 rounded-sm pointer-events-none"
           style={{
@@ -132,13 +107,7 @@ export default function Chair({ onNext }: ChairProps) {
         {tapped && (
           <motion.div
             className="absolute z-[4] rounded-full pointer-events-none"
-            style={{
-              width: '60%',
-              paddingBottom: '60%',
-              left: '20%',
-              top: '15%',
-              border: '1.5px solid rgba(201,168,76,0.55)',
-            }}
+            style={{ width: '60%', paddingBottom: '60%', left: '20%', top: '15%', border: '1.5px solid rgba(201,168,76,0.55)' }}
             initial={{ opacity: 0.8, scale: 0.6 }}
             animate={{ opacity: 0, scale: 1.4 }}
             exit={{}}
@@ -147,7 +116,7 @@ export default function Chair({ onNext }: ChairProps) {
         )}
       </AnimatePresence>
 
-      {/* Annotation — pill at bottom, arrow above pointing up to chair */}
+      {/* Arrow + glass pill — fades in after camera settles, disappears on tap */}
       <AnimatePresence>
         {!arrowGone && (
           <motion.div
@@ -158,55 +127,20 @@ export default function Chair({ onNext }: ChairProps) {
             exit={{ opacity: 0, transition: { duration: 0.25 } }}
             transition={{ duration: 0.5 }}
           >
-            {/* Curved arrow pointing up toward chair */}
-            <motion.div
-              animate={arrowControls}
-              style={{ marginBottom: 10 }}
-            >
+            <motion.div animate={arrowControls} style={{ marginBottom: 10 }}>
               <svg width="52" height="64" viewBox="0 0 52 64" fill="none">
-                {/* Curved shaft */}
-                <path
-                  d="M26 60 C26 60, 26 36, 26 18"
-                  stroke="#D4AF37"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  fill="none"
-                  filter="url(#glow)"
-                />
-                {/* Arrowhead */}
-                <path
-                  d="M16 28 L26 14 L36 28"
-                  stroke="#D4AF37"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                  filter="url(#glow)"
-                />
+                <path d="M26 60 C26 60, 26 36, 26 18" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round" fill="none" filter="url(#glow)"/>
+                <path d="M16 28 L26 14 L36 28" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" filter="url(#glow)"/>
                 <defs>
                   <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur stdDeviation="2.5" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
+                    <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                   </filter>
                 </defs>
               </svg>
             </motion.div>
-
-            {/* Glass pill instruction */}
             <GlassPill>
-              <span
-                style={{
-                  fontFamily: 'Cormorant Garamond, serif',
-                  fontSize: '18px',
-                  fontWeight: 500,
-                  color: 'rgba(253,249,243,0.92)',
-                  letterSpacing: '0.02em',
-                  textAlign: 'center',
-                }}
-              >
+              <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '18px', fontWeight: 500, color: 'rgba(253,249,243,0.92)', letterSpacing: '0.02em', textAlign: 'center' }}>
                 Tap the chair to claim your seat
               </span>
             </GlassPill>

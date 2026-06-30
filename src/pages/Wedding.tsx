@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import {
+  motion,
+  AnimatePresence,
+  useMotionValue,
+  useSpring,
+  useTransform,
+} from 'framer-motion';
 import Landing from '@/components/wedding/Landing';
 import Abuja from '@/components/wedding/Abuja';
 import Chair from '@/components/wedding/Chair';
@@ -9,7 +15,18 @@ import Confirmation from '@/components/wedding/Confirmation';
 import Regrets from '@/components/wedding/Regrets';
 import { submitRSVP } from '@/lib/supabase';
 
-type Screen =
+// Background images — managed exclusively here, not in child components
+const LANDING_BG = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.appspot.com/o/reference-images%2Fd62d4227-36a4-4315-a204-31d5edd5b01a?alt=media&token=60dd1bf9-31b0-4738-b105-6b2d335fd535';
+const ABUJA_BG   = 'https://storage.googleapis.com/banani-generated-images/generated-images/451cac94-c73a-4eeb-927c-365eeff38b2c.jpg';
+const CHAIR_BG   = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.appspot.com/o/reference-images%2Fee3e746a-48b4-46f7-980b-17b9cac93870?alt=media&token=ddb6776b-257e-49c1-b642-0f32242d8932';
+
+// Camera positions along the journey:
+//   0 = Landing  |  1 = Abuja  |  2 = Chair / form screens
+const CAM_LANDING = 0;
+const CAM_ABUJA   = 1;
+const CAM_CHAIR   = 2;
+
+type ContentPhase =
   | 'landing'
   | 'abuja'
   | 'chair'
@@ -21,95 +38,196 @@ type Screen =
   | 'duplicate';
 
 export default function Wedding() {
-  const [screen, setScreen] = useState<Screen>('landing');
+  const [contentPhase, setContentPhase] = useState<ContentPhase>('landing');
   const [guestName, setGuestName] = useState('');
+
+  // ── SINGLE VIRTUAL CAMERA ─────────────────────────────────────────────────
+  // rawCam jumps immediately; cam (spring) eases into every position.
+  // All world transforms are derived from cam — it never resets.
+  const rawCam = useMotionValue(CAM_LANDING);
+  const cam    = useSpring(rawCam, { stiffness: 75, damping: 20, mass: 1 });
+
+  // LANDING BG — fills the frame at cam=0, zooms away as camera advances
+  const landingOpacity = useTransform(cam, [0, 0.5, 1.3], [1, 0.55, 0]);
+  const landingScale   = useTransform(cam, [0, 2],         [1.0, 1.5]);
+
+  // ABUJA BG — fades in as camera arrives at cam=1, fades out toward cam=2
+  const abujaOpacity = useTransform(cam, [0.2, 0.7, 1.0, 1.6, 2.2], [0, 0, 1, 0.6, 0]);
+  const abujaScale   = useTransform(cam, [0, 1, 2],                  [1.24, 1.0, 1.24]);
+
+  // CHAIR BG — fades in as camera arrives at cam=2; stays for all form screens
+  const chairOpacity = useTransform(cam, [1.2, 1.85, 2.0], [0, 0.35, 1]);
+  const chairScale   = useTransform(cam, [1, 2],            [1.48, 1.0]);
+
+  // GRADIENT OVERLAYS — each follows its corresponding scene
+  // Landing: warm cream from top
+  const landingTopGrad = useTransform(cam, [0, 0.7, 1.4], [1, 0.4, 0]);
+  // Abuja: dark from bottom
+  const abujaGrad      = useTransform(cam, [0.3, 0.8, 1.0, 1.7, 2.2], [0, 0, 1, 0.5, 0]);
+  // Chair + form screens: cream from bottom (makes room for card)
+  const chairGrad      = useTransform(cam, [1.3, 2.0], [0, 1]);
+
+  // ── NAVIGATION ───────────────────────────────────────────────────────────
+  function goTo(phase: ContentPhase, camTarget?: number) {
+    if (camTarget !== undefined) rawCam.set(camTarget);
+    setContentPhase(phase);
+  }
 
   async function handleRSVPSubmit(data: RSVPFormValues, attending: boolean) {
     setGuestName(data.fullName);
     const result = await submitRSVP({
-      full_name: data.fullName,
-      email: data.email,
-      phone: data.phone,
+      full_name:   data.fullName,
+      email:       data.email,
+      phone:       data.phone,
       guest_count: data.guestCount,
       attending,
     });
     if (result.error === 'duplicate') {
-      setScreen('duplicate');
+      goTo('duplicate');
     } else {
-      setScreen(attending ? 'confirmation' : 'regrets');
+      goTo(attending ? 'confirmation' : 'regrets');
     }
   }
 
   return (
-    /*
-     * Outer: full viewport, dark warm background visible on wide screens.
-     * Inner: column capped at 480px, fills 100dvh so absolute children work.
-     */
-    <div
-      className="w-full flex justify-center"
-      style={{ minHeight: '100dvh', background: '#2c2420' }}
-    >
-      <div
-        className="relative w-full overflow-hidden"
-        style={{ maxWidth: '480px', height: '100dvh' }}
-      >
+    <div className="w-full flex justify-center" style={{ minHeight: '100dvh', background: '#2c2420' }}>
+      <div className="relative w-full overflow-hidden" style={{ maxWidth: '480px', height: '100dvh' }}>
+
+        {/* ══ WORLD CAMERA ══════════════════════════════════════════════════ */}
+        {/* All images are always present in the DOM. The spring drives their
+            opacity and scale continuously — the camera never cuts or resets. */}
+
+        {/* Landing background */}
+        <motion.img
+          src={LANDING_BG}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none select-none"
+          style={{ opacity: landingOpacity, scale: landingScale }}
+        />
+        {/* Landing: warm cream top fade */}
+        <motion.div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            opacity: landingTopGrad,
+            background: 'linear-gradient(180deg, rgba(253,249,243,0.92) 0%, rgba(253,249,243,0.8) 35%, rgba(253,249,243,0) 100%)',
+          }}
+        />
+        <motion.div
+          aria-hidden="true"
+          className="absolute bottom-0 left-0 right-0 h-[20%] pointer-events-none"
+          style={{
+            opacity: landingTopGrad,
+            background: 'linear-gradient(0deg, rgba(253,249,243,0.6) 0%, rgba(253,249,243,0) 100%)',
+          }}
+        />
+
+        {/* Abuja background */}
+        <motion.img
+          src={ABUJA_BG}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+          style={{ opacity: abujaOpacity, scale: abujaScale, objectPosition: 'center 40%' }}
+        />
+        {/* Abuja: dark bottom vignette */}
+        <motion.div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            opacity: abujaGrad,
+            background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.72) 100%)',
+          }}
+        />
+
+        {/* Chair background */}
+        <motion.img
+          src={CHAIR_BG}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+          style={{ opacity: chairOpacity, scale: chairScale, objectPosition: 'center 10%' }}
+        />
+        {/* Chair + form: cream bottom gradient (card surface) */}
+        <motion.div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            opacity: chairGrad,
+            background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 38%, rgba(250,245,238,0.7) 58%, rgba(250,245,238,0.97) 76%, rgba(250,245,238,1) 100%)',
+          }}
+        />
+
+        {/* ══ CONTENT LAYER ═════════════════════════════════════════════════ */}
+        {/* Overlaid on the world. Components contain no backgrounds — only
+            UI elements: text, forms, decorations, interactive controls.     */}
         <AnimatePresence mode="sync">
-          {screen === 'landing' && (
-            <div key="landing" className="absolute inset-0">
-              <Landing onNext={() => setScreen('abuja')} />
+
+          {contentPhase === 'landing' && (
+            <div key="landing" className="absolute inset-0 z-10">
+              <Landing onNext={() => goTo('abuja', CAM_ABUJA)} />
             </div>
           )}
-          {screen === 'abuja' && (
-            <div key="abuja" className="absolute inset-0">
-              <Abuja onNext={() => setScreen('chair')} />
+
+          {contentPhase === 'abuja' && (
+            <div key="abuja" className="absolute inset-0 z-10">
+              <Abuja onNext={() => goTo('chair', CAM_CHAIR)} />
             </div>
           )}
-          {screen === 'chair' && (
-            <div key="chair" className="absolute inset-0">
-              <Chair onNext={() => setScreen('rsvp-decision')} />
+
+          {contentPhase === 'chair' && (
+            <div key="chair" className="absolute inset-0 z-10">
+              <Chair onNext={() => goTo('rsvp-decision')} />
             </div>
           )}
-          {screen === 'rsvp-decision' && (
-            <div key="rsvp-decision" className="absolute inset-0">
+
+          {contentPhase === 'rsvp-decision' && (
+            <div key="rsvp-decision" className="absolute inset-0 z-10">
               <RSVPDecision
-                onAttending={() => setScreen('rsvp-form-attending')}
-                onNotAttending={() => setScreen('rsvp-form-regrets')}
-                onClose={() => setScreen('chair')}
+                onAttending={()    => goTo('rsvp-form-attending')}
+                onNotAttending={() => goTo('rsvp-form-regrets')}
+                onClose={()        => goTo('chair')}
               />
             </div>
           )}
-          {screen === 'rsvp-form-attending' && (
-            <div key="rsvp-form-attending" className="absolute inset-0">
+
+          {contentPhase === 'rsvp-form-attending' && (
+            <div key="rsvp-form-attending" className="absolute inset-0 z-10">
               <RSVPForm
                 attending={true}
                 onSubmit={(data) => handleRSVPSubmit(data, true)}
-                onBack={() => setScreen('rsvp-decision')}
+                onBack={() => goTo('rsvp-decision')}
               />
             </div>
           )}
-          {screen === 'rsvp-form-regrets' && (
-            <div key="rsvp-form-regrets" className="absolute inset-0">
+
+          {contentPhase === 'rsvp-form-regrets' && (
+            <div key="rsvp-form-regrets" className="absolute inset-0 z-10">
               <RSVPForm
                 attending={false}
                 onSubmit={(data) => handleRSVPSubmit(data, false)}
-                onBack={() => setScreen('rsvp-decision')}
+                onBack={() => goTo('rsvp-decision')}
               />
             </div>
           )}
-          {screen === 'confirmation' && (
-            <div key="confirmation" className="absolute inset-0">
+
+          {contentPhase === 'confirmation' && (
+            <div key="confirmation" className="absolute inset-0 z-10">
               <Confirmation guestName={guestName} />
             </div>
           )}
-          {screen === 'regrets' && (
-            <div key="regrets" className="absolute inset-0">
+
+          {contentPhase === 'regrets' && (
+            <div key="regrets" className="absolute inset-0 z-10">
               <Regrets guestName={guestName} />
             </div>
           )}
-          {screen === 'duplicate' && (
+
+          {contentPhase === 'duplicate' && (
             <div
               key="duplicate"
-              className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center"
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center px-8 text-center"
               style={{ background: 'rgba(253,249,243,0.97)' }}
             >
               <div
@@ -120,20 +238,15 @@ export default function Wedding() {
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
               </div>
-              <h2
-                className="text-[24px] font-semibold mb-3"
-                style={{ fontFamily: 'Cormorant Garamond, serif', color: '#2c2420' }}
-              >
+              <h2 className="text-[24px] font-semibold mb-3" style={{ fontFamily: 'Cormorant Garamond, serif', color: '#2c2420' }}>
                 We've already received your RSVP.
               </h2>
-              <p
-                className="text-[18px] italic"
-                style={{ fontFamily: 'Cormorant Garamond, serif', color: '#5a4a40' }}
-              >
+              <p className="text-[18px] italic" style={{ fontFamily: 'Cormorant Garamond, serif', color: '#5a4a40' }}>
                 Thank you ❤️
               </p>
             </div>
           )}
+
         </AnimatePresence>
       </div>
     </div>

@@ -6,7 +6,6 @@ interface RegretsProps {
   guestName: string;
 }
 
-const BG = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.appspot.com/o/reference-images%2Fee3e746a-48b4-46f7-980b-17b9cac93870?alt=media&token=ddb6776b-257e-49c1-b642-0f32242d8932';
 
 const cardVariants = {
   hidden: { y: 90, opacity: 0 },
@@ -32,17 +31,12 @@ export default function Regrets({ guestName }: RegretsProps) {
 
   return (
     <motion.div
-      className="relative w-full h-full overflow-hidden flex flex-col justify-end"
+      className="relative w-full h-full flex flex-col justify-end"
       initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <img src={BG} alt="Wedding background" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: 'center 10%' }} />
-      <div
-        className="absolute inset-0"
-        style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 38%, rgba(250,245,238,0.7) 58%, rgba(250,245,238,0.97) 76%, rgba(250,245,238,1) 100%)' }}
-      />
 
       <motion.div
         className="relative z-10 rounded-t-3xl px-6 pt-7 pb-11 shadow-2xl"

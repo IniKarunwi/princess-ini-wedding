@@ -6,22 +6,16 @@ interface RSVPDecisionProps {
   onClose: () => void;
 }
 
-const BG = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.appspot.com/o/reference-images%2Fee3e746a-48b4-46f7-980b-17b9cac93870?alt=media&token=ddb6776b-257e-49c1-b642-0f32242d8932';
 
 export default function RSVPDecision({ onAttending, onNotAttending, onClose }: RSVPDecisionProps) {
   return (
     <motion.div
-      className="relative w-full h-full overflow-hidden flex flex-col justify-end"
+      className="relative w-full h-full flex flex-col justify-end"
       initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3, ease: 'easeInOut' }}
+      transition={{ duration: 0.3 }}
     >
-      <img src={BG} alt="Wedding background" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: 'center 10%' }} />
-      <div
-        className="absolute inset-0"
-        style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 38%, rgba(250,245,238,0.7) 58%, rgba(250,245,238,0.97) 76%, rgba(250,245,238,1) 100%)' }}
-      />
 
       {/* Card */}
       <motion.div
