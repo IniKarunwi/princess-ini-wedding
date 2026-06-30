@@ -163,7 +163,7 @@ export default function Landing({ onNext }: LandingProps) {
               boxShadow: '0 4px 16px rgba(0,0,0,0.13)',
             }}
           >
-            Begin our story
+            Tap Here to Begin
           </div>
           <svg width="48" height="64" viewBox="0 0 48 64" fill="none" style={{ display: 'block', marginRight: 16 }}>
             <path d="M40 4 C42 20, 36 36, 22 50 C14 58, 6 60, 4 62" stroke="#c9a84c" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
