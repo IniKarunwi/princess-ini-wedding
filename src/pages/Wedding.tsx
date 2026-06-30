@@ -9,6 +9,7 @@ import {
 import Landing from '@/components/wedding/Landing';
 import Abuja from '@/components/wedding/Abuja';
 import Chair from '@/components/wedding/Chair';
+import AbujaChairTransition from '@/components/wedding/AbujaChairTransition';
 import RSVPDecision from '@/components/wedding/RSVPDecision';
 import RSVPForm, { RSVPFormValues } from '@/components/wedding/RSVPForm';
 import Confirmation from '@/components/wedding/Confirmation';
@@ -29,6 +30,7 @@ const CAM_CHAIR   = 2;
 type ContentPhase =
   | 'landing'
   | 'abuja'
+  | 'abuja-to-chair'
   | 'chair'
   | 'rsvp-decision'
   | 'rsvp-form-attending'
@@ -172,7 +174,7 @@ export default function Wedding() {
 
           {contentPhase === 'abuja' && (
             <div key="abuja" className="absolute inset-0 z-10">
-              <Abuja onNext={() => goTo('chair', CAM_CHAIR)} />
+              <Abuja onNext={() => goTo('abuja-to-chair', CAM_CHAIR)} />
             </div>
           )}
 
@@ -248,6 +250,14 @@ export default function Wedding() {
           )}
 
         </AnimatePresence>
+
+        {/* Dolly transition — rendered above everything, unmounts on completion */}
+        {contentPhase === 'abuja-to-chair' && (
+          <div className="absolute inset-0 z-20">
+            <AbujaChairTransition onComplete={() => setContentPhase('chair')} />
+          </div>
+        )}
+
       </div>
     </div>
   );
