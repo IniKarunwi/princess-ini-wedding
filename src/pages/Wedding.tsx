@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   motion,
   AnimatePresence,
@@ -52,6 +52,10 @@ export default function Wedding() {
   const [introPhase, setIntroPhase]     = useState<IntroPhase>('loading');
   const [startContent, setStartContent] = useState(false);
 
+  // Abuja content is held until the spring camera has settled at cam≈1
+  const [abujaContentReady, setAbujaContentReady] = useState(false);
+  const abujaReadyFiredRef = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -92,31 +96,64 @@ export default function Wedding() {
     return () => { cancelled = true; };
   }, []);
 
+  // Fire once when the spring settles at the Abuja position so content
+  // never appears while the camera is still moving.
+  useEffect(() => {
+    if (contentPhase !== 'abuja') {
+      setAbujaContentReady(false);
+      return;
+    }
+    abujaReadyFiredRef.current = false;
+
+    const unsub = cam.on('change', (v: number) => {
+      if (v >= 0.95 && !abujaReadyFiredRef.current) {
+        abujaReadyFiredRef.current = true;
+        setAbujaContentReady(true);
+        unsub();
+      }
+    });
+    return unsub;
+  // cam is a stable MotionValue reference — intentionally omitted from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentPhase]);
+
   // ── SINGLE VIRTUAL CAMERA ─────────────────────────────────────────────────
   // rawCam jumps immediately; cam (spring) eases into every position.
   // All world transforms are derived from cam — it never resets.
+  //
+  // Spring tuned to ~1.8s travel for the Landing→Abuja drone shot:
+  //   stiffness=30, damping=14  →  ζ≈1.28 (overdamped, no bounce)
+  //   cam reaches 0.95 at ≈1.5s, 0.99 at ≈2.0s (within spec's 1.8–2.5s window)
   const rawCam = useMotionValue(CAM_LANDING);
-  const cam    = useSpring(rawCam, { stiffness: 75, damping: 20, mass: 1 });
+  const cam    = useSpring(rawCam, { stiffness: 30, damping: 14, mass: 1 });
 
-  // LANDING BG — fills the frame at cam=0, zooms away as camera advances
-  const landingOpacity = useTransform(cam, [0, 0.5, 1.3], [1, 0.55, 0]);
-  const landingScale   = useTransform(cam, [0, 2],         [1.0, 1.5]);
+  // ── LANDING BG ──────────────────────────────────────────────────────────────
+  // Camera pushes aggressively toward the dome (1× → 3.8×) as it rises (-6% y).
+  // Opacity stays full until the scene is deeply zoomed (cam 0.62), then fades
+  // rapidly — the tight zoom hides the crossfade with the Abuja image.
+  const landingScale   = useTransform(cam, [0, 1.0],                    [1.0, 3.8]);
+  const landingY       = useTransform(cam, [0, 1.0],                    ['0%', '-6%']);
+  const landingOpacity = useTransform(cam, [0, 0.62, 0.88, 1.05],       [1, 1, 0.15, 0]);
 
-  // ABUJA BG — fades in as camera arrives at cam=1, fades out toward cam=2
-  const abujaOpacity = useTransform(cam, [0.2, 0.7, 1.0, 1.6, 2.2], [0, 0, 1, 0.6, 0]);
-  const abujaScale   = useTransform(cam, [0, 1, 2],                  [1.24, 1.0, 1.24]);
+  // Landing cream overlays — fade early so they don't fight the zoom
+  const landingTopGrad = useTransform(cam, [0, 0.28, 0.52],             [1, 0.15, 0]);
 
-  // CHAIR BG — fades in as camera arrives at cam=2; stays for all form screens
+  // ── ABUJA BG ────────────────────────────────────────────────────────────────
+  // Enters at 2.2× zoom (matching the tight zoom-in on the dome) and decelerates
+  // to 1× — the illusion of one continuous camera rising over the dome and
+  // settling into the aerial view.
+  const abujaScale   = useTransform(cam, [0.55, 1.0, 2],                [2.2, 1.0, 1.24]);
+  const abujaY       = useTransform(cam, [0.55, 1.0],                   ['4%', '0%']);
+  const abujaOpacity = useTransform(cam, [0.55, 0.82, 1.0, 1.6, 2.2],  [0, 0.8, 1, 0.5, 0]);
+  const abujaGrad    = useTransform(cam, [0.65, 0.9, 1.0, 1.7, 2.2],   [0, 0, 1, 0.5, 0]);
+
+  // ── CHAIR BG ────────────────────────────────────────────────────────────────
+  // Fades in as camera arrives at cam=2; stays for all form screens
   const chairOpacity = useTransform(cam, [1.2, 1.85, 2.0], [0, 0.35, 1]);
   const chairScale   = useTransform(cam, [1, 2],            [1.48, 1.0]);
 
-  // GRADIENT OVERLAYS — each follows its corresponding scene
-  // Landing: warm cream from top
-  const landingTopGrad = useTransform(cam, [0, 0.7, 1.4], [1, 0.4, 0]);
-  // Abuja: dark from bottom
-  const abujaGrad      = useTransform(cam, [0.3, 0.8, 1.0, 1.7, 2.2], [0, 0, 1, 0.5, 0]);
   // Chair + form screens: cream from bottom (makes room for card)
-  const chairGrad      = useTransform(cam, [1.3, 2.0], [0, 1]);
+  const chairGrad = useTransform(cam, [1.3, 2.0], [0, 1]);
 
   // ── NAVIGATION ───────────────────────────────────────────────────────────
   function goTo(phase: ContentPhase, camTarget?: number) {
@@ -148,15 +185,15 @@ export default function Wedding() {
         {/* All images are always present in the DOM. The spring drives their
             opacity and scale continuously — the camera never cuts or resets. */}
 
-        {/* Landing background */}
+        {/* Landing background — zooms toward the dome as camera advances */}
         <motion.img
           src={LANDING_BG}
           alt=""
           aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none select-none"
-          style={{ opacity: landingOpacity, scale: landingScale }}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+          style={{ opacity: landingOpacity, scale: landingScale, y: landingY, objectPosition: 'center 30%' }}
         />
-        {/* Landing: warm cream top fade */}
+        {/* Landing cream overlays — fade out before the zoom gets tight */}
         <motion.div
           aria-hidden="true"
           className="absolute inset-0 pointer-events-none"
@@ -174,13 +211,13 @@ export default function Wedding() {
           }}
         />
 
-        {/* Abuja background */}
+        {/* Abuja background — enters zoomed (continuing drone motion), settles to aerial */}
         <motion.img
           src={ABUJA_BG}
           alt=""
           aria-hidden="true"
           className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-          style={{ opacity: abujaOpacity, scale: abujaScale, objectPosition: 'center 40%' }}
+          style={{ opacity: abujaOpacity, scale: abujaScale, y: abujaY, objectPosition: 'center 40%' }}
         />
         {/* Abuja: dark bottom vignette */}
         <motion.div
@@ -244,7 +281,7 @@ export default function Wedding() {
             </div>
           )}
 
-          {contentPhase === 'abuja' && (
+          {contentPhase === 'abuja' && abujaContentReady && (
             <div key="abuja" className="absolute inset-0 z-10">
               <Abuja onNext={() => goTo('abuja-to-chair', CAM_CHAIR)} />
             </div>
