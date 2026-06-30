@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import Landing from '@/components/wedding/Landing';
 import Abuja from '@/components/wedding/Abuja';
-import Venue from '@/components/wedding/Venue';
 import Chair from '@/components/wedding/Chair';
 import RSVPDecision from '@/components/wedding/RSVPDecision';
 import RSVPForm, { RSVPFormValues } from '@/components/wedding/RSVPForm';
@@ -13,7 +12,6 @@ import { submitRSVP } from '@/lib/supabase';
 type Screen =
   | 'landing'
   | 'abuja'
-  | 'venue'
   | 'chair'
   | 'rsvp-decision'
   | 'rsvp-form-attending'
@@ -63,12 +61,7 @@ export default function Wedding() {
           )}
           {screen === 'abuja' && (
             <div key="abuja" className="absolute inset-0">
-              <Abuja onNext={() => setScreen('venue')} />
-            </div>
-          )}
-          {screen === 'venue' && (
-            <div key="venue" className="absolute inset-0">
-              <Venue onNext={() => setScreen('chair')} />
+              <Abuja onNext={() => setScreen('chair')} />
             </div>
           )}
           {screen === 'chair' && (

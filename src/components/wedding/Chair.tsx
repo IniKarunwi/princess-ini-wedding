@@ -10,10 +10,10 @@ export default function Chair({ onNext }: ChairProps) {
   return (
     <motion.div
       className="relative w-full h-full overflow-hidden"
-      initial={{ opacity: 0, scale: 1.1 }}
+      initial={{ opacity: 0, scale: 1.35 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.8 }}
+      transition={{ duration: 1.0, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
       <motion.img
         src={CHAIR_BG}
