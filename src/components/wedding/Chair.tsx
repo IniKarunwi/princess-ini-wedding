@@ -1,4 +1,5 @@
-import { motion } from 'framer-motion';
+import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 interface ChairProps {
   onNext: () => void;
@@ -7,6 +8,56 @@ interface ChairProps {
 const CHAIR_BG = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.appspot.com/o/reference-images%2Fee3e746a-48b4-46f7-980b-17b9cac93870?alt=media&token=ddb6776b-257e-49c1-b642-0f32242d8932';
 
 export default function Chair({ onNext }: ChairProps) {
+  const [arrowVisible, setArrowVisible] = useState(false);
+  const [arrowGone, setArrowGone] = useState(false);
+  const [tapped, setTapped] = useState(false);
+  const arrowControls = useAnimation();
+
+  const bounceArrow = useCallback(async () => {
+    for (let i = 0; i < 3; i++) {
+      await arrowControls.start({ y: [0, -6, 0], transition: { duration: 0.55, ease: 'easeInOut' } });
+      await new Promise(r => setTimeout(r, 180));
+    }
+  }, [arrowControls]);
+
+  // Fade in after 2s, then bounce 3 times; repeat every 6–8s if not interacted
+  useEffect(() => {
+    let cancelled = false;
+    let idleTimer: ReturnType<typeof setTimeout>;
+
+    const runSequence = async () => {
+      if (cancelled) return;
+      setArrowVisible(true);
+      await new Promise(r => setTimeout(r, 400)); // wait for fade-in
+      if (cancelled) return;
+      await bounceArrow();
+      if (cancelled) return;
+      idleTimer = setTimeout(runSequence, 7000);
+    };
+
+    const initialTimer = setTimeout(runSequence, 2000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(initialTimer);
+      clearTimeout(idleTimer);
+    };
+  }, [bounceArrow]);
+
+  function handleTap() {
+    if (tapped) return;
+    setTapped(true);
+    setArrowGone(true);
+    onNext();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleTap();
+    }
+  }
+
   return (
     <motion.div
       className="relative w-full h-full overflow-hidden"
@@ -15,65 +66,125 @@ export default function Chair({ onNext }: ChairProps) {
       exit={{ opacity: 0 }}
       transition={{ duration: 1.0, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
-      <motion.img
+      {/* Background */}
+      <img
         src={CHAIR_BG}
         alt="Wedding venue with chair"
         className="absolute inset-0 w-full h-full object-cover"
         style={{ objectPosition: 'center 10%' }}
-        animate={{ scale: [1, 1.04], y: [0, -6, 0] }}
-        transition={{ duration: 10, ease: 'easeInOut', repeat: Infinity, repeatType: 'reverse' }}
       />
 
       <div className="absolute inset-0 bg-black/7" />
 
-      {/* Claim seat annotation */}
-      <motion.button
-        onClick={onNext}
-        className="absolute z-10"
-        style={{ top: '24%', left: '50%', transform: 'translateX(-50%)' }}
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <div className="flex flex-col items-center">
-          <div
-            className="rounded-[20px] px-6 py-[9px] text-[15px] font-semibold italic whitespace-nowrap mb-0.5"
-            style={{
-              fontFamily: 'Cormorant Garamond, serif',
-              background: 'rgba(253,249,243,0.96)',
-              border: '1.5px solid #e8d5a3',
-              color: '#2c2420',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-            }}
-          >
-            Claim My Seat
-          </div>
-          <svg width="32" height="48" viewBox="0 0 32 48" fill="none" style={{ display: 'block', marginTop: 2 }}>
-            <path d="M16 3 C16 3, 4 14, 4 28 C4 38, 12 43, 18 44" stroke="#c9a84c" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-            <path d="M12 40 L18 46 L24 41" stroke="#c9a84c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          </svg>
-        </div>
-      </motion.button>
-
-      {/* Bottom hint */}
+      {/* Soft warm glow behind chair — pulsing */}
       <motion.div
-        className="absolute bottom-[38px] left-1/2 z-10 flex items-center gap-1.5 rounded-full px-[18px] py-[9px] whitespace-nowrap shadow-md"
-        style={{ transform: 'translateX(-50%)', background: 'rgba(253,249,243,0.92)' }}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.7 }}
+        className="absolute z-[2] rounded-full pointer-events-none"
+        style={{
+          width: '52%',
+          paddingBottom: '52%',
+          left: '24%',
+          top: '18%',
+          background: 'radial-gradient(circle, rgba(201,168,76,0.22) 0%, rgba(201,168,76,0) 70%)',
+          filter: 'blur(18px)',
+        }}
+        animate={{ opacity: [0.5, 1, 0.5] }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Chair hit area — floats + tappable */}
+      <motion.div
+        role="button"
+        tabIndex={0}
+        aria-label="Claim My Seat"
+        onClick={handleTap}
+        onKeyDown={handleKeyDown}
+        className="absolute z-[5]"
+        style={{
+          top: '10%',
+          left: '18%',
+          width: '64%',
+          height: '60%',
+          cursor: 'pointer',
+          outline: 'none',
+        }}
+        // Floating idle
+        animate={tapped ? { scale: 0.98 } : { y: [0, -3, 0] }}
+        transition={tapped
+          ? { duration: 0.18, ease: 'easeOut' }
+          : { duration: 5.5, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }
+        }
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.98 }}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/>
-        </svg>
-        <span
-          className="text-[13px] font-medium"
-          style={{ fontFamily: 'Cormorant Garamond, serif', color: '#5a4a40' }}
-        >
-          Tap the chair to RSVP
-        </span>
+        {/* Floral shimmer overlay */}
+        <motion.div
+          className="absolute inset-0 rounded-sm pointer-events-none"
+          style={{
+            background: 'linear-gradient(135deg, rgba(255,245,210,0) 30%, rgba(255,245,210,0.18) 50%, rgba(255,245,210,0) 70%)',
+            backgroundSize: '200% 200%',
+          }}
+          animate={{ backgroundPosition: ['200% 200%', '-50% -50%', '200% 200%'] }}
+          transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut', repeatDelay: 1 }}
+        />
       </motion.div>
+
+      {/* Tap ripple on interact */}
+      <AnimatePresence>
+        {tapped && (
+          <motion.div
+            className="absolute z-[4] rounded-full pointer-events-none"
+            style={{
+              width: '60%',
+              paddingBottom: '60%',
+              left: '20%',
+              top: '15%',
+              border: '1.5px solid rgba(201,168,76,0.55)',
+            }}
+            initial={{ opacity: 0.8, scale: 0.6 }}
+            animate={{ opacity: 0, scale: 1.4 }}
+            exit={{}}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Arrow + hint — fades in after 2s, disappears on tap */}
+      <AnimatePresence>
+        {!arrowGone && (
+          <motion.div
+            className="absolute z-[6] flex flex-col items-center pointer-events-none"
+            style={{ bottom: '26%', left: '50%', transform: 'translateX(-50%)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: arrowVisible ? 1 : 0 }}
+            exit={{ opacity: 0, transition: { duration: 0.3 } }}
+            transition={{ duration: 0.5 }}
+          >
+            {/* Upward-pointing arrow toward the chair */}
+            <motion.div animate={arrowControls}>
+              <svg width="22" height="28" viewBox="0 0 22 28" fill="none">
+                <path
+                  d="M11 26 L11 4 M4 11 L11 4 L18 11"
+                  stroke="#c9a84c"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="0.85"
+                />
+              </svg>
+            </motion.div>
+            <span
+              className="mt-1 text-[12px] italic whitespace-nowrap"
+              style={{
+                fontFamily: 'Cormorant Garamond, serif',
+                color: 'rgba(253,249,243,0.78)',
+                letterSpacing: '0.04em',
+              }}
+            >
+              Tap the chair to claim your seat
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
