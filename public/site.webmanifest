@@ -1,0 +1,28 @@
+{
+  "name": "Princess & IniOluwa — Wedding RSVP",
+  "short_name": "P & I Wedding",
+  "description": "You're invited to the wedding of Princess & IniOluwa, September 26, 2026, Asokoro, Abuja.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1b3829",
+  "theme_color": "#2e5e40",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
