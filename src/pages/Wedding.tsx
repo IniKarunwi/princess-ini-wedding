@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   motion,
   AnimatePresence,
@@ -39,9 +39,58 @@ type ContentPhase =
   | 'regrets'
   | 'duplicate';
 
+// ─ intro phase ───────────────────────────────────────────────────────────────
+// 'loading'   – image not yet ready, black screen shown
+// 'revealing' – image decoded, fade-in + blur-sharpen running (~1.1s)
+// 'done'      – intro layer unmounts; world camera bg takes over seamlessly
+type IntroPhase = 'loading' | 'revealing' | 'done';
+
 export default function Wedding() {
   const [contentPhase, setContentPhase] = useState<ContentPhase>('landing');
   const [guestName, setGuestName] = useState('');
+
+  const [introPhase, setIntroPhase]     = useState<IntroPhase>('loading');
+  const [startContent, setStartContent] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Respect prefers-reduced-motion: skip the whole intro sequence
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setIntroPhase('done');
+      setStartContent(true);
+      return;
+    }
+
+    const run = () => {
+      if (cancelled) return;
+      // 200ms black hold, then reveal
+      setTimeout(() => {
+        if (cancelled) return;
+        setIntroPhase('revealing');
+
+        // bg fade takes 1 100ms, then 300ms settle before content starts
+        setTimeout(() => {
+          if (cancelled) return;
+          setStartContent(true);
+          setIntroPhase('done');
+        }, 1100 + 300);
+      }, 200);
+    };
+
+    const img = new window.Image();
+    img.onload = () => {
+      if (img.decode) {
+        img.decode().then(run).catch(run);
+      } else {
+        run();
+      }
+    };
+    img.onerror = run; // never block on a failed load
+    img.src = LANDING_BG;
+
+    return () => { cancelled = true; };
+  }, []);
 
   // ── SINGLE VIRTUAL CAMERA ─────────────────────────────────────────────────
   // rawCam jumps immediately; cam (spring) eases into every position.
@@ -161,6 +210,29 @@ export default function Wedding() {
           }}
         />
 
+        {/* ══ CINEMATIC INTRO LAYER ════════════════════════════════════════ */}
+        {/* Sits above world camera, below content. Black screen → bg fade-in
+            with push-in and blur-sharpen. Unmounts the instant the world
+            camera bg (same image, already at steady state) takes over.     */}
+        {introPhase !== 'done' && (
+          <div
+            className="absolute inset-0 z-[5] pointer-events-none"
+            style={{ background: '#050201' }}
+          >
+            <motion.img
+              src={LANDING_BG}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover object-top select-none"
+              initial={{ opacity: 0, scale: 1.03, filter: 'blur(8px)' }}
+              animate={introPhase === 'revealing'
+                ? { opacity: 1, scale: 1.0, filter: 'blur(0px)' }
+                : { opacity: 0, scale: 1.03, filter: 'blur(8px)' }}
+              transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+            />
+          </div>
+        )}
+
         {/* ══ CONTENT LAYER ═════════════════════════════════════════════════ */}
         {/* Overlaid on the world. Components contain no backgrounds — only
             UI elements: text, forms, decorations, interactive controls.     */}
@@ -168,7 +240,7 @@ export default function Wedding() {
 
           {contentPhase === 'landing' && (
             <div key="landing" className="absolute inset-0 z-10">
-              <Landing onNext={() => goTo('abuja', CAM_ABUJA)} />
+              <Landing onNext={() => goTo('abuja', CAM_ABUJA)} startContent={startContent} />
             </div>
           )}
 
