@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import GlassPill from './GlassPill';
 
 interface ChairProps {
   onNext: () => void;
@@ -15,12 +16,11 @@ export default function Chair({ onNext }: ChairProps) {
 
   const bounceArrow = useCallback(async () => {
     for (let i = 0; i < 3; i++) {
-      await arrowControls.start({ y: [0, -6, 0], transition: { duration: 0.55, ease: 'easeInOut' } });
-      await new Promise(r => setTimeout(r, 180));
+      await arrowControls.start({ y: [0, -10, 0], transition: { duration: 0.5, ease: 'easeInOut' } });
+      await new Promise(r => setTimeout(r, 200));
     }
   }, [arrowControls]);
 
-  // Fade in after 2s, then bounce 3 times; repeat every 6–8s if not interacted
   useEffect(() => {
     let cancelled = false;
     let idleTimer: ReturnType<typeof setTimeout>;
@@ -28,7 +28,7 @@ export default function Chair({ onNext }: ChairProps) {
     const runSequence = async () => {
       if (cancelled) return;
       setArrowVisible(true);
-      await new Promise(r => setTimeout(r, 400)); // wait for fade-in
+      await new Promise(r => setTimeout(r, 500));
       if (cancelled) return;
       await bounceArrow();
       if (cancelled) return;
@@ -76,7 +76,7 @@ export default function Chair({ onNext }: ChairProps) {
 
       <div className="absolute inset-0 bg-black/7" />
 
-      {/* Soft warm glow behind chair — pulsing */}
+      {/* Pulsing warm glow behind chair */}
       <motion.div
         className="absolute z-[2] rounded-full pointer-events-none"
         style={{
@@ -107,7 +107,6 @@ export default function Chair({ onNext }: ChairProps) {
           cursor: 'pointer',
           outline: 'none',
         }}
-        // Floating idle
         animate={tapped ? { scale: 0.98 } : { y: [0, -3, 0] }}
         transition={tapped
           ? { duration: 0.18, ease: 'easeOut' }
@@ -116,7 +115,7 @@ export default function Chair({ onNext }: ChairProps) {
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.98 }}
       >
-        {/* Floral shimmer overlay */}
+        {/* Floral shimmer */}
         <motion.div
           className="absolute inset-0 rounded-sm pointer-events-none"
           style={{
@@ -128,7 +127,7 @@ export default function Chair({ onNext }: ChairProps) {
         />
       </motion.div>
 
-      {/* Tap ripple on interact */}
+      {/* Tap ripple */}
       <AnimatePresence>
         {tapped && (
           <motion.div
@@ -148,40 +147,69 @@ export default function Chair({ onNext }: ChairProps) {
         )}
       </AnimatePresence>
 
-      {/* Arrow + hint — fades in after 2s, disappears on tap */}
+      {/* Annotation — pill at bottom, arrow above pointing up to chair */}
       <AnimatePresence>
         {!arrowGone && (
           <motion.div
             className="absolute z-[6] flex flex-col items-center pointer-events-none"
-            style={{ bottom: '26%', left: '50%', transform: 'translateX(-50%)' }}
+            style={{ bottom: '28px', left: '50%', transform: 'translateX(-50%)', width: '90%' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: arrowVisible ? 1 : 0 }}
-            exit={{ opacity: 0, transition: { duration: 0.3 } }}
+            exit={{ opacity: 0, transition: { duration: 0.25 } }}
             transition={{ duration: 0.5 }}
           >
-            {/* Upward-pointing arrow toward the chair */}
-            <motion.div animate={arrowControls}>
-              <svg width="22" height="28" viewBox="0 0 22 28" fill="none">
+            {/* Curved arrow pointing up toward chair */}
+            <motion.div
+              animate={arrowControls}
+              style={{ marginBottom: 10 }}
+            >
+              <svg width="52" height="64" viewBox="0 0 52 64" fill="none">
+                {/* Curved shaft */}
                 <path
-                  d="M11 26 L11 4 M4 11 L11 4 L18 11"
-                  stroke="#c9a84c"
-                  strokeWidth="2"
+                  d="M26 60 C26 60, 26 36, 26 18"
+                  stroke="#D4AF37"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  fill="none"
+                  filter="url(#glow)"
+                />
+                {/* Arrowhead */}
+                <path
+                  d="M16 28 L26 14 L36 28"
+                  stroke="#D4AF37"
+                  strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity="0.85"
+                  fill="none"
+                  filter="url(#glow)"
                 />
+                <defs>
+                  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="2.5" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
               </svg>
             </motion.div>
-            <span
-              className="mt-1 text-[12px] italic whitespace-nowrap"
-              style={{
-                fontFamily: 'Cormorant Garamond, serif',
-                color: 'rgba(253,249,243,0.78)',
-                letterSpacing: '0.04em',
-              }}
-            >
-              Tap the chair to claim your seat
-            </span>
+
+            {/* Glass pill instruction */}
+            <GlassPill>
+              <span
+                style={{
+                  fontFamily: 'Cormorant Garamond, serif',
+                  fontSize: '18px',
+                  fontWeight: 500,
+                  color: 'rgba(253,249,243,0.92)',
+                  letterSpacing: '0.02em',
+                  textAlign: 'center',
+                }}
+              >
+                Tap the chair to claim your seat
+              </span>
+            </GlassPill>
           </motion.div>
         )}
       </AnimatePresence>
