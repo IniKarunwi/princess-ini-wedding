@@ -1,73 +1,67 @@
-# Welcome to your Lovable project
+# Princess & IniOluwa — Wedding RSVP
 
-## Project info
+An interactive, mobile-first wedding invitation and RSVP experience for the wedding of Princess & IniOluwa on **September 26, 2026** in Asokoro, Abuja.
 
-**URL**: https://lovable.dev/projects/0b249193-8afd-40d2-98f2-b804ce5809c5
+## What it does
 
-## How can I edit this code?
+Guests land on an animated storybook-style digital invitation that walks through the story of the day — location reveal, venue preview, chair-claim interaction — before arriving at the RSVP form. Responses are stored in Supabase; duplicate submissions (same email) are detected gracefully.
 
-There are several ways of editing your application.
+**Screens**
 
-**Use Lovable**
+1. Landing — illustrated invitation with names and date
+2. Abuja reveal — "It's happening in Abuja"
+3. Venue — wide-angle hall view
+4. Chair — tap-to-RSVP interaction
+5. RSVP decision — attending / not attending choice
+6. RSVP form — name, email, phone (optional), guest count
+7. Confirmation — confetti + calendar invite link
+8. Regrets — warm send-off with registry link
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0b249193-8afd-40d2-98f2-b804ce5809c5) and start prompting.
+## Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+- **React 18 + TypeScript** via Vite
+- **Framer Motion** — screen transitions and particle animations
+- **Tailwind CSS** + shadcn/ui primitives
+- **react-hook-form** + Zod — form validation
+- **Supabase** — RSVP persistence (optional; app works without it)
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Getting started
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm install
+npm run dev        # starts at http://localhost:8080
 ```
 
-**Edit a file directly in GitHub**
+Visit `/wedding` to see the invitation flow.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Environment variables
 
-**Use GitHub Codespaces**
+Create a `.env.local` file to enable Supabase persistence:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
 
-## What technologies are used for this project?
+Without these the app runs in no-op mode — the RSVP form submits but nothing is saved.
 
-This project is built with:
+## Supabase schema
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```sql
+create table rsvps (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  email text not null unique,
+  phone text,
+  guest_count integer not null default 1,
+  attending boolean not null,
+  created_at timestamptz not null default now()
+);
+```
 
-## How can I deploy this project?
+## Build
 
-Simply open [Lovable](https://lovable.dev/projects/0b249193-8afd-40d2-98f2-b804ce5809c5) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```sh
+npm run build      # output in dist/
+npm run preview    # preview the production build locally
+```
