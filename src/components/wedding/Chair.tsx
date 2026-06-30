@@ -63,8 +63,8 @@ export default function Chair({ onNext }: ChairProps) {
       className="relative w-full h-full overflow-hidden"
       initial={{ opacity: 0, scale: 1.35 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 1.0, ease: [0.25, 0.46, 0.45, 0.94] }}
+      exit={{ opacity: 0, scale: 0.94, filter: 'blur(3px)' }}
+      transition={{ duration: 1.05, ease: [0.22, 1, 0.36, 1] }}
     >
       {/* Background */}
       <img

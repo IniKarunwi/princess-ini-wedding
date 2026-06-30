@@ -19,10 +19,10 @@ export default function Abuja({ onNext }: AbujaProps) {
   return (
     <motion.div
       className="relative w-full h-full overflow-hidden"
-      initial={{ opacity: 0, scale: 1.08 }}
+      initial={{ opacity: 0, scale: 1.2 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 1.1 }}
-      transition={{ duration: 0.8 }}
+      exit={{ opacity: 0, scale: 1.16 }}
+      transition={{ duration: 1.05, ease: [0.22, 1, 0.36, 1] }}
     >
       <motion.img
         src={ABUJA_BG}

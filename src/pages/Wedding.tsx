@@ -53,7 +53,7 @@ export default function Wedding() {
         className="relative w-full overflow-hidden"
         style={{ maxWidth: '480px', height: '100dvh' }}
       >
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="sync">
           {screen === 'landing' && (
             <div key="landing" className="absolute inset-0">
               <Landing onNext={() => setScreen('abuja')} />

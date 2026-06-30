@@ -12,8 +12,8 @@ export default function Landing({ onNext }: LandingProps) {
       className="relative w-full h-full overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 1.08 }}
-      transition={{ duration: 0.7 }}
+      exit={{ opacity: 0, scale: 1.14 }}
+      transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
     >
       {/* Background */}
       <motion.img

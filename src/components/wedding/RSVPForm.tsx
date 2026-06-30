@@ -48,7 +48,7 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.35, ease: 'easeInOut' }}
     >
       <img src={BG} alt="Wedding background" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: 'center 10%' }} />
       <div
@@ -59,9 +59,10 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
       <motion.div
         className="relative z-10 rounded-t-3xl shadow-2xl overflow-y-auto max-h-[88%]"
         style={{ background: 'linear-gradient(180deg, rgba(255,247,242,0.98) 0%, rgba(255,248,244,0.99) 100%)' }}
-        initial={{ y: 60, opacity: 0 }}
+        initial={{ y: 90, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2, duration: 0.5, type: 'spring', damping: 20 }}
+        exit={{ y: 80, opacity: 0 }}
+        transition={{ delay: 0.15, duration: 0.65, type: 'spring', damping: 26, stiffness: 190 }}
       >
         <div className="px-[22px] pt-[26px] pb-7">
           <p

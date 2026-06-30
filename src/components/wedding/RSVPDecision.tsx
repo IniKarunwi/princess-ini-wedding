@@ -12,10 +12,10 @@ export default function RSVPDecision({ onAttending, onNotAttending, onClose }: R
   return (
     <motion.div
       className="relative w-full h-full overflow-hidden flex flex-col justify-end"
-      initial={{ opacity: 0 }}
+      initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.3, ease: 'easeInOut' }}
     >
       <img src={BG} alt="Wedding background" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: 'center 10%' }} />
       <div
@@ -27,9 +27,10 @@ export default function RSVPDecision({ onAttending, onNotAttending, onClose }: R
       <motion.div
         className="relative z-10 rounded-t-3xl px-6 pb-11 pt-7 shadow-2xl"
         style={{ background: 'rgba(253,249,243,0.97)' }}
-        initial={{ y: 60, opacity: 0 }}
+        initial={{ y: 90, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2, duration: 0.5, type: 'spring', damping: 20 }}
+        exit={{ y: 80, opacity: 0 }}
+        transition={{ delay: 0.08, duration: 0.65, type: 'spring', damping: 26, stiffness: 190 }}
       >
         {/* Close button */}
         <button
