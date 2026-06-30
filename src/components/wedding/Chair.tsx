@@ -30,7 +30,7 @@ export default function Chair({ onNext }: ChairProps) {
       <motion.button
         onClick={onNext}
         className="absolute z-10"
-        style={{ top: '22%', left: '58%', transform: 'translateX(-50%)' }}
+        style={{ top: '24%', left: '50%', transform: 'translateX(-50%)' }}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}

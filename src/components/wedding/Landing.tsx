@@ -146,7 +146,7 @@ export default function Landing({ onNext }: LandingProps) {
       <motion.button
         onClick={onNext}
         className="absolute z-10 right-5"
-        style={{ top: '50%', transform: 'translateY(-50%)' }}
+        style={{ top: '56%', transform: 'translateY(-50%)' }}
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 0.8, duration: 0.6 }}
