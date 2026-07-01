@@ -95,7 +95,7 @@ export default function Chair({ onNext, cameraReady }: ChairProps) {
         {arrowVisible && !tapped && (
           <motion.div
             className="absolute z-[6] flex flex-col items-center pointer-events-none"
-            style={{ bottom: 36, left: '50%', transform: 'translateX(-50%)', width: '90%' }}
+            style={{ bottom: 36, left: 0, right: 0, width: '90%', marginLeft: 'auto', marginRight: 'auto' }}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, transition: { duration: 0.2 } }}
