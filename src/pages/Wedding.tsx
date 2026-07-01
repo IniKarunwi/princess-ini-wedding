@@ -168,8 +168,10 @@ export default function Wedding() {
   const chairOpacity = useTransform(cam, [1.2, 1.85, 2.0], [0, 0.35, 1]);
   const chairScale   = useTransform(cam, [1, 2],            [1.48, 1.0]);
 
-  // Chair + form screens: cream from bottom (makes room for card)
-  const chairGrad = useTransform(cam, [1.3, 2.0], [0, 1]);
+  // Chair + form screens: very subtle warm charcoal dim (8–10%) so the
+  // illustration stays fully visible while providing a touch of atmosphere.
+  // No white wash — the GlassPill UI elements supply their own contrast.
+  const chairDim = useTransform(cam, [1.3, 2.0], [0, 1]);
 
   // ── NAVIGATION ───────────────────────────────────────────────────────────
   function goTo(phase: ContentPhase, camTarget?: number) {
@@ -278,13 +280,13 @@ export default function Wedding() {
           }}
         />
 
-        {/* Chair + form: cream bottom gradient (card surface) */}
+        {/* Chair + form: subtle warm charcoal dim — preserves illustration colours */}
         <motion.div
           aria-hidden="true"
           className="absolute inset-0 pointer-events-none"
           style={{
-            opacity: chairGrad,
-            background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 38%, rgba(250,245,238,0.7) 58%, rgba(250,245,238,0.97) 76%, rgba(250,245,238,1) 100%)',
+            opacity: chairDim,
+            background: 'rgba(28, 24, 20, 0.09)',
           }}
         />
 
