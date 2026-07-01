@@ -1,9 +1,8 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
-import RegistryModal from './RegistryModal';
 
 interface RegretsProps {
   guestName: string;
+  onRegistry: () => void;
 }
 
 
@@ -13,6 +12,11 @@ const cardVariants = {
     y: 0,
     opacity: 1,
     transition: { delay: 0.08, duration: 0.65, type: 'spring' as const, damping: 26, stiffness: 190 },
+  },
+  exit: {
+    y: 60,
+    opacity: 0,
+    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as number[] },
   },
 };
 
@@ -26,9 +30,7 @@ const staggerContainer = {
   visible: { transition: { staggerChildren: 0.09, delayChildren: 0.35 } },
 };
 
-export default function Regrets({ guestName }: RegretsProps) {
-  const [registryOpen, setRegistryOpen] = useState(false);
-
+export default function Regrets({ guestName, onRegistry }: RegretsProps) {
   return (
     <motion.div
       className="relative w-full h-full flex flex-col justify-end"
@@ -44,6 +46,7 @@ export default function Regrets({ guestName }: RegretsProps) {
         variants={cardVariants}
         initial="hidden"
         animate="visible"
+        exit="exit"
       >
         <motion.div variants={staggerContainer} initial="hidden" animate="visible">
           {/* Heart icon */}
@@ -88,7 +91,7 @@ export default function Regrets({ guestName }: RegretsProps) {
           </motion.p>
 
           <motion.button
-            onClick={() => setRegistryOpen(true)}
+            onClick={onRegistry}
             className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-full text-[16px] font-medium transition-opacity hover:opacity-80"
             style={{ fontFamily: 'Cormorant Garamond, serif', background: 'rgba(253,249,243,0.9)', color: '#5a4a40', border: '1.5px solid #e8d8c8' }}
             variants={itemVariants}
@@ -101,7 +104,6 @@ export default function Regrets({ guestName }: RegretsProps) {
         </motion.div>
       </motion.div>
 
-      <RegistryModal open={registryOpen} onClose={() => setRegistryOpen(false)} />
     </motion.div>
   );
 }
