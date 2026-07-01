@@ -277,41 +277,38 @@ export default function Wedding() {
           sizes — on mobile the phone covers them entirely; on desktop they
           fill the side margins. No Tailwind breakpoint classes needed.      */}
 
-      {/* Blurred scene image layers — one per phase group, crossfading.
-          Each layer is only mounted once its source image is already
-          being fetched by the world camera, so no extra network cost.
-          Only the active layer runs the ambient zoom; idle layers hold
-          still at scale 1.1 so they don't drive unnecessary GPU frames. */}
-      {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => {
-        if (key === 'abuja' && !abujaBgUnlocked) return null;
-        if (key === 'chair' && !chairBgUnlocked) return null;
-        const isActive = desktopBgKey === key;
-        return (
-          <motion.img
-            key={`dbg-${key}`}
-            src={DESKTOP_BG_SRCS[key]}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-            style={{
-              filter: 'blur(52px) saturate(1.3) brightness(0.52)',
-              zIndex: 1,
-              willChange: isActive ? 'opacity, transform' : 'auto',
-            }}
-            initial={{ opacity: 0, scale: 1.1 }}
-            animate={{
-              opacity: isActive ? 1 : 0,
-              scale:   isActive ? [1.10, 1.17, 1.10] : 1.1,
-            }}
-            transition={{
-              opacity: { duration: 1.6, ease: 'easeInOut' },
-              scale:   isActive
-                ? { duration: 30, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }
-                : { duration: 0 },
-            }}
-          />
-        );
-      })}
+      {/* Blurred scene image layers — ALL THREE are always mounted so this
+          layer is never torn down mid-transition. The ambient scale loop runs
+          continuously on every layer regardless of which is active; only the
+          opacity crossfades when the scene changes. This eliminates blinks
+          from mount/unmount cycles and scale-jump artefacts.
+          fetchpriority="low" keeps them from competing with the world-camera
+          images (which carry the primary visible content).                   */}
+      {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => (
+        <motion.img
+          key={`dbg-${key}`}
+          src={DESKTOP_BG_SRCS[key]}
+          alt=""
+          aria-hidden="true"
+          // @ts-expect-error — fetchpriority is a valid HTML attribute
+          fetchpriority="low"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+          style={{
+            filter: 'blur(52px) saturate(1.3) brightness(0.52)',
+            zIndex: 1,
+            willChange: 'opacity, transform',
+          }}
+          initial={{ opacity: 0, scale: 1.1 }}
+          animate={{
+            opacity: desktopBgKey === key ? 1 : 0,
+            scale:   [1.10, 1.17, 1.10],
+          }}
+          transition={{
+            opacity: { duration: 1.6, ease: 'easeInOut' },
+            scale:   { duration: 30, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' },
+          }}
+        />
+      ))}
 
       {/* Warm luxury color grade — golden-rose tint */}
       <div
