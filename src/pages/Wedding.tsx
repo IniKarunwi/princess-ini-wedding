@@ -81,6 +81,7 @@ const DESKTOP_PARTICLES = [
 export default function Wedding() {
   const [contentPhase, setContentPhase] = useState<ContentPhase>('landing');
   const [guestName, setGuestName] = useState('');
+  const [plusOneRequested, setPlusOneRequested] = useState(false);
 
   const [introPhase, setIntroPhase]     = useState<IntroPhase>('loading');
   const [startContent, setStartContent] = useState(false);
@@ -255,12 +256,16 @@ export default function Wedding() {
 
   async function handleRSVPSubmit(data: RSVPFormValues, attending: boolean) {
     setGuestName(data.fullName);
+    const requestingPlusOne = attending && data.plusOneRequested;
+    setPlusOneRequested(requestingPlusOne);
     const result = await submitRSVP({
-      full_name:   data.fullName,
-      email:       data.email,
-      phone:       data.phone,
-      guest_count: data.guestCount,
+      full_name:             data.fullName,
+      email:                 data.email,
+      phone:                 data.phone || null,
       attending,
+      plus_one_requested:    requestingPlusOne,
+      plus_one_name:         requestingPlusOne ? (data.plusOneName || null) : null,
+      plus_one_relationship: requestingPlusOne ? (data.plusOneRelationship || null) : null,
     });
     if (result.error === 'duplicate') {
       goTo('duplicate');
@@ -606,7 +611,7 @@ export default function Wedding() {
 
             {contentPhase === 'confirmation' && (
               <div key="confirmation" className="absolute inset-0 z-10">
-                <Confirmation guestName={guestName} onRegistry={() => goTo('registry')} />
+                <Confirmation guestName={guestName} onRegistry={() => goTo('registry')} plusOneRequested={plusOneRequested} />
               </div>
             )}
 
