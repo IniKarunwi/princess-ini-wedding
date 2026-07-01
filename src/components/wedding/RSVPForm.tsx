@@ -167,7 +167,7 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
                 <div className="flex gap-2">
                   {[
                     { value: false, label: 'No' },
-                    { value: true,  label: 'Yes, I'd like to request a +1' },
+                    { value: true,  label: "Yes, I'd like to request a +1" },
                   ].map(opt => (
                     <button
                       key={String(opt.value)}
