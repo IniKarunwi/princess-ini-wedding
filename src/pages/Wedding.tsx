@@ -66,23 +66,26 @@ const DESKTOP_BG_SRCS: Record<DesktopBgKey, string> = {
 // Stable animation constants — defined outside the component so Framer Motion
 // always receives the same object/array reference and never restarts these
 // infinite loops on a React re-render.
-const DESKTOP_BG_SCALE_KF  = [1.10, 1.17, 1.10] as const;
-const DESKTOP_BG_TRANSITION = {
-  opacity: { duration: 1.6, ease: 'easeInOut' },
-  scale:   { duration: 30, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut' },
-};
+const DESKTOP_BG_SCALE_KF = [1.10, 1.17, 1.10] as const;
 const PHONE_FLOAT_KF         = [0, -3, 0] as const;
 const PHONE_FLOAT_TRANSITION = { duration: 7, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut' };
 
 // SVG fractal-noise tile for the film grain overlay
 const GRAIN_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n' color-interpolation-filters='linearRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E";
 
-// Desktop bg variants — stable objects so Framer Motion never restarts the
-// scale loop when opacity changes between layers.
+// Desktop bg opacity variants — scale is intentionally excluded so the
+// 30s scale loop (on a separate wrapper) is never restarted by a variant change.
 const DESKTOP_BG_VARIANTS = {
-  active:   { opacity: 1, scale: DESKTOP_BG_SCALE_KF },
-  inactive: { opacity: 0, scale: DESKTOP_BG_SCALE_KF },
+  active:   { opacity: 1 },
+  inactive: { opacity: 0 },
 } as const;
+
+// Shared scale transition for the single outer wrapper — runs forever,
+// completely isolated from the per-layer opacity crossfades.
+const DESKTOP_BG_SCALE_TRANSITION = {
+  duration: 30, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut',
+};
+const DESKTOP_BG_OPACITY_TRANSITION = { duration: 1.6, ease: 'easeInOut' } as const;
 
 // Phone float variants — stable string keys so the outer animate object is
 // never recreated when isDesktop changes.
@@ -314,33 +317,35 @@ export default function Wedding() {
           sizes — on mobile the phone covers them entirely; on desktop they
           fill the side margins. No Tailwind breakpoint classes needed.      */}
 
-      {/* Blurred scene image layers — ALL THREE are always mounted so this
-          layer is never torn down mid-transition. The ambient scale loop runs
-          continuously on every layer regardless of which is active; only the
-          opacity crossfades when the scene changes. This eliminates blinks
-          from mount/unmount cycles and scale-jump artefacts.
-          fetchpriority="low" keeps them from competing with the world-camera
-          images (which carry the primary visible content).                   */}
-      {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => (
-        <motion.img
-          key={`dbg-${key}`}
-          src={DESKTOP_BG_SRCS[key]}
-          alt=""
-          aria-hidden="true"
-          // @ts-expect-error — fetchpriority is a valid HTML attribute
-          fetchpriority="low"
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-          style={{
-            filter: 'blur(52px) saturate(1.3) brightness(0.52)',
-            zIndex: 1,
-            willChange: 'opacity, transform',
-          }}
-          variants={DESKTOP_BG_VARIANTS}
-          initial="inactive"
-          animate={desktopBgKey === key ? 'active' : 'inactive'}
-          transition={DESKTOP_BG_TRANSITION}
-        />
-      ))}
+      {/* Blurred scene image layers — all three always mounted; scale runs on
+          a single outer wrapper so it never restarts when opacity crossfades.
+          fetchpriority="low" keeps them from competing with world-camera imgs. */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        style={{ zIndex: 1, willChange: 'transform' }}
+        animate={{ scale: DESKTOP_BG_SCALE_KF }}
+        transition={DESKTOP_BG_SCALE_TRANSITION}
+      >
+        {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => (
+          <motion.img
+            key={`dbg-${key}`}
+            src={DESKTOP_BG_SRCS[key]}
+            alt=""
+            aria-hidden="true"
+            // @ts-expect-error — fetchpriority is a valid HTML attribute
+            fetchpriority="low"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+            style={{
+              filter: 'blur(52px) saturate(1.3) brightness(0.52)',
+              willChange: 'opacity',
+            }}
+            variants={DESKTOP_BG_VARIANTS}
+            initial={key === 'landing' ? 'active' : 'inactive'}
+            animate={desktopBgKey === key ? 'active' : 'inactive'}
+            transition={DESKTOP_BG_OPACITY_TRANSITION}
+          />
+        ))}
+      </motion.div>
 
       {/* Warm luxury color grade — golden-rose tint */}
       <div
