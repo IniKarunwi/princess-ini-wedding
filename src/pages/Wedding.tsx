@@ -6,6 +6,7 @@ import {
   useSpring,
   useTransform,
   useAnimation,
+  type MotionValue,
 } from 'framer-motion';
 import Landing from '@/components/wedding/Landing';
 import Abuja from '@/components/wedding/Abuja';
@@ -177,10 +178,7 @@ export default function Wedding() {
   // Fire once when the spring settles at the Abuja position so content
   // never appears while the camera is still moving.
   useEffect(() => {
-    if (contentPhase !== 'abuja') {
-      setAbujaContentReady(false);
-      return;
-    }
+    if (contentPhase !== 'abuja') return;
     abujaReadyFiredRef.current = false;
 
     const unsub = cam.on('change', (v: number) => {
@@ -240,6 +238,13 @@ export default function Wedding() {
   const chairOpacity = useTransform(cam, [1.0, 1.4, 1.8], [0, 0.5, 1]);
   const chairScale   = useTransform(cam, [1, 2],           [1.48, 1.0]);
   const chairDim     = useTransform(cam, [1.3, 2.0],       [0, 1]);
+
+  // ── ABUJA TEXT OPACITY ───────────────────────────────────────────────────
+  // Driven by the same spring so text and background fade in sync.
+  // Matches the abujaOpacity background curve so they disappear together.
+  const abujaTextOpacity: MotionValue<number> = useTransform(
+    cam, [0.9, 1.0, 1.35, 1.65], [0, 1, 0.4, 0]
+  );
 
   // ── NAVIGATION ───────────────────────────────────────────────────────────
   function goTo(phase: ContentPhase, camTarget?: number) {
@@ -552,9 +557,13 @@ export default function Wedding() {
               </div>
             )}
 
-            {contentPhase === 'abuja' && abujaContentReady && (
+            {/* Keep Abuja mounted during the chair transition so its text fades
+                out via the camera MotionValue — not via AnimatePresence.
+                It unmounts silently once the camera has fully settled (chairCameraReady),
+                by which point abujaTextOpacity is already 0. */}
+            {abujaContentReady && (contentPhase === 'abuja' || (contentPhase === 'chair' && !chairCameraReady)) && (
               <div key="abuja" className="absolute inset-0 z-10">
-                <Abuja onNext={() => goTo('chair', CAM_CHAIR)} />
+                <Abuja onNext={() => goTo('chair', CAM_CHAIR)} abujaTextOpacity={abujaTextOpacity} />
               </div>
             )}
 

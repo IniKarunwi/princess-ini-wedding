@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import { motion, AnimatePresence, useAnimation, type MotionValue } from 'framer-motion';
 import GlassPill from './GlassPill';
 
 interface AbujaProps {
   onNext: () => void;
+  abujaTextOpacity: MotionValue<number>;
 }
 
-export default function Abuja({ onNext }: AbujaProps) {
+export default function Abuja({ onNext, abujaTextOpacity }: AbujaProps) {
   const [ctaVisible, setCtaVisible] = useState(false);
   const [ctaGone, setCtaGone] = useState(false);
   const arrowControls = useAnimation();
@@ -43,13 +44,12 @@ export default function Abuja({ onNext }: AbujaProps) {
   }
 
   return (
-    // Content-only overlay — background and gradient are managed by the world camera
+    // Opacity is driven entirely by the world camera spring (abujaTextOpacity)
+    // so the text fades in perfect sync with the background — no independent
+    // AnimatePresence exit timeline that could create a visual jump.
     <motion.div
       className="relative w-full h-full"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      style={{ opacity: abujaTextOpacity }}
     >
       {/* Text block — anchored to lower third */}
       <motion.div
