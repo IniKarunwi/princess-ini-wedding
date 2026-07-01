@@ -163,34 +163,50 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
                   Will you be bringing a guest?
                 </span>
 
-                {/* No / Yes radios */}
-                <div className="flex gap-2">
-                  {[
+                {/* Stacked card selector */}
+                <div className="flex flex-col gap-2">
+                  {([
                     { value: false, label: 'No' },
-                    { value: true,  label: "Yes, I'd like to request a +1" },
-                  ].map(opt => (
-                    <button
-                      key={String(opt.value)}
-                      type="button"
-                      onClick={() => {
-                        setValue('plusOneRequested', opt.value, { shouldValidate: true });
-                        if (!opt.value) {
-                          setValue('plusOneName', '');
-                          setValue('plusOneRelationship', '');
-                        }
-                      }}
-                      className="flex-1 min-h-[48px] rounded-[14px] px-3 text-[14px] font-medium transition-all text-center"
-                      style={{
-                        fontFamily: 'Cormorant Garamond, serif',
-                        background:   plusOneRequested === opt.value ? '#c9a84c' : '#fffbf9',
-                        border:       plusOneRequested === opt.value ? '2px solid #c9a84c' : '2px solid #e8d5a3',
-                        color:        plusOneRequested === opt.value ? '#fff' : '#2b2b2b',
-                        boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.7)',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                    { value: true,  label: "I'd like to request a +1" },
+                  ] as const).map(opt => {
+                    const selected = plusOneRequested === opt.value;
+                    return (
+                      <button
+                        key={String(opt.value)}
+                        type="button"
+                        onClick={() => {
+                          setValue('plusOneRequested', opt.value, { shouldValidate: true });
+                          if (!opt.value) {
+                            setValue('plusOneName', '');
+                            setValue('plusOneRelationship', '');
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-[14px] rounded-[16px] text-left transition-all"
+                        style={{
+                          fontFamily: 'Cormorant Garamond, serif',
+                          background: selected ? 'rgba(201,168,76,0.08)' : '#fffbf9',
+                          border:     selected ? '2px solid #c9a84c' : '2px solid #e8d5a3',
+                          boxShadow:  selected
+                            ? '0 2px 12px rgba(201,168,76,0.14)'
+                            : 'inset 0 1px 0 rgba(255,255,255,0.7)',
+                        }}
+                      >
+                        <span
+                          className="flex-shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center"
+                          style={{
+                            border: selected ? '2px solid #c9a84c' : '2px solid #c8baa8',
+                            background: selected ? '#c9a84c' : 'transparent',
+                            transition: 'all 0.18s ease',
+                          }}
+                        >
+                          {selected && <span className="w-[6px] h-[6px] rounded-full" style={{ background: '#fff' }} />}
+                        </span>
+                        <span className="text-[15px] font-medium" style={{ color: selected ? '#2b2b2b' : '#4a3e36' }}>
+                          {opt.label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Guest detail fields — only when +1 requested */}
@@ -245,6 +261,14 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
                         <span className="text-[12px] text-[#e8756a]">{errors.plusOneRelationship.message}</span>
                       )}
                     </div>
+
+                    {/* Approval notice */}
+                    <p
+                      className="text-[12px] italic leading-relaxed"
+                      style={{ fontFamily: 'Cormorant Garamond, serif', color: '#9a8b80' }}
+                    >
+                      +1 requests are subject to availability and approval. We'll confirm your guest reservation before the wedding.
+                    </p>
                   </motion.div>
                 )}
               </div>
