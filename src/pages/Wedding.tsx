@@ -77,16 +77,31 @@ const PHONE_FLOAT_TRANSITION = { duration: 7, repeat: Infinity, repeatType: 'mir
 // SVG fractal-noise tile for the film grain overlay
 const GRAIN_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n' color-interpolation-filters='linearRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E";
 
-// Ambient particles — positioned in side margins, only visible on desktop
+// Desktop bg variants — stable objects so Framer Motion never restarts the
+// scale loop when opacity changes between layers.
+const DESKTOP_BG_VARIANTS = {
+  active:   { opacity: 1, scale: DESKTOP_BG_SCALE_KF },
+  inactive: { opacity: 0, scale: DESKTOP_BG_SCALE_KF },
+} as const;
+
+// Phone float variants — stable string keys so the outer animate object is
+// never recreated when isDesktop changes.
+const PHONE_FLOAT_VARIANTS = {
+  float: { y: PHONE_FLOAT_KF },
+  still: { y: 0 as number },
+} as const;
+
+// Ambient particles — each entry carries its own stable animate/transition
+// objects, computed once at module level so renders never create new refs.
 const DESKTOP_PARTICLES = [
-  { size: 2, color: 'rgba(201,168,76,0.55)',  left: '6%',  top: '12%', dur: 14, delay: 0,   drift: 28 },
-  { size: 3, color: 'rgba(232,213,163,0.38)', left: '89%', top: '20%', dur: 19, delay: 2.5, drift: 22 },
-  { size: 2, color: 'rgba(201,168,76,0.42)',  left: '4%',  top: '55%', dur: 21, delay: 6,   drift: 18 },
-  { size: 2, color: 'rgba(232,181,176,0.32)', left: '92%', top: '65%', dur: 17, delay: 9,   drift: 25 },
-  { size: 3, color: 'rgba(201,168,76,0.28)',  left: '9%',  top: '80%', dur: 23, delay: 4,   drift: 20 },
-  { size: 2, color: 'rgba(232,213,163,0.48)', left: '87%', top: '42%', dur: 18, delay: 12,  drift: 26 },
-  { size: 2, color: 'rgba(240,200,184,0.35)', left: '7%',  top: '35%', dur: 16, delay: 7,   drift: 15 },
-  { size: 2, color: 'rgba(201,168,76,0.30)',  left: '91%', top: '84%', dur: 25, delay: 15,  drift: 19 },
+  { size: 2, color: 'rgba(201,168,76,0.55)',  left: '6%',  top: '12%', animate: { y: [0, -28, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 14, delay: 0,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 3, color: 'rgba(232,213,163,0.38)', left: '89%', top: '20%', animate: { y: [0, -22, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 19, delay: 2.5, repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(201,168,76,0.42)',  left: '4%',  top: '55%', animate: { y: [0, -18, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 21, delay: 6,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(232,181,176,0.32)', left: '92%', top: '65%', animate: { y: [0, -25, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 17, delay: 9,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 3, color: 'rgba(201,168,76,0.28)',  left: '9%',  top: '80%', animate: { y: [0, -20, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 23, delay: 4,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(232,213,163,0.48)', left: '87%', top: '42%', animate: { y: [0, -26, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 18, delay: 12,  repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(240,200,184,0.35)', left: '7%',  top: '35%', animate: { y: [0, -15, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 16, delay: 7,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(201,168,76,0.30)',  left: '91%', top: '84%', animate: { y: [0, -19, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 25, delay: 15,  repeat: Infinity, ease: 'easeInOut' as const } },
 ];
 
 export default function Wedding() {
@@ -320,11 +335,9 @@ export default function Wedding() {
             zIndex: 1,
             willChange: 'opacity, transform',
           }}
-          initial={{ opacity: 0, scale: 1.1 }}
-          animate={{
-            opacity: desktopBgKey === key ? 1 : 0,
-            scale:   DESKTOP_BG_SCALE_KF,
-          }}
+          variants={DESKTOP_BG_VARIANTS}
+          initial="inactive"
+          animate={desktopBgKey === key ? 'active' : 'inactive'}
           transition={DESKTOP_BG_TRANSITION}
         />
       ))}
@@ -388,16 +401,8 @@ export default function Wedding() {
             left: p.left, top: p.top,
             zIndex: 3,
           }}
-          animate={{
-            y:       [0, -p.drift, 0],
-            opacity: [0.2, 1, 0.2],
-          }}
-          transition={{
-            duration: p.dur,
-            delay:    p.delay,
-            repeat:   Infinity,
-            ease:     'easeInOut',
-          }}
+          animate={p.animate}
+          transition={p.transition}
         />
       ))}
 
@@ -432,7 +437,8 @@ export default function Wedding() {
           width: '100%', maxWidth: 520, height: '100dvh',
           position: 'relative', flexShrink: 0, zIndex: 10,
         }}
-        animate={{ y: isDesktop ? PHONE_FLOAT_KF : 0 }}
+        variants={PHONE_FLOAT_VARIANTS}
+        animate={isDesktop ? 'float' : 'still'}
         transition={PHONE_FLOAT_TRANSITION}
       >
         {/* Inner phone shell — clips content; rounded on desktop */}
