@@ -92,6 +92,14 @@ export default function Wedding() {
   const [abujaContentReady, setAbujaContentReady] = useState(false);
   const abujaReadyFiredRef = useRef(false);
 
+  // Lazy-load scene backgrounds: only fetch what the user is about to see.
+  // abujaBgUnlocked: true after the intro fades (~1.4s) — user is reading
+  //   Landing, giving the Abuja image time to download before they tap.
+  // chairBgUnlocked: true once the user reaches Abuja — Chair image loads
+  //   during the ~5–15s the user spends on the Abuja screen.
+  const abujaBgUnlocked = startContent;
+  const [chairBgUnlocked, setChairBgUnlocked] = useState(false);
+
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
     setIsDesktop(mq.matches);
@@ -139,6 +147,11 @@ export default function Wedding() {
 
     return () => { cancelled = true; };
   }, []);
+
+  // Unlock Chair bg as soon as user reaches Abuja (one-way latch).
+  useEffect(() => {
+    if (contentPhase === 'abuja' && !chairBgUnlocked) setChairBgUnlocked(true);
+  }, [contentPhase, chairBgUnlocked]);
 
   // Fire once when the spring settles at the Abuja position so content
   // never appears while the camera is still moving.
@@ -245,30 +258,41 @@ export default function Wedding() {
           sizes — on mobile the phone covers them entirely; on desktop they
           fill the side margins. No Tailwind breakpoint classes needed.      */}
 
-      {/* Blurred scene image layers — one per phase group, crossfading */}
-      {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => (
-        <motion.img
-          key={`dbg-${key}`}
-          src={DESKTOP_BG_SRCS[key]}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-          style={{
-            filter: 'blur(52px) saturate(1.3) brightness(0.52)',
-            zIndex: 1,
-            willChange: 'opacity, transform',
-          }}
-          initial={{ opacity: 0, scale: 1.1 }}
-          animate={{
-            opacity: desktopBgKey === key ? 1 : 0,
-            scale: [1.10, 1.17, 1.10],
-          }}
-          transition={{
-            opacity: { duration: 1.6, ease: 'easeInOut' },
-            scale:   { duration: 30, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' },
-          }}
-        />
-      ))}
+      {/* Blurred scene image layers — one per phase group, crossfading.
+          Each layer is only mounted once its source image is already
+          being fetched by the world camera, so no extra network cost.
+          Only the active layer runs the ambient zoom; idle layers hold
+          still at scale 1.1 so they don't drive unnecessary GPU frames. */}
+      {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => {
+        if (key === 'abuja' && !abujaBgUnlocked) return null;
+        if (key === 'chair' && !chairBgUnlocked) return null;
+        const isActive = desktopBgKey === key;
+        return (
+          <motion.img
+            key={`dbg-${key}`}
+            src={DESKTOP_BG_SRCS[key]}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+            style={{
+              filter: 'blur(52px) saturate(1.3) brightness(0.52)',
+              zIndex: 1,
+              willChange: isActive ? 'opacity, transform' : 'auto',
+            }}
+            initial={{ opacity: 0, scale: 1.1 }}
+            animate={{
+              opacity: isActive ? 1 : 0,
+              scale:   isActive ? [1.10, 1.17, 1.10] : 1.1,
+            }}
+            transition={{
+              opacity: { duration: 1.6, ease: 'easeInOut' },
+              scale:   isActive
+                ? { duration: 30, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }
+                : { duration: 0 },
+            }}
+          />
+        );
+      })}
 
       {/* Warm luxury color grade — golden-rose tint */}
       <div
@@ -316,8 +340,9 @@ export default function Wedding() {
         }}
       />
 
-      {/* Ambient floating dust particles — visible in side margins on desktop */}
-      {DESKTOP_PARTICLES.map((p, i) => (
+      {/* Ambient floating dust particles — only instantiated on desktop
+          where they're visible; saves 8 animated nodes on mobile.        */}
+      {isDesktop && DESKTOP_PARTICLES.map((p, i) => (
         <motion.div
           key={`dp-${i}`}
           aria-hidden="true"
@@ -411,63 +436,72 @@ export default function Wedding() {
             }}
           />
 
-          {/* Abuja background — enters zoomed, decelerates to aerial */}
-          <motion.img
-            src={ABUJA_BG}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-            style={{ opacity: abujaOpacity, scale: abujaScale, y: abujaY, objectPosition: 'center 40%' }}
-          />
-          {/* Abuja: dark bottom vignette */}
-          <motion.div
-            aria-hidden="true"
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              opacity: abujaGrad,
-              background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.72) 100%)',
-            }}
-          />
+          {/* Abuja background — deferred until after intro so only Landing
+              fetches on page load; user reads Landing for several seconds
+              giving the browser time to download this before they tap.     */}
+          {abujaBgUnlocked && (
+            <>
+              <motion.img
+                src={ABUJA_BG}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                style={{ opacity: abujaOpacity, scale: abujaScale, y: abujaY, objectPosition: 'center 40%' }}
+              />
+              <motion.div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  opacity: abujaGrad,
+                  background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.72) 100%)',
+                }}
+              />
+            </>
+          )}
 
-          {/* Chair background — wrapped for the reveal micro-push (4%→0% scale) */}
-          <motion.div
-            className="absolute inset-0 pointer-events-none"
-            initial={{ scale: 1.04 }}
-            animate={chairRevealControls}
-          >
-            <motion.img
-              src={CHAIR_BG}
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-              style={{
-                opacity: chairOpacity,
-                scale: chairScale,
-                objectPosition: 'center 45%',
-                filter: 'brightness(0.86) contrast(1.10)',
-              }}
-            />
-          </motion.div>
+          {/* Chair background — deferred until user reaches Abuja so the
+              Chair image fetches during the ~5–15s they spend there,
+              well before AbujaChairTransition fires.                      */}
+          {chairBgUnlocked && (
+            <>
+              <motion.div
+                className="absolute inset-0 pointer-events-none"
+                initial={{ scale: 1.04 }}
+                animate={chairRevealControls}
+              >
+                <motion.img
+                  src={CHAIR_BG}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                  style={{
+                    opacity: chairOpacity,
+                    scale: chairScale,
+                    objectPosition: 'center 45%',
+                    filter: 'brightness(0.86) contrast(1.10)',
+                  }}
+                />
+              </motion.div>
 
-          {/* Chair vignette — darkens corners to draw the eye to the chair */}
-          <motion.div
-            aria-hidden="true"
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              opacity: chairOpacity,
-              background: 'radial-gradient(ellipse 58% 62% at 50% 44%, transparent 28%, rgba(0,0,0,0.18) 68%, rgba(0,0,0,0.42) 100%)',
-            }}
-          />
+              <motion.div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  opacity: chairOpacity,
+                  background: 'radial-gradient(ellipse 58% 62% at 50% 44%, transparent 28%, rgba(0,0,0,0.18) 68%, rgba(0,0,0,0.42) 100%)',
+                }}
+              />
 
-          {/* Chair + form: subtle warm charcoal dim */}
-          <motion.div
-            aria-hidden="true"
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              opacity: chairDim,
-              background: 'rgba(28, 24, 20, 0.09)',
-            }}
-          />
+              <motion.div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  opacity: chairDim,
+                  background: 'rgba(28, 24, 20, 0.09)',
+                }}
+              />
+            </>
+          )}
 
           {/* ══ CINEMATIC INTRO LAYER ══════════════════════════════════════
               Black screen → bg fade-in with push-in and blur-sharpen.
