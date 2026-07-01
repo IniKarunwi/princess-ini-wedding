@@ -10,7 +10,6 @@ import {
 import Landing from '@/components/wedding/Landing';
 import Abuja from '@/components/wedding/Abuja';
 import Chair from '@/components/wedding/Chair';
-import AbujaChairTransition from '@/components/wedding/AbujaChairTransition';
 import RSVPDecision from '@/components/wedding/RSVPDecision';
 import RSVPForm, { RSVPFormValues } from '@/components/wedding/RSVPForm';
 import Confirmation from '@/components/wedding/Confirmation';
@@ -32,7 +31,6 @@ const CAM_CHAIR   = 2;
 type ContentPhase =
   | 'landing'
   | 'abuja'
-  | 'abuja-to-chair'
   | 'chair'
   | 'rsvp-decision'
   | 'rsvp-form-attending'
@@ -53,7 +51,7 @@ type DesktopBgKey = 'landing' | 'abuja' | 'chair';
 
 function getDesktopBgKey(phase: ContentPhase): DesktopBgKey {
   if (phase === 'landing') return 'landing';
-  if (phase === 'abuja' || phase === 'abuja-to-chair') return 'abuja';
+  if (phase === 'abuja') return 'abuja';
   return 'chair';
 }
 
@@ -91,6 +89,11 @@ export default function Wedding() {
   // Abuja content is held until the spring camera has settled at cam≈1
   const [abujaContentReady, setAbujaContentReady] = useState(false);
   const abujaReadyFiredRef = useRef(false);
+
+  // Chair arrow is held until the spring has settled at cam≈2, then a
+  // 300ms breath before the UI appears — same pattern as abujaContentReady.
+  const [chairCameraReady, setChairCameraReady] = useState(false);
+  const chairReadyFiredRef = useRef(false);
 
   // Lazy-load scene backgrounds: only fetch what the user is about to see.
   // abujaBgUnlocked: true after the intro fades (~1.4s) — user is reading
@@ -153,6 +156,24 @@ export default function Wedding() {
     if (contentPhase === 'abuja' && !chairBgUnlocked) setChairBgUnlocked(true);
   }, [contentPhase, chairBgUnlocked]);
 
+  // Fire once when the spring settles at the Chair position (cam≥1.95),
+  // then wait 300ms before revealing the arrow so the camera has a moment
+  // of stillness before the UI appears.
+  useEffect(() => {
+    if (contentPhase !== 'chair' || chairReadyFiredRef.current) return;
+
+    const unsub = cam.on('change', (v: number) => {
+      if (v >= 1.95 && !chairReadyFiredRef.current) {
+        chairReadyFiredRef.current = true;
+        setTimeout(() => setChairCameraReady(true), 300);
+        unsub();
+      }
+    });
+    return unsub;
+  // cam is a stable MotionValue reference — intentionally omitted from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentPhase]);
+
   // Fire once when the spring settles at the Abuja position so content
   // never appears while the camera is still moving.
   useEffect(() => {
@@ -174,17 +195,11 @@ export default function Wedding() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentPhase]);
 
-  // Chair reveal micro-push: the wrapper starts 4% wider than final so the
-  // camera makes one last gentle push-in (750ms) before the arrow appears.
+  // chairRevealControls: no-op on 'chair' entry (spring deceleration handles
+  // the zoom); used for 'registry' to softly zoom+blur the chair behind the sheet.
   const chairRevealControls = useAnimation();
   useEffect(() => {
-    if (contentPhase === 'chair') {
-      chairRevealControls.start({
-        scale: 1,
-        filter: 'blur(0px)',
-        transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] },
-      });
-    } else if (contentPhase === 'registry') {
+    if (contentPhase === 'registry') {
       chairRevealControls.start({
         scale: 1.06,
         filter: 'blur(3px)',
@@ -212,15 +227,19 @@ export default function Wedding() {
   const landingTopGrad = useTransform(cam, [0, 0.28, 0.52],             [1, 0.15, 0]);
 
   // ── ABUJA BG ────────────────────────────────────────────────────────────────
-  const abujaScale   = useTransform(cam, [0.55, 1.0, 2],                [2.2, 1.0, 1.24]);
-  const abujaY       = useTransform(cam, [0.55, 1.0],                   ['4%', '0%']);
-  const abujaOpacity = useTransform(cam, [0.55, 0.82, 1.0, 1.6, 2.2],  [0, 0.8, 1, 0.5, 0]);
-  const abujaGrad    = useTransform(cam, [0.65, 0.9, 1.0, 1.7, 2.2],   [0, 0, 1, 0.5, 0]);
+  const abujaScale   = useTransform(cam, [0.55, 1.0, 2],               [2.2, 1.0, 1.24]);
+  const abujaY       = useTransform(cam, [0.55, 1.0],                  ['4%', '0%']);
+  // Fades out by cam≈1.85 so it's fully gone before the spring settles —
+  // no Abuja ghost visible once the chair scene is established.
+  const abujaOpacity = useTransform(cam, [0.55, 0.82, 1.0, 1.4, 1.85], [0, 0.8, 1, 0.35, 0]);
+  const abujaGrad    = useTransform(cam, [0.65, 0.9, 1.0, 1.5, 1.9],   [0, 0, 1, 0.3, 0]);
 
   // ── CHAIR BG ────────────────────────────────────────────────────────────────
-  const chairOpacity = useTransform(cam, [1.2, 1.85, 2.0], [0, 0.35, 1]);
-  const chairScale   = useTransform(cam, [1, 2],            [1.48, 1.0]);
-  const chairDim     = useTransform(cam, [1.3, 2.0],        [0, 1]);
+  // Reaches full opacity by cam≈1.8 (≈700ms into the spring travel from cam=1)
+  // so the chair is fully established while the spring is still decelerating.
+  const chairOpacity = useTransform(cam, [1.0, 1.4, 1.8], [0, 0.5, 1]);
+  const chairScale   = useTransform(cam, [1, 2],           [1.48, 1.0]);
+  const chairDim     = useTransform(cam, [1.3, 2.0],       [0, 1]);
 
   // ── NAVIGATION ───────────────────────────────────────────────────────────
   function goTo(phase: ContentPhase, camTarget?: number) {
@@ -466,7 +485,7 @@ export default function Wedding() {
             <>
               <motion.div
                 className="absolute inset-0 pointer-events-none"
-                initial={{ scale: 1.04 }}
+                initial={{ scale: 1 }}
                 animate={chairRevealControls}
               >
                 <motion.img
@@ -538,13 +557,13 @@ export default function Wedding() {
 
             {contentPhase === 'abuja' && abujaContentReady && (
               <div key="abuja" className="absolute inset-0 z-10">
-                <Abuja onNext={() => goTo('abuja-to-chair', CAM_CHAIR)} />
+                <Abuja onNext={() => goTo('chair', CAM_CHAIR)} />
               </div>
             )}
 
             {contentPhase === 'chair' && (
               <div key="chair" className="absolute inset-0 z-10">
-                <Chair onNext={() => goTo('rsvp-decision')} />
+                <Chair onNext={() => goTo('rsvp-decision')} cameraReady={chairCameraReady} />
               </div>
             )}
 
@@ -620,13 +639,6 @@ export default function Wedding() {
             )}
 
           </AnimatePresence>
-
-          {/* Dolly transition — rendered above everything, unmounts on completion */}
-          {contentPhase === 'abuja-to-chair' && (
-            <div className="absolute inset-0 z-20">
-              <AbujaChairTransition onComplete={() => setContentPhase('chair')} />
-            </div>
-          )}
 
         </div>
       </motion.div>
