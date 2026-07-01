@@ -63,6 +63,17 @@ const DESKTOP_BG_SRCS: Record<DesktopBgKey, string> = {
   chair:   CHAIR_BG,
 };
 
+// Stable animation constants — defined outside the component so Framer Motion
+// always receives the same object/array reference and never restarts these
+// infinite loops on a React re-render.
+const DESKTOP_BG_SCALE_KF  = [1.10, 1.17, 1.10] as const;
+const DESKTOP_BG_TRANSITION = {
+  opacity: { duration: 1.6, ease: 'easeInOut' },
+  scale:   { duration: 30, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut' },
+};
+const PHONE_FLOAT_KF         = [0, -3, 0] as const;
+const PHONE_FLOAT_TRANSITION = { duration: 7, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut' };
+
 // SVG fractal-noise tile for the film grain overlay
 const GRAIN_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n' color-interpolation-filters='linearRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E";
 
@@ -312,12 +323,9 @@ export default function Wedding() {
           initial={{ opacity: 0, scale: 1.1 }}
           animate={{
             opacity: desktopBgKey === key ? 1 : 0,
-            scale:   [1.10, 1.17, 1.10],
+            scale:   DESKTOP_BG_SCALE_KF,
           }}
-          transition={{
-            opacity: { duration: 1.6, ease: 'easeInOut' },
-            scale:   { duration: 30, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' },
-          }}
+          transition={DESKTOP_BG_TRANSITION}
         />
       ))}
 
@@ -424,8 +432,8 @@ export default function Wedding() {
           width: '100%', maxWidth: 520, height: '100dvh',
           position: 'relative', flexShrink: 0, zIndex: 10,
         }}
-        animate={isDesktop ? { y: [0, -3, 0] } : { y: 0 }}
-        transition={{ duration: 7, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
+        animate={{ y: isDesktop ? PHONE_FLOAT_KF : 0 }}
+        transition={PHONE_FLOAT_TRANSITION}
       >
         {/* Inner phone shell — clips content; rounded on desktop */}
         <div
