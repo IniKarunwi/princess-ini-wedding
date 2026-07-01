@@ -36,7 +36,7 @@ export default function AbujaChairTransition({ onComplete }: Props) {
   const abujaOpacity = useTransform(p, [0, 0.38, 0.65],   [1,   0.75, 0]);
 
   // Act 2: brief darkness at the doorway threshold
-  const darkOpacity  = useTransform(p, [0.38, 0.54, 0.70], [0, 0.94, 0]);
+  const darkOpacity  = useTransform(p, [0.38, 0.52, 0.70], [0, 1.0,  0]);
 
   // Act 3: interior reveals, camera decelerates to a stop at the chair
   // — opacity fades in as we enter
@@ -109,7 +109,7 @@ export default function AbujaChairTransition({ onComplete }: Props) {
           opacity: chairOpacity,
           scale: chairScale,
           y: chairY,
-          objectPosition: 'center 10%',
+          objectPosition: 'center 45%',
         }}
       />
 
