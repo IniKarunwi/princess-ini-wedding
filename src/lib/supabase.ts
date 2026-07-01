@@ -26,7 +26,7 @@ export async function submitRSVP(data: RSVPData): Promise<{ error?: string }> {
     .from('rsvps')
     .select('id')
     .eq('email', data.email)
-    .single();
+    .maybeSingle();
 
   if (existing) {
     return { error: 'duplicate' };
