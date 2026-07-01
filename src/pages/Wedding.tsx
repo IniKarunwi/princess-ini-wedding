@@ -6,15 +6,16 @@ import {
   useSpring,
   useTransform,
   useAnimation,
+  type MotionValue,
 } from 'framer-motion';
 import Landing from '@/components/wedding/Landing';
 import Abuja from '@/components/wedding/Abuja';
 import Chair from '@/components/wedding/Chair';
-import AbujaChairTransition from '@/components/wedding/AbujaChairTransition';
 import RSVPDecision from '@/components/wedding/RSVPDecision';
 import RSVPForm, { RSVPFormValues } from '@/components/wedding/RSVPForm';
 import Confirmation from '@/components/wedding/Confirmation';
 import Regrets from '@/components/wedding/Regrets';
+import Duplicate from '@/components/wedding/Duplicate';
 import Registry from '@/components/wedding/Registry';
 import { submitRSVP } from '@/lib/supabase';
 
@@ -32,7 +33,6 @@ const CAM_CHAIR   = 2;
 type ContentPhase =
   | 'landing'
   | 'abuja'
-  | 'abuja-to-chair'
   | 'chair'
   | 'rsvp-decision'
   | 'rsvp-form-attending'
@@ -53,7 +53,7 @@ type DesktopBgKey = 'landing' | 'abuja' | 'chair';
 
 function getDesktopBgKey(phase: ContentPhase): DesktopBgKey {
   if (phase === 'landing') return 'landing';
-  if (phase === 'abuja' || phase === 'abuja-to-chair') return 'abuja';
+  if (phase === 'abuja') return 'abuja';
   return 'chair';
 }
 
@@ -63,24 +63,54 @@ const DESKTOP_BG_SRCS: Record<DesktopBgKey, string> = {
   chair:   CHAIR_BG,
 };
 
+// Stable animation constants — defined outside the component so Framer Motion
+// always receives the same object/array reference and never restarts these
+// infinite loops on a React re-render.
+const DESKTOP_BG_SCALE_KF = [1.10, 1.17, 1.10] as const;
+const PHONE_FLOAT_KF         = [0, -3, 0] as const;
+const PHONE_FLOAT_TRANSITION = { duration: 7, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut' };
+
 // SVG fractal-noise tile for the film grain overlay
 const GRAIN_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n' color-interpolation-filters='linearRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E";
 
-// Ambient particles — positioned in side margins, only visible on desktop
+// Desktop bg opacity variants — scale is intentionally excluded so the
+// 30s scale loop (on a separate wrapper) is never restarted by a variant change.
+const DESKTOP_BG_VARIANTS = {
+  active:   { opacity: 1 },
+  inactive: { opacity: 0 },
+} as const;
+
+// Shared scale transition for the single outer wrapper — runs forever,
+// completely isolated from the per-layer opacity crossfades.
+const DESKTOP_BG_SCALE_TRANSITION = {
+  duration: 30, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut',
+};
+const DESKTOP_BG_OPACITY_TRANSITION = { duration: 1.6, ease: 'easeInOut' } as const;
+
+// Phone float variants — stable string keys so the outer animate object is
+// never recreated when isDesktop changes.
+const PHONE_FLOAT_VARIANTS = {
+  float: { y: PHONE_FLOAT_KF },
+  still: { y: 0 as number },
+} as const;
+
+// Ambient particles — each entry carries its own stable animate/transition
+// objects, computed once at module level so renders never create new refs.
 const DESKTOP_PARTICLES = [
-  { size: 2, color: 'rgba(201,168,76,0.55)',  left: '6%',  top: '12%', dur: 14, delay: 0,   drift: 28 },
-  { size: 3, color: 'rgba(232,213,163,0.38)', left: '89%', top: '20%', dur: 19, delay: 2.5, drift: 22 },
-  { size: 2, color: 'rgba(201,168,76,0.42)',  left: '4%',  top: '55%', dur: 21, delay: 6,   drift: 18 },
-  { size: 2, color: 'rgba(232,181,176,0.32)', left: '92%', top: '65%', dur: 17, delay: 9,   drift: 25 },
-  { size: 3, color: 'rgba(201,168,76,0.28)',  left: '9%',  top: '80%', dur: 23, delay: 4,   drift: 20 },
-  { size: 2, color: 'rgba(232,213,163,0.48)', left: '87%', top: '42%', dur: 18, delay: 12,  drift: 26 },
-  { size: 2, color: 'rgba(240,200,184,0.35)', left: '7%',  top: '35%', dur: 16, delay: 7,   drift: 15 },
-  { size: 2, color: 'rgba(201,168,76,0.30)',  left: '91%', top: '84%', dur: 25, delay: 15,  drift: 19 },
+  { size: 2, color: 'rgba(201,168,76,0.55)',  left: '6%',  top: '12%', animate: { y: [0, -28, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 14, delay: 0,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 3, color: 'rgba(232,213,163,0.38)', left: '89%', top: '20%', animate: { y: [0, -22, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 19, delay: 2.5, repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(201,168,76,0.42)',  left: '4%',  top: '55%', animate: { y: [0, -18, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 21, delay: 6,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(232,181,176,0.32)', left: '92%', top: '65%', animate: { y: [0, -25, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 17, delay: 9,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 3, color: 'rgba(201,168,76,0.28)',  left: '9%',  top: '80%', animate: { y: [0, -20, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 23, delay: 4,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(232,213,163,0.48)', left: '87%', top: '42%', animate: { y: [0, -26, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 18, delay: 12,  repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(240,200,184,0.35)', left: '7%',  top: '35%', animate: { y: [0, -15, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 16, delay: 7,   repeat: Infinity, ease: 'easeInOut' as const } },
+  { size: 2, color: 'rgba(201,168,76,0.30)',  left: '91%', top: '84%', animate: { y: [0, -19, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 25, delay: 15,  repeat: Infinity, ease: 'easeInOut' as const } },
 ];
 
 export default function Wedding() {
   const [contentPhase, setContentPhase] = useState<ContentPhase>('landing');
   const [guestName, setGuestName] = useState('');
+  const [plusOneRequested, setPlusOneRequested] = useState(false);
 
   const [introPhase, setIntroPhase]     = useState<IntroPhase>('loading');
   const [startContent, setStartContent] = useState(false);
@@ -91,6 +121,19 @@ export default function Wedding() {
   // Abuja content is held until the spring camera has settled at cam≈1
   const [abujaContentReady, setAbujaContentReady] = useState(false);
   const abujaReadyFiredRef = useRef(false);
+
+  // Chair arrow is held until the spring has settled at cam≈2, then a
+  // 300ms breath before the UI appears — same pattern as abujaContentReady.
+  const [chairCameraReady, setChairCameraReady] = useState(false);
+  const chairReadyFiredRef = useRef(false);
+
+  // Lazy-load scene backgrounds: only fetch what the user is about to see.
+  // abujaBgUnlocked: true after the intro fades (~1.4s) — user is reading
+  //   Landing, giving the Abuja image time to download before they tap.
+  // chairBgUnlocked: true once the user reaches Abuja — Chair image loads
+  //   during the ~5–15s the user spends on the Abuja screen.
+  const abujaBgUnlocked = startContent;
+  const [chairBgUnlocked, setChairBgUnlocked] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
@@ -140,13 +183,33 @@ export default function Wedding() {
     return () => { cancelled = true; };
   }, []);
 
+  // Unlock Chair bg as soon as user reaches Abuja (one-way latch).
+  useEffect(() => {
+    if (contentPhase === 'abuja' && !chairBgUnlocked) setChairBgUnlocked(true);
+  }, [contentPhase, chairBgUnlocked]);
+
+  // Fire once when the spring settles at the Chair position (cam≥1.95),
+  // then wait 300ms before revealing the arrow so the camera has a moment
+  // of stillness before the UI appears.
+  useEffect(() => {
+    if (contentPhase !== 'chair' || chairReadyFiredRef.current) return;
+
+    const unsub = cam.on('change', (v: number) => {
+      if (v >= 1.95 && !chairReadyFiredRef.current) {
+        chairReadyFiredRef.current = true;
+        setTimeout(() => setChairCameraReady(true), 300);
+        unsub();
+      }
+    });
+    return unsub;
+  // cam is a stable MotionValue reference — intentionally omitted from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentPhase]);
+
   // Fire once when the spring settles at the Abuja position so content
   // never appears while the camera is still moving.
   useEffect(() => {
-    if (contentPhase !== 'abuja') {
-      setAbujaContentReady(false);
-      return;
-    }
+    if (contentPhase !== 'abuja') return;
     abujaReadyFiredRef.current = false;
 
     const unsub = cam.on('change', (v: number) => {
@@ -161,17 +224,11 @@ export default function Wedding() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentPhase]);
 
-  // Chair reveal micro-push: the wrapper starts 4% wider than final so the
-  // camera makes one last gentle push-in (750ms) before the arrow appears.
+  // chairRevealControls: no-op on 'chair' entry (spring deceleration handles
+  // the zoom); used for 'registry' to softly zoom+blur the chair behind the sheet.
   const chairRevealControls = useAnimation();
   useEffect(() => {
-    if (contentPhase === 'chair') {
-      chairRevealControls.start({
-        scale: 1,
-        filter: 'blur(0px)',
-        transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] },
-      });
-    } else if (contentPhase === 'registry') {
+    if (contentPhase === 'registry') {
       chairRevealControls.start({
         scale: 1.06,
         filter: 'blur(3px)',
@@ -199,15 +256,26 @@ export default function Wedding() {
   const landingTopGrad = useTransform(cam, [0, 0.28, 0.52],             [1, 0.15, 0]);
 
   // ── ABUJA BG ────────────────────────────────────────────────────────────────
-  const abujaScale   = useTransform(cam, [0.55, 1.0, 2],                [2.2, 1.0, 1.24]);
-  const abujaY       = useTransform(cam, [0.55, 1.0],                   ['4%', '0%']);
-  const abujaOpacity = useTransform(cam, [0.55, 0.82, 1.0, 1.6, 2.2],  [0, 0.8, 1, 0.5, 0]);
-  const abujaGrad    = useTransform(cam, [0.65, 0.9, 1.0, 1.7, 2.2],   [0, 0, 1, 0.5, 0]);
+  const abujaScale   = useTransform(cam, [0.55, 1.0, 2],               [2.2, 1.0, 1.24]);
+  const abujaY       = useTransform(cam, [0.55, 1.0],                  ['4%', '0%']);
+  // Fades out by cam≈1.85 so it's fully gone before the spring settles —
+  // no Abuja ghost visible once the chair scene is established.
+  const abujaOpacity = useTransform(cam, [0.55, 0.82, 1.0, 1.4, 1.85], [0, 0.8, 1, 0.35, 0]);
+  const abujaGrad    = useTransform(cam, [0.65, 0.9, 1.0, 1.5, 1.9],   [0, 0, 1, 0.3, 0]);
 
   // ── CHAIR BG ────────────────────────────────────────────────────────────────
-  const chairOpacity = useTransform(cam, [1.2, 1.85, 2.0], [0, 0.35, 1]);
-  const chairScale   = useTransform(cam, [1, 2],            [1.48, 1.0]);
-  const chairDim     = useTransform(cam, [1.3, 2.0],        [0, 1]);
+  // Reaches full opacity by cam≈1.8 (≈700ms into the spring travel from cam=1)
+  // so the chair is fully established while the spring is still decelerating.
+  const chairOpacity = useTransform(cam, [1.0, 1.4, 1.8], [0, 0.5, 1]);
+  const chairScale   = useTransform(cam, [1, 2],           [1.48, 1.0]);
+  const chairDim     = useTransform(cam, [1.3, 2.0],       [0, 1]);
+
+  // ── ABUJA TEXT OPACITY ───────────────────────────────────────────────────
+  // Driven by the same spring so text and background fade in sync.
+  // Matches the abujaOpacity background curve so they disappear together.
+  const abujaTextOpacity: MotionValue<number> = useTransform(
+    cam, [0.9, 1.0, 1.35, 1.65], [0, 1, 0.4, 0]
+  );
 
   // ── NAVIGATION ───────────────────────────────────────────────────────────
   function goTo(phase: ContentPhase, camTarget?: number) {
@@ -217,12 +285,16 @@ export default function Wedding() {
 
   async function handleRSVPSubmit(data: RSVPFormValues, attending: boolean) {
     setGuestName(data.fullName);
+    const requestingPlusOne = attending && data.plusOneRequested;
+    setPlusOneRequested(requestingPlusOne);
     const result = await submitRSVP({
-      full_name:   data.fullName,
-      email:       data.email,
-      phone:       data.phone,
-      guest_count: data.guestCount,
+      full_name:             data.fullName,
+      email:                 data.email,
+      phone:                 data.phone || null,
       attending,
+      plus_one_requested:    requestingPlusOne,
+      plus_one_name:         requestingPlusOne ? (data.plusOneName || null) : null,
+      plus_one_relationship: requestingPlusOne ? (data.plusOneRelationship || null) : null,
     });
     if (result.error === 'duplicate') {
       goTo('duplicate');
@@ -245,30 +317,35 @@ export default function Wedding() {
           sizes — on mobile the phone covers them entirely; on desktop they
           fill the side margins. No Tailwind breakpoint classes needed.      */}
 
-      {/* Blurred scene image layers — one per phase group, crossfading */}
-      {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => (
-        <motion.img
-          key={`dbg-${key}`}
-          src={DESKTOP_BG_SRCS[key]}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-          style={{
-            filter: 'blur(52px) saturate(1.3) brightness(0.52)',
-            zIndex: 1,
-            willChange: 'opacity, transform',
-          }}
-          initial={{ opacity: 0, scale: 1.1 }}
-          animate={{
-            opacity: desktopBgKey === key ? 1 : 0,
-            scale: [1.10, 1.17, 1.10],
-          }}
-          transition={{
-            opacity: { duration: 1.6, ease: 'easeInOut' },
-            scale:   { duration: 30, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' },
-          }}
-        />
-      ))}
+      {/* Blurred scene image layers — all three always mounted; scale runs on
+          a single outer wrapper so it never restarts when opacity crossfades.
+          fetchpriority="low" keeps them from competing with world-camera imgs. */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        style={{ zIndex: 1, willChange: 'transform' }}
+        animate={{ scale: DESKTOP_BG_SCALE_KF }}
+        transition={DESKTOP_BG_SCALE_TRANSITION}
+      >
+        {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => (
+          <motion.img
+            key={`dbg-${key}`}
+            src={DESKTOP_BG_SRCS[key]}
+            alt=""
+            aria-hidden="true"
+            // @ts-expect-error — fetchpriority is a valid HTML attribute
+            fetchpriority="low"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+            style={{
+              filter: 'blur(52px) saturate(1.3) brightness(0.52)',
+              willChange: 'opacity',
+            }}
+            variants={DESKTOP_BG_VARIANTS}
+            initial={key === 'landing' ? 'active' : 'inactive'}
+            animate={desktopBgKey === key ? 'active' : 'inactive'}
+            transition={DESKTOP_BG_OPACITY_TRANSITION}
+          />
+        ))}
+      </motion.div>
 
       {/* Warm luxury color grade — golden-rose tint */}
       <div
@@ -316,8 +393,9 @@ export default function Wedding() {
         }}
       />
 
-      {/* Ambient floating dust particles — visible in side margins on desktop */}
-      {DESKTOP_PARTICLES.map((p, i) => (
+      {/* Ambient floating dust particles — only instantiated on desktop
+          where they're visible; saves 8 animated nodes on mobile.        */}
+      {isDesktop && DESKTOP_PARTICLES.map((p, i) => (
         <motion.div
           key={`dp-${i}`}
           aria-hidden="true"
@@ -328,16 +406,8 @@ export default function Wedding() {
             left: p.left, top: p.top,
             zIndex: 3,
           }}
-          animate={{
-            y:       [0, -p.drift, 0],
-            opacity: [0.2, 1, 0.2],
-          }}
-          transition={{
-            duration: p.dur,
-            delay:    p.delay,
-            repeat:   Infinity,
-            ease:     'easeInOut',
-          }}
+          animate={p.animate}
+          transition={p.transition}
         />
       ))}
 
@@ -372,8 +442,9 @@ export default function Wedding() {
           width: '100%', maxWidth: 520, height: '100dvh',
           position: 'relative', flexShrink: 0, zIndex: 10,
         }}
-        animate={isDesktop ? { y: [0, -3, 0] } : { y: 0 }}
-        transition={{ duration: 7, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' }}
+        variants={PHONE_FLOAT_VARIANTS}
+        animate={isDesktop ? 'float' : 'still'}
+        transition={PHONE_FLOAT_TRANSITION}
       >
         {/* Inner phone shell — clips content; rounded on desktop */}
         <div
@@ -411,63 +482,72 @@ export default function Wedding() {
             }}
           />
 
-          {/* Abuja background — enters zoomed, decelerates to aerial */}
-          <motion.img
-            src={ABUJA_BG}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-            style={{ opacity: abujaOpacity, scale: abujaScale, y: abujaY, objectPosition: 'center 40%' }}
-          />
-          {/* Abuja: dark bottom vignette */}
-          <motion.div
-            aria-hidden="true"
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              opacity: abujaGrad,
-              background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.72) 100%)',
-            }}
-          />
+          {/* Abuja background — deferred until after intro so only Landing
+              fetches on page load; user reads Landing for several seconds
+              giving the browser time to download this before they tap.     */}
+          {abujaBgUnlocked && (
+            <>
+              <motion.img
+                src={ABUJA_BG}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                style={{ opacity: abujaOpacity, scale: abujaScale, y: abujaY, objectPosition: 'center 40%' }}
+              />
+              <motion.div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  opacity: abujaGrad,
+                  background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.72) 100%)',
+                }}
+              />
+            </>
+          )}
 
-          {/* Chair background — wrapped for the reveal micro-push (4%→0% scale) */}
-          <motion.div
-            className="absolute inset-0 pointer-events-none"
-            initial={{ scale: 1.04 }}
-            animate={chairRevealControls}
-          >
-            <motion.img
-              src={CHAIR_BG}
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-              style={{
-                opacity: chairOpacity,
-                scale: chairScale,
-                objectPosition: 'center 45%',
-                filter: 'brightness(0.86) contrast(1.10)',
-              }}
-            />
-          </motion.div>
+          {/* Chair background — deferred until user reaches Abuja so the
+              Chair image fetches during the ~5–15s they spend there,
+              well before AbujaChairTransition fires.                      */}
+          {chairBgUnlocked && (
+            <>
+              <motion.div
+                className="absolute inset-0 pointer-events-none"
+                initial={{ scale: 1 }}
+                animate={chairRevealControls}
+              >
+                <motion.img
+                  src={CHAIR_BG}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                  style={{
+                    opacity: chairOpacity,
+                    scale: chairScale,
+                    objectPosition: 'center 45%',
+                    filter: 'brightness(0.86) contrast(1.10)',
+                  }}
+                />
+              </motion.div>
 
-          {/* Chair vignette — darkens corners to draw the eye to the chair */}
-          <motion.div
-            aria-hidden="true"
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              opacity: chairOpacity,
-              background: 'radial-gradient(ellipse 58% 62% at 50% 44%, transparent 28%, rgba(0,0,0,0.18) 68%, rgba(0,0,0,0.42) 100%)',
-            }}
-          />
+              <motion.div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  opacity: chairOpacity,
+                  background: 'radial-gradient(ellipse 58% 62% at 50% 44%, transparent 28%, rgba(0,0,0,0.18) 68%, rgba(0,0,0,0.42) 100%)',
+                }}
+              />
 
-          {/* Chair + form: subtle warm charcoal dim */}
-          <motion.div
-            aria-hidden="true"
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              opacity: chairDim,
-              background: 'rgba(28, 24, 20, 0.09)',
-            }}
-          />
+              <motion.div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  opacity: chairDim,
+                  background: 'rgba(28, 24, 20, 0.09)',
+                }}
+              />
+            </>
+          )}
 
           {/* ══ CINEMATIC INTRO LAYER ══════════════════════════════════════
               Black screen → bg fade-in with push-in and blur-sharpen.
@@ -502,15 +582,19 @@ export default function Wedding() {
               </div>
             )}
 
-            {contentPhase === 'abuja' && abujaContentReady && (
+            {/* Keep Abuja mounted during the chair transition so its text fades
+                out via the camera MotionValue — not via AnimatePresence.
+                It unmounts silently once the camera has fully settled (chairCameraReady),
+                by which point abujaTextOpacity is already 0. */}
+            {abujaContentReady && (contentPhase === 'abuja' || (contentPhase === 'chair' && !chairCameraReady)) && (
               <div key="abuja" className="absolute inset-0 z-10">
-                <Abuja onNext={() => goTo('abuja-to-chair', CAM_CHAIR)} />
+                <Abuja onNext={() => goTo('chair', CAM_CHAIR)} abujaTextOpacity={abujaTextOpacity} />
               </div>
             )}
 
             {contentPhase === 'chair' && (
               <div key="chair" className="absolute inset-0 z-10">
-                <Chair onNext={() => goTo('rsvp-decision')} />
+                <Chair onNext={() => goTo('rsvp-decision')} cameraReady={chairCameraReady} />
               </div>
             )}
 
@@ -546,7 +630,7 @@ export default function Wedding() {
 
             {contentPhase === 'confirmation' && (
               <div key="confirmation" className="absolute inset-0 z-10">
-                <Confirmation guestName={guestName} onRegistry={() => goTo('registry')} />
+                <Confirmation guestName={guestName} onRegistry={() => goTo('registry')} plusOneRequested={plusOneRequested} />
               </div>
             )}
 
@@ -563,36 +647,12 @@ export default function Wedding() {
             )}
 
             {contentPhase === 'duplicate' && (
-              <div
-                key="duplicate"
-                className="absolute inset-0 z-10 flex flex-col items-center justify-center px-8 text-center"
-                style={{ background: 'rgba(253,249,243,0.97)' }}
-              >
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
-                  style={{ background: '#f5ede0', border: '2px solid #e8d5a3' }}
-                >
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                  </svg>
-                </div>
-                <h2 className="text-[24px] font-semibold mb-3" style={{ fontFamily: 'Cormorant Garamond, serif', color: '#2c2420' }}>
-                  We've already received your RSVP.
-                </h2>
-                <p className="text-[18px] italic" style={{ fontFamily: 'Cormorant Garamond, serif', color: '#5a4a40' }}>
-                  Thank you ❤️
-                </p>
+              <div key="duplicate" className="absolute inset-0 z-10">
+                <Duplicate onRegistry={() => goTo('registry')} />
               </div>
             )}
 
           </AnimatePresence>
-
-          {/* Dolly transition — rendered above everything, unmounts on completion */}
-          {contentPhase === 'abuja-to-chair' && (
-            <div className="absolute inset-0 z-20">
-              <AbujaChairTransition onComplete={() => setContentPhase('chair')} />
-            </div>
-          )}
 
         </div>
       </motion.div>

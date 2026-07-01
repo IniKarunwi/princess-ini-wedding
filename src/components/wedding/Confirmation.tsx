@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 interface ConfirmationProps {
   guestName: string;
   onRegistry: () => void;
+  plusOneRequested?: boolean;
 }
 
 function Confetti() {
@@ -59,7 +60,7 @@ const staggerContainer = {
   visible: { transition: { staggerChildren: 0.09, delayChildren: 0.35 } },
 };
 
-export default function Confirmation({ guestName, onRegistry }: ConfirmationProps) {
+export default function Confirmation({ guestName, onRegistry, plusOneRequested }: ConfirmationProps) {
   const [showConfetti, setShowConfetti] = useState(true);
 
   useEffect(() => {
@@ -133,6 +134,23 @@ export default function Confirmation({ guestName, onRegistry }: ConfirmationProp
             See You at the Wedding
           </motion.h2>
           <motion.div className="w-12 h-px bg-[#e8d5a3] mx-auto mb-4" variants={itemVariants} />
+
+          {/* +1 pending notice */}
+          {plusOneRequested && (
+            <motion.div
+              className="rounded-[14px] px-4 py-3 mb-4 text-center"
+              style={{ background: '#fdf6ee', border: '1.5px solid #e8d5a3' }}
+              variants={itemVariants}
+            >
+              <p className="text-[13px] leading-relaxed" style={{ fontFamily: 'Cormorant Garamond, serif', color: '#5a4a40' }}>
+                Your RSVP has been received. Your attendance is confirmed.
+                <br /><br />
+                Your +1 request has also been received and is currently{' '}
+                <span style={{ color: '#c9a84c', fontWeight: 600 }}>pending review</span>.
+                We'll reach out if we need any additional information before confirming your guest reservation.
+              </p>
+            </motion.div>
+          )}
 
           {/* Detail rows */}
           {details.map((row, i) => (
