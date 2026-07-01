@@ -53,14 +53,13 @@ export default function Chair({ onNext, cameraReady }: ChairProps) {
   }
 
   return (
-    // Content-only overlay — background is managed by the world camera in Wedding.tsx.
-    // Fades in gently so the UI doesn't pop over the still-moving spring.
+    // Content-only overlay — no entrance animation of its own.
+    // The world camera spring is the entire reveal; this component just
+    // sits here as an invisible interactive layer until the arrow appears.
+    // Only an exit is needed so navigating away doesn't hard-cut.
     <motion.div
       className="relative w-full h-full"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ delay: 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, transition: { duration: 0.2, ease: 'easeIn' } }}
     >
       {/* Full-screen hit area — the entire scene is tappable */}
       <div
