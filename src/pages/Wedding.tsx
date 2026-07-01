@@ -15,6 +15,7 @@ import RSVPDecision from '@/components/wedding/RSVPDecision';
 import RSVPForm, { RSVPFormValues } from '@/components/wedding/RSVPForm';
 import Confirmation from '@/components/wedding/Confirmation';
 import Regrets from '@/components/wedding/Regrets';
+import Duplicate from '@/components/wedding/Duplicate';
 import Registry from '@/components/wedding/Registry';
 import { submitRSVP } from '@/lib/supabase';
 
@@ -622,25 +623,8 @@ export default function Wedding() {
             )}
 
             {contentPhase === 'duplicate' && (
-              <div
-                key="duplicate"
-                className="absolute inset-0 z-10 flex flex-col items-center justify-center px-8 text-center"
-                style={{ background: 'rgba(253,249,243,0.97)' }}
-              >
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
-                  style={{ background: '#f5ede0', border: '2px solid #e8d5a3' }}
-                >
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                  </svg>
-                </div>
-                <h2 className="text-[24px] font-semibold mb-3" style={{ fontFamily: 'Cormorant Garamond, serif', color: '#2c2420' }}>
-                  We've already received your RSVP.
-                </h2>
-                <p className="text-[18px] italic" style={{ fontFamily: 'Cormorant Garamond, serif', color: '#5a4a40' }}>
-                  Thank you ❤️
-                </p>
+              <div key="duplicate" className="absolute inset-0 z-10">
+                <Duplicate onRegistry={() => goTo('registry')} />
               </div>
             )}
 
