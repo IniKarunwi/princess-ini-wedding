@@ -4,6 +4,38 @@ import { motion } from 'framer-motion';
 // ─────────────────────────────────────────────────────────────────────────────
 //  Registry configuration — edit names, numbers, and banks here only.
 // ─────────────────────────────────────────────────────────────────────────────
+
+const SHARED_ACCOUNTS = [
+  {
+    currency: 'NGN', symbol: '₦', label: 'Naira',
+    name: 'Princess Victor Sado',
+    bank: 'Zenith Bank',
+    number: '2218670750',
+    extras: [] as { label: string; value: string }[],
+  },
+  {
+    currency: 'USD', symbol: '$', label: 'US Dollars',
+    name: 'IniOluwa Joel Karunwi',
+    bank: '',
+    number: '212108860233',
+    extras: [
+      { label: 'ACH Routing', value: '101019644' },
+      { label: 'Wire Routing', value: '101019644' },
+    ],
+  },
+  {
+    currency: 'GBP', symbol: '£', label: 'GB Pounds',
+    name: 'IniOluwa Joel Karunwi',
+    bank: 'Clear Junction Limited',
+    number: '37325094',
+    extras: [
+      { label: 'IBAN',      value: 'GB66CLJU04130737325094' },
+      { label: 'Swift',     value: 'CLJUGB21XXX' },
+      { label: 'Sort Code', value: '041307' },
+    ],
+  },
+];
+
 const REGISTRY = {
   homeEssentials: {
     number: 1,
@@ -15,11 +47,7 @@ const REGISTRY = {
         <path d="M9 21V12h6v9"/>
       </svg>
     ),
-    accounts: [
-      { currency: 'NGN', symbol: '₦', label: 'Naira',       name: 'Princess Karunwini', number: '1023344556', bank: 'Bank Name' },
-      { currency: 'USD', symbol: '$', label: 'US Dollars',   name: 'Princess Karunwini', number: '0019283746', bank: 'Bank Name' },
-      { currency: 'GBP', symbol: '£', label: 'GB Pounds',    name: 'Princess Karunwini', number: '8745639201', bank: 'Bank Name' },
-    ],
+    accounts: SHARED_ACCOUNTS,
   },
   honeymoon: {
     number: 2,
@@ -30,22 +58,18 @@ const REGISTRY = {
         <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 21 4s-2 0-3.5 1.5L14 9 5.8 7.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 3.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
       </svg>
     ),
-    accounts: [
-      { currency: 'NGN', symbol: '₦', label: 'Naira',       name: 'IniOluwa Karunwini', number: '2039485761', bank: 'Bank Name' },
-      { currency: 'USD', symbol: '$', label: 'US Dollars',   name: 'IniOluwa Karunwini', number: '5647382910', bank: 'Bank Name' },
-      { currency: 'GBP', symbol: '£', label: 'GB Pounds',    name: 'IniOluwa Karunwini', number: '9182736450', bank: 'Bank Name' },
-    ],
+    accounts: SHARED_ACCOUNTS,
   },
-} as const;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Copy-to-clipboard button
 // ─────────────────────────────────────────────────────────────────────────────
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      aria-label="Copy account number"
+      aria-label={label ? `Copy ${label}` : 'Copy account number'}
       onClick={() => {
         navigator.clipboard.writeText(text).then(() => {
           setCopied(true);
@@ -123,50 +147,64 @@ function RegistryCard({ section, delay }: { section: Section; delay: number }) {
         {section.accounts.map((acct, i) => (
           <div
             key={acct.currency}
-            className="flex items-center gap-3 py-3.5"
+            className="py-3.5"
             style={{ borderBottom: i < section.accounts.length - 1 ? '1px solid #f0e8dc' : 'none' }}
           >
-            {/* Currency badge */}
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: '#fdf6ea', border: '1.5px solid #e8d5a3' }}
-            >
-              <span
-                className="text-[15px] font-semibold leading-none"
-                style={{ fontFamily: 'Cormorant Garamond, serif', color: '#c9a84c' }}
+            {/* Main row: badge + label + account number + copy */}
+            <div className="flex items-center gap-3">
+              {/* Currency badge */}
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: '#fdf6ea', border: '1.5px solid #e8d5a3' }}
               >
-                {acct.symbol}
-              </span>
+                <span
+                  className="text-[15px] font-semibold leading-none"
+                  style={{ fontFamily: 'Cormorant Garamond, serif', color: '#c9a84c' }}
+                >
+                  {acct.symbol}
+                </span>
+              </div>
+
+              {/* Currency label */}
+              <div className="flex-shrink-0" style={{ minWidth: 72 }}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: '#8a7a70' }}>
+                  {acct.label}
+                </p>
+                {acct.bank ? (
+                  <p className="text-[10px] mt-0.5" style={{ color: '#b0a090' }}>{acct.bank}</p>
+                ) : null}
+              </div>
+
+              {/* Account number + name — right-aligned */}
+              <div className="flex-1 text-right">
+                <p className="text-[14px] font-semibold" style={{ fontFamily: 'monospace', color: '#2c2420', letterSpacing: '0.03em' }}>
+                  {acct.number}
+                </p>
+                <p className="text-[10px] mt-0.5" style={{ color: '#8a7a70' }}>{acct.name}</p>
+              </div>
+
+              {/* Copy account number */}
+              <CopyButton text={acct.number} label="account number" />
             </div>
 
-            {/* Currency label */}
-            <div className="flex-shrink-0" style={{ minWidth: 80 }}>
-              <p
-                className="text-[11px] font-semibold uppercase tracking-[0.1em]"
-                style={{ color: '#8a7a70' }}
-              >
-                {acct.label}
-              </p>
-            </div>
-
-            {/* Account info — right-aligned */}
-            <div className="flex-1 text-right">
-              <p
-                className="text-[10px] uppercase tracking-[0.08em] mb-0.5"
-                style={{ color: '#b0a090' }}
-              >
-                Acct &amp; Number
-              </p>
-              <p
-                className="text-[14px] font-semibold"
-                style={{ fontFamily: 'monospace', color: '#2c2420', letterSpacing: '0.03em' }}
-              >
-                {acct.number}
-              </p>
-            </div>
-
-            {/* Copy */}
-            <CopyButton text={acct.number} />
+            {/* Extra fields (routing, IBAN, Swift, Sort Code) */}
+            {acct.extras.length > 0 && (
+              <div className="mt-2 ml-12 flex flex-col gap-1.5">
+                {acct.extras.map(ex => (
+                  <div key={ex.label} className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] uppercase tracking-[0.08em]" style={{ color: '#b0a090' }}>
+                      {ex.label}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[12px] font-medium" style={{ fontFamily: 'monospace', color: '#5a4a40' }}>
+                        {ex.value}
+                      </span>
+                      <CopyButton text={ex.value} label={ex.label} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
