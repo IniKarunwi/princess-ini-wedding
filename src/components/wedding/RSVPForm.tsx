@@ -13,7 +13,7 @@ const schema = z.object({
 export type RSVPFormValues = z.infer<typeof schema>;
 
 interface RSVPFormProps {
-  onSubmit: (data: RSVPFormValues) => void;
+  onSubmit: (data: RSVPFormValues) => Promise<void>;
   onBack: () => void;
   attending: boolean;
 }
@@ -33,7 +33,7 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
     handleSubmit,
     setValue,
     watch,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<RSVPFormValues>({
     resolver: zodResolver(schema),
     defaultValues: { guestCount: 1 },
@@ -191,14 +191,17 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
             {/* Submit */}
             <button
               type="submit"
-              className="mt-2 w-full min-h-[56px] rounded-full text-[16px] font-semibold text-white transition-opacity hover:opacity-90"
+              disabled={isSubmitting}
+              className="mt-2 w-full min-h-[56px] rounded-full text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
               style={{
                 fontFamily: 'Cormorant Garamond, serif',
                 background: attending ? '#e8756a' : '#5a4a40',
                 boxShadow: attending ? '0 10px 24px rgba(232,117,106,0.22)' : 'none',
               }}
             >
-              {attending ? 'Confirm My Attendance' : 'Send My Regrets'}
+              {isSubmitting
+                ? (attending ? 'Saving…' : 'Sending…')
+                : (attending ? 'Confirm My Attendance' : 'Send My Regrets')}
             </button>
 
             <button
