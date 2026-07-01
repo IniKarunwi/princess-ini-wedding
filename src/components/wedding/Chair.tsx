@@ -35,7 +35,8 @@ export default function Chair({ onNext }: ChairProps) {
 
     // Delay slightly longer than the camera spring settles (~1.5s) so
     // the arrow appears after the scene has arrived, not mid-zoom.
-    const initial = setTimeout(run, 1500);
+    // 1 000ms: micro-push (~750ms) completes with a small breath before arrow appears
+    const initial = setTimeout(run, 1000);
     return () => { cancelled = true; clearTimeout(initial); clearTimeout(idleTimer); };
   }, [bounceArrow]);
 

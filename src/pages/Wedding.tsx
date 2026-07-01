@@ -5,6 +5,7 @@ import {
   useMotionValue,
   useSpring,
   useTransform,
+  useAnimation,
 } from 'framer-motion';
 import Landing from '@/components/wedding/Landing';
 import Abuja from '@/components/wedding/Abuja';
@@ -114,6 +115,21 @@ export default function Wedding() {
     });
     return unsub;
   // cam is a stable MotionValue reference — intentionally omitted from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentPhase]);
+
+  // Chair reveal micro-push: the wrapper starts 4% wider than final so the
+  // camera makes one last gentle push-in (750ms) before the arrow appears.
+  // Runs on the first 'chair' mount; subsequent phases leave it at scale 1.
+  const chairRevealControls = useAnimation();
+  useEffect(() => {
+    if (contentPhase === 'chair') {
+      chairRevealControls.start({
+        scale: 1,
+        transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] },
+      });
+    }
+  // chairRevealControls is a stable object — safe to omit from deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentPhase]);
 
@@ -229,14 +245,39 @@ export default function Wedding() {
           }}
         />
 
-        {/* Chair background */}
-        <motion.img
-          src={CHAIR_BG}
-          alt=""
+        {/* Chair background — wrapped for the reveal micro-push (4%→0% scale) */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          initial={{ scale: 1.04 }}
+          animate={chairRevealControls}
+        >
+          <motion.img
+            src={CHAIR_BG}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+            style={{
+              opacity: chairOpacity,
+              scale: chairScale,
+              // 'center 45%' frames the chair in the visual centre,
+              // eliminating the excess ceiling/white space above it.
+              objectPosition: 'center 45%',
+              // Reduce overexposure; lift contrast to separate chair from bg.
+              filter: 'brightness(0.86) contrast(1.10)',
+            }}
+          />
+        </motion.div>
+
+        {/* Chair vignette — darkens corners to draw the eye to the chair */}
+        <motion.div
           aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-          style={{ opacity: chairOpacity, scale: chairScale, objectPosition: 'center 10%' }}
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            opacity: chairOpacity,
+            background: 'radial-gradient(ellipse 58% 62% at 50% 44%, transparent 28%, rgba(0,0,0,0.18) 68%, rgba(0,0,0,0.42) 100%)',
+          }}
         />
+
         {/* Chair + form: cream bottom gradient (card surface) */}
         <motion.div
           aria-hidden="true"

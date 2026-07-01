@@ -32,7 +32,7 @@ export default function Abuja({ onNext }: AbujaProps) {
       idleTimer = setTimeout(run, 7000);
     };
 
-    const initial = setTimeout(run, 3000);
+    const initial = setTimeout(run, 1500);
     return () => { cancelled = true; clearTimeout(initial); clearTimeout(idleTimer); };
   }, [bounceArrow]);
 
