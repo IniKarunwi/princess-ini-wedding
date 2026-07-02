@@ -29,6 +29,7 @@ const CHAIR_BG   = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.apps
 // component hides its own text overlay on desktop.
 const LANDING_BG_WEB = '/landing-web.png';
 const ABUJA_BG_WEB   = '/abuja-web.png';
+const CHAIR_BG_WEB   = '/chair-web.png';
 
 const DESKTOP_MQ = '(min-width: 768px)';
 
@@ -165,6 +166,7 @@ export default function Wedding() {
   // Viewport-appropriate scene images (portrait art on mobile, landscape on web)
   const landingSrc = isDesktop ? LANDING_BG_WEB : LANDING_BG;
   const abujaSrc   = isDesktop ? ABUJA_BG_WEB   : ABUJA_BG;
+  const chairSrc   = isDesktop ? CHAIR_BG_WEB   : CHAIR_BG;
 
   useEffect(() => {
     let cancelled = false;
@@ -280,7 +282,6 @@ export default function Wedding() {
   // through mid-transition (this was the cause of the black flash).
   const landingScale   = useTransform(cam, [0, 1.0],            [1.0, 3.8]);
   const landingY       = useTransform(cam, [0, 1.0],            ['0%', '-6%']);
-  const landingOpacity = useTransform(cam, [0, 1.0, 1.15],      [1, 1, 0]);
   const landingTopGrad = useTransform(cam, [0, 0.28, 0.52],     [1, 0.15, 0]);
 
   // ── ABUJA BG ────────────────────────────────────────────────────────────────
@@ -312,6 +313,40 @@ export default function Wedding() {
   function goTo(phase: ContentPhase, camTarget?: number) {
     if (camTarget !== undefined) rawCam.set(camTarget);
     setContentPhase(phase);
+  }
+
+  // Scene images already decoded — camera can depart immediately.
+  const decodedScenesRef = useRef(new Set<string>());
+
+  // Camera transitions between scenes only start once the destination image
+  // is downloaded AND decoded. An <img> that hasn't finished loading paints
+  // nothing regardless of its opacity, so departing early exposed whatever
+  // was behind the empty layer (the black page base) — the source of the
+  // scene-transition flashes. Normally the image finishes while the user
+  // reads the current screen and this gate is a no-op; on a fast tap-through
+  // it holds the current scene the extra beat the decode needs. A 5s
+  // failsafe departs anyway so a broken image can never strand the user.
+  function goToScene(phase: ContentPhase, camTarget: number, src: string) {
+    if (decodedScenesRef.current.has(src)) {
+      goTo(phase, camTarget);
+      return;
+    }
+    let done = false;
+    const proceed = () => {
+      if (done) return;
+      done = true;
+      decodedScenesRef.current.add(src);
+      goTo(phase, camTarget);
+    };
+    const img = new window.Image();
+    img.onload  = () => { img.decode ? img.decode().then(proceed).catch(proceed) : proceed(); };
+    img.onerror = proceed;
+    img.src = src;
+    // Cached images can be complete synchronously without firing onload
+    if (img.complete) {
+      img.decode ? img.decode().then(proceed).catch(proceed) : proceed();
+    }
+    setTimeout(proceed, 5000);
   }
 
   async function handleRSVPSubmit(data: RSVPFormValues, attending: boolean): Promise<string | void> {
@@ -464,13 +499,16 @@ export default function Wedding() {
               All images always present in the DOM. The spring drives their
               opacity and scale continuously — the camera never cuts.        */}
 
-          {/* Landing background — zooms toward the dome as camera advances */}
+          {/* Landing background — zooms toward the dome as camera advances.
+              Never fades out: abuja (above it) becomes opaque and covers it,
+              so an unloaded upper layer can only ever reveal this scene,
+              never the black page base. */}
           <motion.img
             src={landingSrc}
             alt=""
             aria-hidden="true"
             className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-            style={{ opacity: landingOpacity, scale: landingScale, y: landingY, objectPosition: 'center 30%' }}
+            style={{ scale: landingScale, y: landingY, objectPosition: 'center 30%' }}
           />
           {/* Landing cream overlays — mobile only. They exist to give the
               overlay invitation text legibility; the web image has its text
@@ -530,7 +568,7 @@ export default function Wedding() {
                 animate={chairRevealControls}
               >
                 <motion.img
-                  src={CHAIR_BG}
+                  src={chairSrc}
                   alt=""
                   aria-hidden="true"
                   className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
@@ -592,7 +630,7 @@ export default function Wedding() {
 
             {contentPhase === 'landing' && (
               <div key="landing" className="absolute inset-0 z-10">
-                <Landing onNext={() => goTo('abuja', CAM_ABUJA)} startContent={startContent} isDesktop={isDesktop} />
+                <Landing onNext={() => goToScene('abuja', CAM_ABUJA, abujaSrc)} startContent={startContent} isDesktop={isDesktop} />
               </div>
             )}
 
@@ -602,7 +640,7 @@ export default function Wedding() {
                 by which point abujaTextOpacity is already 0. */}
             {abujaContentReady && (contentPhase === 'abuja' || (contentPhase === 'chair' && !chairCameraReady)) && (
               <div key="abuja" className="absolute inset-0 z-10">
-                <Abuja onNext={() => goTo('chair', CAM_CHAIR)} abujaTextOpacity={abujaTextOpacity} isDesktop={isDesktop} />
+                <Abuja onNext={() => goToScene('chair', CAM_CHAIR, chairSrc)} abujaTextOpacity={abujaTextOpacity} isDesktop={isDesktop} />
               </div>
             )}
 
