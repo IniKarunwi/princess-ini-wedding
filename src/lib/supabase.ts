@@ -34,13 +34,19 @@ export async function submitRSVP(data: RSVPData): Promise<{ error?: string }> {
     return { error: 'duplicate' };
   }
 
+  // guest_count = seats confirmed at submission time:
+  //   1 if attending (plus_one approval happens via DB trigger later)
+  //   0 if declining
+  const guest_count = data.attending ? 1 : 0;
+
   const { error } = await supabase.from('rsvps').insert({
     full_name:             data.full_name,
     email:                 data.email,
     phone:                 data.phone     || null,
     attending:             data.attending,
-    guest_count:           0,
+    guest_count,
     plus_one_requested:    data.plus_one_requested,
+    plus_one_approved:     false,
     plus_one_name:         data.plus_one_name         || null,
     plus_one_relationship: data.plus_one_relationship || null,
     plus_one_status:       data.plus_one_requested ? 'pending' : null,
