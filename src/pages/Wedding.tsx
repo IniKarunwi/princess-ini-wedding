@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
   motion,
   AnimatePresence,
@@ -67,8 +67,6 @@ const DESKTOP_BG_SRCS: Record<DesktopBgKey, string> = {
 // always receives the same object/array reference and never restarts these
 // infinite loops on a React re-render.
 const DESKTOP_BG_SCALE_KF = [1.10, 1.17, 1.10] as const;
-const PHONE_FLOAT_KF         = [0, -3, 0] as const;
-const PHONE_FLOAT_TRANSITION = { duration: 7, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut' };
 
 // SVG fractal-noise tile for the film grain overlay
 const GRAIN_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n' color-interpolation-filters='linearRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E";
@@ -87,12 +85,24 @@ const DESKTOP_BG_SCALE_TRANSITION = {
 };
 const DESKTOP_BG_OPACITY_TRANSITION = { duration: 1.6, ease: 'easeInOut' } as const;
 
-// Phone float variants — stable string keys so the outer animate object is
-// never recreated when isDesktop changes.
-const PHONE_FLOAT_VARIANTS = {
-  float: { y: PHONE_FLOAT_KF },
-  still: { y: 0 as number },
-} as const;
+// Max readable width for sheet-style UI (forms, cards) on wide screens.
+// Scene backgrounds stay full-bleed; only the foreground column is capped.
+const SHEET_MAX_WIDTH = 620;
+
+// Centers sheet-style content into a readable column on wide screens while
+// leaving the full-bleed scene background visible on either side.
+function SheetLayer({ isDesktop, children }: { isDesktop: boolean; children: ReactNode }) {
+  return (
+    <div className="absolute inset-0 z-10 flex justify-center">
+      <div
+        className="relative w-full h-full"
+        style={{ maxWidth: isDesktop ? SHEET_MAX_WIDTH : '100%' }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 // Ambient particles — each entry carries its own stable animate/transition
 // objects, computed once at module level so renders never create new refs.
@@ -413,45 +423,20 @@ export default function Wedding() {
         />
       ))}
 
-      {/* ══ PHONE SHADOW + EDGE GLOW ═══════════════════════════════════════════
-          Positioned at the same place as the phone but outside its
-          overflow:hidden shell, so the shadow bleeds into the margins.      */}
-      {isDesktop && (
-        <div
-          aria-hidden="true"
-          className="absolute top-0 bottom-0 pointer-events-none"
-          style={{
-            left: '50%', transform: 'translateX(-50%)',
-            width: '100%', maxWidth: 520,
-            zIndex: 9,
-            borderRadius: 32,
-            boxShadow: [
-              '0 60px 160px rgba(0,0,0,0.80)',
-              '0 20px 60px rgba(0,0,0,0.55)',
-              '0 0 0 1px rgba(255,255,255,0.04)',
-              '0 0 90px rgba(201,168,76,0.10)',
-              'inset 0 1px 0 rgba(255,255,255,0.07)',
-            ].join(', '),
-          }}
-        />
-      )}
-
-      {/* ══ PHONE ══════════════════════════════════════════════════════════════
-          Floats gently on desktop (y ±3px over 7s).
-          Fills the full viewport on mobile — no visible float there.         */}
+      {/* ══ STAGE ══════════════════════════════════════════════════════════════
+          Fills the full viewport on every screen size. Scene backgrounds
+          are full-bleed (object-cover); sheet-style UI is centered into a
+          readable column via SheetLayer so it never stretches edge-to-edge. */}
       <motion.div
         style={{
-          width: '100%', maxWidth: 520, height: '100dvh',
+          width: '100%', maxWidth: '100%', height: '100dvh',
           position: 'relative', flexShrink: 0, zIndex: 10,
         }}
-        variants={PHONE_FLOAT_VARIANTS}
-        animate={isDesktop ? 'float' : 'still'}
-        transition={PHONE_FLOAT_TRANSITION}
       >
-        {/* Inner phone shell — clips content; rounded on desktop */}
+        {/* Inner shell — clips content; full-bleed, no rounding */}
         <div
           className="relative w-full h-full overflow-hidden"
-          style={{ borderRadius: isDesktop ? 28 : 0 }}
+          style={{ borderRadius: 0 }}
         >
 
           {/* ══ WORLD CAMERA ════════════════════════════════════════════════
@@ -601,57 +586,57 @@ export default function Wedding() {
             )}
 
             {contentPhase === 'rsvp-decision' && (
-              <div key="rsvp-decision" className="absolute inset-0 z-10">
+              <SheetLayer key="rsvp-decision" isDesktop={isDesktop}>
                 <RSVPDecision
                   onAttending={()    => goTo('rsvp-form-attending')}
                   onNotAttending={() => goTo('rsvp-form-regrets')}
                   onClose={()        => goTo('chair')}
                 />
-              </div>
+              </SheetLayer>
             )}
 
             {contentPhase === 'rsvp-form-attending' && (
-              <div key="rsvp-form-attending" className="absolute inset-0 z-10">
+              <SheetLayer key="rsvp-form-attending" isDesktop={isDesktop}>
                 <RSVPForm
                   attending={true}
                   onSubmit={(data) => handleRSVPSubmit(data, true)}
                   onBack={() => goTo('rsvp-decision')}
                 />
-              </div>
+              </SheetLayer>
             )}
 
             {contentPhase === 'rsvp-form-regrets' && (
-              <div key="rsvp-form-regrets" className="absolute inset-0 z-10">
+              <SheetLayer key="rsvp-form-regrets" isDesktop={isDesktop}>
                 <RSVPForm
                   attending={false}
                   onSubmit={(data) => handleRSVPSubmit(data, false)}
                   onBack={() => goTo('rsvp-decision')}
                 />
-              </div>
+              </SheetLayer>
             )}
 
             {contentPhase === 'confirmation' && (
-              <div key="confirmation" className="absolute inset-0 z-10">
+              <SheetLayer key="confirmation" isDesktop={isDesktop}>
                 <Confirmation guestName={guestName} onRegistry={() => goTo('registry')} plusOneRequested={plusOneRequested} />
-              </div>
+              </SheetLayer>
             )}
 
             {contentPhase === 'regrets' && (
-              <div key="regrets" className="absolute inset-0 z-10">
+              <SheetLayer key="regrets" isDesktop={isDesktop}>
                 <Regrets guestName={guestName} onRegistry={() => goTo('registry')} />
-              </div>
+              </SheetLayer>
             )}
 
             {contentPhase === 'registry' && (
-              <div key="registry" className="absolute inset-0 z-10">
+              <SheetLayer key="registry" isDesktop={isDesktop}>
                 <Registry />
-              </div>
+              </SheetLayer>
             )}
 
             {contentPhase === 'duplicate' && (
-              <div key="duplicate" className="absolute inset-0 z-10">
+              <SheetLayer key="duplicate" isDesktop={isDesktop}>
                 <Duplicate onRegistry={() => goTo('registry')} />
-              </div>
+              </SheetLayer>
             )}
 
           </AnimatePresence>
