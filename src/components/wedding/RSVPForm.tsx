@@ -118,6 +118,7 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
               </span>
               <input
                 {...register('fullName')}
+                autoComplete="name"
                 placeholder="e.g. Amara Johnson"
                 className="min-h-[52px] rounded-[18px] px-[18px] text-[16px] outline-none transition-all"
                 style={inputStyle(!!errors.fullName)}
@@ -135,6 +136,7 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
               <input
                 {...register('email')}
                 type="email"
+                autoComplete="email"
                 placeholder="you@example.com"
                 className="min-h-[52px] rounded-[18px] px-[18px] text-[16px] outline-none transition-all"
                 style={inputStyle(!!errors.email)}
@@ -157,6 +159,7 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
               <input
                 {...register('phone')}
                 type="tel"
+                autoComplete="tel"
                 placeholder="+234 800 000 0000"
                 className="min-h-[52px] rounded-[18px] px-[18px] text-[16px] outline-none"
                 style={inputStyle()}
@@ -234,6 +237,7 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
                       </span>
                       <input
                         {...register('plusOneName')}
+                        autoComplete="off"
                         placeholder="e.g. James Johnson"
                         className="min-h-[52px] rounded-[18px] px-[18px] text-[16px] outline-none transition-all"
                         style={inputStyle(!!errors.plusOneName)}
