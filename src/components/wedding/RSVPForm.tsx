@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,7 +25,7 @@ const schema = z.object({
 export type RSVPFormValues = z.infer<typeof schema>;
 
 interface RSVPFormProps {
-  onSubmit: (data: RSVPFormValues) => Promise<void>;
+  onSubmit: (data: RSVPFormValues) => Promise<string | void>;
   onBack: () => void;
   attending: boolean;
 }
@@ -51,6 +52,8 @@ const labelStyle = {
 };
 
 export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps) {
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -99,7 +102,14 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
             {attending ? 'Claim Your Seat' : <>Let Us Know<br />Who You Are</>}
           </h2>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <form
+            onSubmit={handleSubmit(async (data) => {
+              setSubmitError(null);
+              const err = await onSubmit(data);
+              if (err) setSubmitError(err);
+            })}
+            className="flex flex-col gap-4"
+          >
 
             {/* Full Name */}
             <div className="flex flex-col gap-2">
@@ -271,6 +281,18 @@ export default function RSVPForm({ onSubmit, onBack, attending }: RSVPFormProps)
                     </p>
                   </motion.div>
                 )}
+              </div>
+            )}
+
+            {/* Submission error */}
+            {submitError && (
+              <div
+                className="rounded-[14px] px-4 py-3 text-center"
+                style={{ background: '#fff0ee', border: '1.5px solid #e8756a' }}
+              >
+                <p className="text-[13px] leading-relaxed" style={{ fontFamily: 'Cormorant Garamond, serif', color: '#c0392b' }}>
+                  Something went wrong and your RSVP was not saved. Please try again, or contact us directly if the problem continues.
+                </p>
               </div>
             )}
 
