@@ -44,6 +44,7 @@ export async function submitRSVP(data: RSVPData): Promise<{ error?: string }> {
     email:                data.email,
     phone:                data.phone     || null,
     attending:            data.attending,
+    guest_count:          0,
     plus_one_requested:   data.plus_one_requested,
     plus_one_name:        data.plus_one_name         || null,
     plus_one_relationship: data.plus_one_relationship || null,
