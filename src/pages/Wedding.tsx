@@ -286,9 +286,12 @@ export default function Wedding() {
   // ── ABUJA BG ────────────────────────────────────────────────────────────────
   const abujaScale   = useTransform(cam, [0.55, 1.0, 2],             [2.2, 1.0, 1.24]);
   const abujaY       = useTransform(cam, [0.55, 1.0],                ['4%', '0%']);
-  // Fades in over the still-opaque landing; stays fully opaque until the
-  // chair (drawn above it) has reached opacity 1 at cam≈1.8, then releases.
-  const abujaOpacity = useTransform(cam, [0.55, 1.0, 1.8, 1.95],     [0, 1, 1, 0]);
+  // Fades in over the still-opaque landing and then NEVER fades out — the
+  // chair layer (drawn above it) becomes fully opaque and simply covers it.
+  // Fading abuja out at the end risked exposing the black page base if the
+  // chair image hadn't finished loading/decoding (opacity 1 on an unloaded
+  // <img> renders nothing) — that was the residual abuja→chair black flash.
+  const abujaOpacity = useTransform(cam, [0.55, 1.0],                [0, 1]);
   const abujaGrad    = useTransform(cam, [0.65, 0.9, 1.0, 1.5, 1.9], [0, 0, 1, 0.3, 0]);
 
   // ── CHAIR BG ────────────────────────────────────────────────────────────────
@@ -469,23 +472,29 @@ export default function Wedding() {
             className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
             style={{ opacity: landingOpacity, scale: landingScale, y: landingY, objectPosition: 'center 30%' }}
           />
-          {/* Landing cream overlays — fade out before the zoom gets tight */}
-          <motion.div
-            aria-hidden="true"
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              opacity: landingTopGrad,
-              background: 'linear-gradient(180deg, rgba(253,249,243,0.92) 0%, rgba(253,249,243,0.8) 35%, rgba(253,249,243,0) 100%)',
-            }}
-          />
-          <motion.div
-            aria-hidden="true"
-            className="absolute bottom-0 left-0 right-0 h-[20%] pointer-events-none"
-            style={{
-              opacity: landingTopGrad,
-              background: 'linear-gradient(0deg, rgba(253,249,243,0.6) 0%, rgba(253,249,243,0) 100%)',
-            }}
-          />
+          {/* Landing cream overlays — mobile only. They exist to give the
+              overlay invitation text legibility; the web image has its text
+              painted in, and the wash reads as a white haze on desktop.     */}
+          {!isDesktop && (
+            <>
+              <motion.div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  opacity: landingTopGrad,
+                  background: 'linear-gradient(180deg, rgba(253,249,243,0.92) 0%, rgba(253,249,243,0.8) 35%, rgba(253,249,243,0) 100%)',
+                }}
+              />
+              <motion.div
+                aria-hidden="true"
+                className="absolute bottom-0 left-0 right-0 h-[20%] pointer-events-none"
+                style={{
+                  opacity: landingTopGrad,
+                  background: 'linear-gradient(0deg, rgba(253,249,243,0.6) 0%, rgba(253,249,243,0) 100%)',
+                }}
+              />
+            </>
+          )}
 
           {/* Abuja background — deferred until after intro so only Landing
               fetches on page load; user reads Landing for several seconds
