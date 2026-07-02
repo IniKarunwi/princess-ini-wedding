@@ -298,6 +298,9 @@ export default function Wedding() {
     });
     if (result.error === 'duplicate') {
       goTo('duplicate');
+    } else if (result.error) {
+      // DEBUG: insert failed — alert already shown in submitRSVP; stay on form
+      console.error('[RSVP] Submission error, staying on form:', result.error);
     } else {
       goTo(attending ? 'confirmation' : 'regrets');
     }
