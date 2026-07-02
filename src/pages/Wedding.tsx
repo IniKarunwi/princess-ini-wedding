@@ -24,6 +24,14 @@ const LANDING_BG = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.apps
 const ABUJA_BG   = 'https://storage.googleapis.com/banani-generated-images/generated-images/451cac94-c73a-4eeb-927c-365eeff38b2c.jpg';
 const CHAIR_BG   = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.appspot.com/o/reference-images%2Fee3e746a-48b4-46f7-980b-17b9cac93870?alt=media&token=ddb6776b-257e-49c1-b642-0f32242d8932';
 
+// Landscape variants for wide screens — served from /public.
+// The landing web image has the invitation text painted in, so the Landing
+// component hides its own text overlay on desktop.
+const LANDING_BG_WEB = '/landing-web.png';
+const ABUJA_BG_WEB   = '/abuja-web.png';
+
+const DESKTOP_MQ = '(min-width: 768px)';
+
 // Camera positions along the journey:
 //   0 = Landing  |  1 = Abuja  |  2 = Chair / form screens
 const CAM_LANDING = 0;
@@ -125,8 +133,10 @@ export default function Wedding() {
   const [introPhase, setIntroPhase]     = useState<IntroPhase>('loading');
   const [startContent, setStartContent] = useState(false);
 
-  // Tracks whether we're on a desktop viewport (≥768px)
-  const [isDesktop, setIsDesktop] = useState(false);
+  // Tracks whether we're on a desktop viewport (≥768px).
+  // Initialized synchronously so the first paint (and the intro preloader)
+  // already uses the correct scene image for this viewport.
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_MQ).matches);
 
   // Abuja content is held until the spring camera has settled at cam≈1
   const [abujaContentReady, setAbujaContentReady] = useState(false);
@@ -146,12 +156,15 @@ export default function Wedding() {
   const [chairBgUnlocked, setChairBgUnlocked] = useState(false);
 
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    setIsDesktop(mq.matches);
+    const mq = window.matchMedia(DESKTOP_MQ);
     const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  // Viewport-appropriate scene images (portrait art on mobile, landscape on web)
+  const landingSrc = isDesktop ? LANDING_BG_WEB : LANDING_BG;
+  const abujaSrc   = isDesktop ? ABUJA_BG_WEB   : ABUJA_BG;
 
   useEffect(() => {
     let cancelled = false;
@@ -188,7 +201,8 @@ export default function Wedding() {
       }
     };
     img.onerror = run; // never block on a failed load
-    img.src = LANDING_BG;
+    // Read the media query directly — this effect runs once on mount
+    img.src = window.matchMedia(DESKTOP_MQ).matches ? LANDING_BG_WEB : LANDING_BG;
 
     return () => { cancelled = true; };
   }, []);
@@ -260,18 +274,22 @@ export default function Wedding() {
   const cam    = useSpring(rawCam, { stiffness: 30, damping: 14, mass: 1 });
 
   // ── LANDING BG ──────────────────────────────────────────────────────────────
-  const landingScale   = useTransform(cam, [0, 1.0],                    [1.0, 3.8]);
-  const landingY       = useTransform(cam, [0, 1.0],                    ['0%', '-6%']);
-  const landingOpacity = useTransform(cam, [0, 0.62, 0.88, 1.05],       [1, 1, 0.15, 0]);
-  const landingTopGrad = useTransform(cam, [0, 0.28, 0.52],             [1, 0.15, 0]);
+  // Layers stack landing → abuja → chair in DOM order, so each incoming scene
+  // fades in OVER a still-opaque outgoing scene. The outgoing layer only drops
+  // to 0 after it is fully covered — the black page base can never show
+  // through mid-transition (this was the cause of the black flash).
+  const landingScale   = useTransform(cam, [0, 1.0],            [1.0, 3.8]);
+  const landingY       = useTransform(cam, [0, 1.0],            ['0%', '-6%']);
+  const landingOpacity = useTransform(cam, [0, 1.0, 1.15],      [1, 1, 0]);
+  const landingTopGrad = useTransform(cam, [0, 0.28, 0.52],     [1, 0.15, 0]);
 
   // ── ABUJA BG ────────────────────────────────────────────────────────────────
-  const abujaScale   = useTransform(cam, [0.55, 1.0, 2],               [2.2, 1.0, 1.24]);
-  const abujaY       = useTransform(cam, [0.55, 1.0],                  ['4%', '0%']);
-  // Fades out by cam≈1.85 so it's fully gone before the spring settles —
-  // no Abuja ghost visible once the chair scene is established.
-  const abujaOpacity = useTransform(cam, [0.55, 0.82, 1.0, 1.4, 1.85], [0, 0.8, 1, 0.35, 0]);
-  const abujaGrad    = useTransform(cam, [0.65, 0.9, 1.0, 1.5, 1.9],   [0, 0, 1, 0.3, 0]);
+  const abujaScale   = useTransform(cam, [0.55, 1.0, 2],             [2.2, 1.0, 1.24]);
+  const abujaY       = useTransform(cam, [0.55, 1.0],                ['4%', '0%']);
+  // Fades in over the still-opaque landing; stays fully opaque until the
+  // chair (drawn above it) has reached opacity 1 at cam≈1.8, then releases.
+  const abujaOpacity = useTransform(cam, [0.55, 1.0, 1.8, 1.95],     [0, 1, 1, 0]);
+  const abujaGrad    = useTransform(cam, [0.65, 0.9, 1.0, 1.5, 1.9], [0, 0, 1, 0.3, 0]);
 
   // ── CHAIR BG ────────────────────────────────────────────────────────────────
   // Reaches full opacity by cam≈1.8 (≈700ms into the spring travel from cam=1)
@@ -445,7 +463,7 @@ export default function Wedding() {
 
           {/* Landing background — zooms toward the dome as camera advances */}
           <motion.img
-            src={LANDING_BG}
+            src={landingSrc}
             alt=""
             aria-hidden="true"
             className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
@@ -475,7 +493,7 @@ export default function Wedding() {
           {abujaBgUnlocked && (
             <>
               <motion.img
-                src={ABUJA_BG}
+                src={abujaSrc}
                 alt=""
                 aria-hidden="true"
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
@@ -545,7 +563,7 @@ export default function Wedding() {
               style={{ background: '#050201' }}
             >
               <motion.img
-                src={LANDING_BG}
+                src={landingSrc}
                 alt=""
                 aria-hidden="true"
                 className="absolute inset-0 w-full h-full object-cover object-top select-none"
@@ -565,7 +583,7 @@ export default function Wedding() {
 
             {contentPhase === 'landing' && (
               <div key="landing" className="absolute inset-0 z-10">
-                <Landing onNext={() => goTo('abuja', CAM_ABUJA)} startContent={startContent} />
+                <Landing onNext={() => goTo('abuja', CAM_ABUJA)} startContent={startContent} isDesktop={isDesktop} />
               </div>
             )}
 
@@ -575,7 +593,7 @@ export default function Wedding() {
                 by which point abujaTextOpacity is already 0. */}
             {abujaContentReady && (contentPhase === 'abuja' || (contentPhase === 'chair' && !chairCameraReady)) && (
               <div key="abuja" className="absolute inset-0 z-10">
-                <Abuja onNext={() => goTo('chair', CAM_CHAIR)} abujaTextOpacity={abujaTextOpacity} />
+                <Abuja onNext={() => goTo('chair', CAM_CHAIR)} abujaTextOpacity={abujaTextOpacity} isDesktop={isDesktop} />
               </div>
             )}
 

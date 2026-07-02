@@ -5,9 +5,10 @@ import GlassPill from './GlassPill';
 interface AbujaProps {
   onNext: () => void;
   abujaTextOpacity: MotionValue<number>;
+  isDesktop: boolean;
 }
 
-export default function Abuja({ onNext, abujaTextOpacity }: AbujaProps) {
+export default function Abuja({ onNext, abujaTextOpacity, isDesktop }: AbujaProps) {
   const [ctaVisible, setCtaVisible] = useState(false);
   const [ctaGone, setCtaGone] = useState(false);
   const arrowControls = useAnimation();
@@ -59,27 +60,27 @@ export default function Abuja({ onNext, abujaTextOpacity }: AbujaProps) {
         transition={{ delay: 0.35, duration: 0.7 }}
       >
         <span
-          className="text-[13px] italic mb-1.5"
+          className={`${isDesktop ? 'text-[17px]' : 'text-[13px]'} italic mb-1.5`}
           style={{ fontFamily: 'Cormorant Garamond, serif', color: '#e8d5a3', letterSpacing: '0.06em' }}
         >
           You're Invited
         </span>
         <h1
-          className="text-[34px] font-semibold leading-[1.15] mb-5"
+          className={`${isDesktop ? 'text-[54px]' : 'text-[34px]'} font-semibold leading-[1.15] mb-5`}
           style={{ fontFamily: 'Cormorant Garamond, serif', color: '#fff', textShadow: '0 2px 20px rgba(0,0,0,0.45)' }}
         >
-          It's happening<br />in{' '}
+          It's happening{isDesktop ? ' ' : <br />}in{' '}
           <span style={{ color: '#e8d5a3', fontStyle: 'italic' }}>Abuja</span>
         </h1>
         <div className="w-10 h-[1.5px] bg-[#c9a84c] opacity-70 mb-5" />
 
         {/* Location badge */}
         <GlassPill>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width={isDesktop ? 17 : 14} height={isDesktop ? 17 : 14} viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
           </svg>
           <span
-            className="text-[15px] font-medium"
+            className={`${isDesktop ? 'text-[19px]' : 'text-[15px]'} font-medium`}
             style={{ fontFamily: 'Cormorant Garamond, serif', color: 'rgba(253,249,243,0.92)', letterSpacing: '0.03em' }}
           >
             Asokoro, Abuja · Sept 26, 2026
@@ -98,7 +99,7 @@ export default function Abuja({ onNext, abujaTextOpacity }: AbujaProps) {
             >
               <GlassPill onClick={handleNext}>
                 <span
-                  className="text-[15px] italic"
+                  className={`${isDesktop ? 'text-[20px] px-4 py-1' : 'text-[15px]'} italic inline-block`}
                   style={{ fontFamily: 'Cormorant Garamond, serif', color: 'rgba(253,249,243,0.88)', letterSpacing: '0.03em' }}
                 >
                   Tap here to continue

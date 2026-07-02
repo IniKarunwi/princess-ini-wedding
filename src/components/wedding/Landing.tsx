@@ -3,6 +3,9 @@ import { motion, useReducedMotion } from 'framer-motion';
 interface LandingProps {
   onNext: () => void;
   startContent: boolean;
+  // Desktop uses the landscape web image with the invitation text painted in,
+  // so the overlay text/frame is hidden and the CTA moves to a large centered button.
+  isDesktop: boolean;
 }
 
 const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
@@ -28,7 +31,7 @@ const SHIMMER = [
   { size: 2, color: '#e8d5a3', left: '86%', top: '58%', dur: 6.0, delay: 1.9 },
 ];
 
-export default function Landing({ onNext, startContent }: LandingProps) {
+export default function Landing({ onNext, startContent, isDesktop }: LandingProps) {
   const reduced = useReducedMotion();
 
   // When reduced motion is preferred, all elements are immediately visible
@@ -88,7 +91,8 @@ export default function Landing({ onNext, startContent }: LandingProps) {
         />
       ))}
 
-      {/* ── Floral SVG frame ────────────────────────────────────────────────── */}
+      {/* ── Floral SVG frame — mobile only (painted into the web image) ─────── */}
+      {!isDesktop && (
       <motion.svg
         className="absolute inset-0 w-full h-full z-[3] pointer-events-none"
         viewBox="0 0 376 798"
@@ -118,8 +122,10 @@ export default function Landing({ onNext, startContent }: LandingProps) {
         <circle cx="188" cy="12" r="4" fill="#f0c8b8" opacity="0.6"/>
         <circle cx="188" cy="12" r="2" fill="#dca898" opacity="0.55"/>
       </motion.svg>
+      )}
 
-      {/* ── Invitation text ─────────────────────────────────────────────────── */}
+      {/* ── Invitation text — mobile only (painted into the web image) ──────── */}
+      {!isDesktop && (
       <div className="absolute top-9 left-0 right-0 z-[5] flex flex-col items-center text-center px-7">
 
         {/* 1. "You're Invited" */}
@@ -169,36 +175,68 @@ export default function Landing({ onNext, startContent }: LandingProps) {
         </motion.div>
 
       </div>
+      )}
 
       {/* ── CTA ─────────────────────────────────────────────────────────────── */}
-      <motion.button
-        onClick={onNext}
-        className="absolute z-10 right-5"
-        style={{ top: '56%', transform: 'translateY(-50%)' }}
-        initial={{ opacity: 0, y: 20, scale: 0.98 }}
-        animate={visible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 20, scale: 0.98 }}
-        transition={{ duration: 0.65, delay: reduced ? 0 : 0.6, ease }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <div className="flex flex-col items-center gap-1">
-          <div
-            className="rounded-[20px] px-4 py-[7px] text-[13px] font-semibold italic whitespace-nowrap"
-            style={{
-              fontFamily: 'Cormorant Garamond, serif',
-              background: 'rgba(253,249,243,0.97)',
-              border: '1.5px solid #e8d5a3',
-              color: '#2c2420',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.13)',
-            }}
+      {isDesktop ? (
+        // Web: large button, centered on screen below the painted-in date
+        <div
+          className="absolute inset-x-0 z-10 flex justify-center pointer-events-none"
+          style={{ top: '68%' }}
+        >
+          <motion.button
+            onClick={onNext}
+            className="pointer-events-auto"
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={visible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 20, scale: 0.98 }}
+            transition={{ duration: 0.65, delay: reduced ? 0 : 0.6, ease }}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
           >
-            Tap to Begin
-          </div>
-          <svg width="48" height="64" viewBox="0 0 48 64" fill="none" style={{ display: 'block', marginRight: 16 }}>
-            <path d="M40 4 C42 20, 36 36, 22 50 C14 58, 6 60, 4 62" stroke="#c9a84c" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-            <path d="M0 56 L4 63 L11 57" stroke="#c9a84c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          </svg>
+            <div
+              className="rounded-full px-12 py-4 text-[22px] font-semibold italic whitespace-nowrap"
+              style={{
+                fontFamily: 'Cormorant Garamond, serif',
+                background: 'rgba(253,249,243,0.97)',
+                border: '2px solid #c9a84c',
+                color: '#2c2420',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.22), 0 0 60px rgba(201,168,76,0.25)',
+              }}
+            >
+              Tap to Begin
+            </div>
+          </motion.button>
         </div>
-      </motion.button>
+      ) : (
+        <motion.button
+          onClick={onNext}
+          className="absolute z-10 right-5"
+          style={{ top: '56%', transform: 'translateY(-50%)' }}
+          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          animate={visible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 20, scale: 0.98 }}
+          transition={{ duration: 0.65, delay: reduced ? 0 : 0.6, ease }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className="flex flex-col items-center gap-1">
+            <div
+              className="rounded-[20px] px-4 py-[7px] text-[13px] font-semibold italic whitespace-nowrap"
+              style={{
+                fontFamily: 'Cormorant Garamond, serif',
+                background: 'rgba(253,249,243,0.97)',
+                border: '1.5px solid #e8d5a3',
+                color: '#2c2420',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.13)',
+              }}
+            >
+              Tap to Begin
+            </div>
+            <svg width="48" height="64" viewBox="0 0 48 64" fill="none" style={{ display: 'block', marginRight: 16 }}>
+              <path d="M40 4 C42 20, 36 36, 22 50 C14 58, 6 60, 4 62" stroke="#c9a84c" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+              <path d="M0 56 L4 63 L11 57" stroke="#c9a84c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+            </svg>
+          </div>
+        </motion.button>
+      )}
 
     </motion.div>
   );
