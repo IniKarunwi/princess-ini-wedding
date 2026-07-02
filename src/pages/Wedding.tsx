@@ -27,9 +27,9 @@ const CHAIR_BG   = 'https://firebasestorage.googleapis.com/v0/b/banani-prod.apps
 // Landscape variants for wide screens — served from /public.
 // The landing web image has the invitation text painted in, so the Landing
 // component hides its own text overlay on desktop.
-const LANDING_BG_WEB = '/landing-web.png';
-const ABUJA_BG_WEB   = '/abuja-web.png';
-const CHAIR_BG_WEB   = '/chair-web.png';
+const LANDING_BG_WEB = '/landing-web.webp';
+const ABUJA_BG_WEB   = '/abuja-web.webp';
+const CHAIR_BG_WEB   = '/chair-web.webp';
 
 const DESKTOP_MQ = '(min-width: 768px)';
 
