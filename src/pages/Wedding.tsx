@@ -277,16 +277,20 @@ export default function Wedding() {
 
   // ── LANDING BG ──────────────────────────────────────────────────────────────
   // Layers stack landing → abuja → chair in DOM order, so each incoming scene
-  // fades in OVER a still-opaque outgoing scene. The outgoing layer only drops
-  // to 0 after it is fully covered — the black page base can never show
-  // through mid-transition (this was the cause of the black flash).
-  const landingScale   = useTransform(cam, [0, 1.0],            [1.0, 3.8]);
-  const landingY       = useTransform(cam, [0, 1.0],            ['0%', '-6%']);
+  // fades in OVER a still-opaque outgoing scene. The outgoing layer never
+  // drops out — the black page base can never show through mid-transition.
+  //
+  // Camera language differs per viewport: the portrait mobile art supports a
+  // dramatic dive-through zoom, but the landscape web images have the
+  // invitation text painted in — zooming through them fills the screen with
+  // giant blurry letters. Desktop gets a gentle push + crossfade instead.
+  const landingScale   = useTransform(cam, [0, 1.0], isDesktop ? [1.0, 1.10] : [1.0, 3.8]);
+  const landingY       = useTransform(cam, [0, 1.0], isDesktop ? ['0%', '-2%'] : ['0%', '-6%']);
   const landingTopGrad = useTransform(cam, [0, 0.28, 0.52],     [1, 0.15, 0]);
 
   // ── ABUJA BG ────────────────────────────────────────────────────────────────
-  const abujaScale   = useTransform(cam, [0.55, 1.0, 2],             [2.2, 1.0, 1.24]);
-  const abujaY       = useTransform(cam, [0.55, 1.0],                ['4%', '0%']);
+  const abujaScale   = useTransform(cam, [0.55, 1.0, 2], isDesktop ? [1.12, 1.0, 1.08] : [2.2, 1.0, 1.24]);
+  const abujaY       = useTransform(cam, [0.55, 1.0],    isDesktop ? ['1.5%', '0%'] : ['4%', '0%']);
   // Fades in over the still-opaque landing and then NEVER fades out — the
   // chair layer (drawn above it) becomes fully opaque and simply covers it.
   // Fading abuja out at the end risked exposing the black page base if the
@@ -299,7 +303,7 @@ export default function Wedding() {
   // Reaches full opacity by cam≈1.8 (≈700ms into the spring travel from cam=1)
   // so the chair is fully established while the spring is still decelerating.
   const chairOpacity = useTransform(cam, [1.0, 1.4, 1.8], [0, 0.5, 1]);
-  const chairScale   = useTransform(cam, [1, 2],           [1.48, 1.0]);
+  const chairScale   = useTransform(cam, [1, 2], isDesktop ? [1.10, 1.0] : [1.48, 1.0]);
   const chairDim     = useTransform(cam, [1.3, 2.0],       [0, 1]);
 
   // ── ABUJA TEXT OPACITY ───────────────────────────────────────────────────
