@@ -48,64 +48,8 @@ type ContentPhase =
 // 'done'      – intro layer unmounts; world camera bg takes over seamlessly
 type IntroPhase = 'loading' | 'revealing' | 'done';
 
-// ─ desktop cinematic background helpers ──────────────────────────────────────
-type DesktopBgKey = 'landing' | 'abuja' | 'chair';
-
-function getDesktopBgKey(phase: ContentPhase): DesktopBgKey {
-  if (phase === 'landing') return 'landing';
-  if (phase === 'abuja') return 'abuja';
-  return 'chair';
-}
-
-const DESKTOP_BG_SRCS: Record<DesktopBgKey, string> = {
-  landing: LANDING_BG,
-  abuja:   ABUJA_BG,
-  chair:   CHAIR_BG,
-};
-
-// Stable animation constants — defined outside the component so Framer Motion
-// always receives the same object/array reference and never restarts these
-// infinite loops on a React re-render.
-const DESKTOP_BG_SCALE_KF = [1.10, 1.17, 1.10] as const;
-const PHONE_FLOAT_KF         = [0, -3, 0] as const;
-const PHONE_FLOAT_TRANSITION = { duration: 7, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut' };
-
 // SVG fractal-noise tile for the film grain overlay
 const GRAIN_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n' color-interpolation-filters='linearRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E";
-
-// Desktop bg opacity variants — scale is intentionally excluded so the
-// 30s scale loop (on a separate wrapper) is never restarted by a variant change.
-const DESKTOP_BG_VARIANTS = {
-  active:   { opacity: 1 },
-  inactive: { opacity: 0 },
-} as const;
-
-// Shared scale transition for the single outer wrapper — runs forever,
-// completely isolated from the per-layer opacity crossfades.
-const DESKTOP_BG_SCALE_TRANSITION = {
-  duration: 30, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut',
-};
-const DESKTOP_BG_OPACITY_TRANSITION = { duration: 1.6, ease: 'easeInOut' } as const;
-
-// Phone float variants — stable string keys so the outer animate object is
-// never recreated when isDesktop changes.
-const PHONE_FLOAT_VARIANTS = {
-  float: { y: PHONE_FLOAT_KF },
-  still: { y: 0 as number },
-} as const;
-
-// Ambient particles — each entry carries its own stable animate/transition
-// objects, computed once at module level so renders never create new refs.
-const DESKTOP_PARTICLES = [
-  { size: 2, color: 'rgba(201,168,76,0.55)',  left: '6%',  top: '12%', animate: { y: [0, -28, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 14, delay: 0,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 3, color: 'rgba(232,213,163,0.38)', left: '89%', top: '20%', animate: { y: [0, -22, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 19, delay: 2.5, repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(201,168,76,0.42)',  left: '4%',  top: '55%', animate: { y: [0, -18, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 21, delay: 6,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(232,181,176,0.32)', left: '92%', top: '65%', animate: { y: [0, -25, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 17, delay: 9,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 3, color: 'rgba(201,168,76,0.28)',  left: '9%',  top: '80%', animate: { y: [0, -20, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 23, delay: 4,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(232,213,163,0.48)', left: '87%', top: '42%', animate: { y: [0, -26, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 18, delay: 12,  repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(240,200,184,0.35)', left: '7%',  top: '35%', animate: { y: [0, -15, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 16, delay: 7,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(201,168,76,0.30)',  left: '91%', top: '84%', animate: { y: [0, -19, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 25, delay: 15,  repeat: Infinity, ease: 'easeInOut' as const } },
-];
 
 export default function Wedding() {
   const [contentPhase, setContentPhase] = useState<ContentPhase>('landing');
@@ -277,6 +221,15 @@ export default function Wedding() {
     cam, [0.9, 1.0, 1.35, 1.65], [0, 1, 0.4, 0]
   );
 
+  // ── DESKTOP BLURRED BACKDROP (side margins) ────────────────────────────────
+  // Crossfades are driven by the SAME camera spring as the world inside the
+  // phone — one synchronized timeline, no independent 1.6s crossfade racing
+  // the transition and no infinite ambient scale loop. The margins now travel
+  // with the camera.
+  const blurLandingOp = useTransform(cam, [0, 1],    [1, 0]);
+  const blurAbujaOp   = useTransform(cam, [0, 1, 2], [0, 1, 0]);
+  const blurChairOp   = useTransform(cam, [1, 2],    [0, 1]);
+
   // ── NAVIGATION ───────────────────────────────────────────────────────────
   function goTo(phase: ContentPhase, camTarget?: number) {
     if (camTarget !== undefined) rawCam.set(camTarget);
@@ -305,8 +258,6 @@ export default function Wedding() {
     }
   }
 
-  const desktopBgKey = getDesktopBgKey(contentPhase);
-
   return (
     <div
       className="w-full flex justify-center relative overflow-hidden"
@@ -314,40 +265,34 @@ export default function Wedding() {
     >
 
       {/* ══ DESKTOP CINEMATIC BACKGROUND ══════════════════════════════════════
-          Three blurred scene images crossfade as the guest progresses.
-          z-index 1–3 keeps them behind the phone (z-index 10) on all screen
-          sizes — on mobile the phone covers them entirely; on desktop they
-          fill the side margins. No Tailwind breakpoint classes needed.      */}
-
-      {/* Blurred scene image layers — all three always mounted; scale runs on
-          a single outer wrapper so it never restarts when opacity crossfades.
-          fetchpriority="low" keeps them from competing with world-camera imgs. */}
-      <motion.div
+          Three blurred scene images fill the side margins around the phone.
+          Their crossfade opacity is DERIVED FROM THE CAMERA SPRING — the
+          margins move on the exact same timeline as the world inside the
+          phone. The wrapper is static (fixed scale, no ambient loop).       */}
+      <div
         className="absolute inset-0 pointer-events-none"
-        style={{ zIndex: 1, willChange: 'transform' }}
-        animate={{ scale: DESKTOP_BG_SCALE_KF }}
-        transition={DESKTOP_BG_SCALE_TRANSITION}
+        style={{ zIndex: 1, transform: 'scale(1.12)' }}
       >
-        {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => (
+        {([
+          { key: 'landing', src: LANDING_BG, op: blurLandingOp },
+          { key: 'abuja',   src: ABUJA_BG,   op: blurAbujaOp },
+          { key: 'chair',   src: CHAIR_BG,   op: blurChairOp },
+        ] as const).map(({ key, src, op }) => (
           <motion.img
             key={`dbg-${key}`}
-            src={DESKTOP_BG_SRCS[key]}
+            src={src}
             alt=""
             aria-hidden="true"
             // @ts-expect-error — fetchpriority is a valid HTML attribute
             fetchpriority="low"
             className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
             style={{
+              opacity: op,
               filter: 'blur(52px) saturate(1.3) brightness(0.52)',
-              willChange: 'opacity',
             }}
-            variants={DESKTOP_BG_VARIANTS}
-            initial={key === 'landing' ? 'active' : 'inactive'}
-            animate={desktopBgKey === key ? 'active' : 'inactive'}
-            transition={DESKTOP_BG_OPACITY_TRANSITION}
           />
         ))}
-      </motion.div>
+      </div>
 
       {/* Warm luxury color grade — golden-rose tint */}
       <div
@@ -395,24 +340,6 @@ export default function Wedding() {
         }}
       />
 
-      {/* Ambient floating dust particles — only instantiated on desktop
-          where they're visible; saves 8 animated nodes on mobile.        */}
-      {isDesktop && DESKTOP_PARTICLES.map((p, i) => (
-        <motion.div
-          key={`dp-${i}`}
-          aria-hidden="true"
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            width: p.size, height: p.size,
-            background: p.color,
-            left: p.left, top: p.top,
-            zIndex: 3,
-          }}
-          animate={p.animate}
-          transition={p.transition}
-        />
-      ))}
-
       {/* ══ PHONE SHADOW + EDGE GLOW ═══════════════════════════════════════════
           Positioned at the same place as the phone but outside its
           overflow:hidden shell, so the shadow bleeds into the margins.      */}
@@ -439,14 +366,11 @@ export default function Wedding() {
       {/* ══ PHONE ══════════════════════════════════════════════════════════════
           Floats gently on desktop (y ±3px over 7s).
           Fills the full viewport on mobile — no visible float there.         */}
-      <motion.div
+      <div
         style={{
           width: '100%', maxWidth: 520, height: '100dvh',
           position: 'relative', flexShrink: 0, zIndex: 10,
         }}
-        variants={PHONE_FLOAT_VARIANTS}
-        animate={isDesktop ? 'float' : 'still'}
-        transition={PHONE_FLOAT_TRANSITION}
       >
         {/* Inner phone shell — clips content; rounded on desktop */}
         <div
@@ -657,7 +581,7 @@ export default function Wedding() {
           </AnimatePresence>
 
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
