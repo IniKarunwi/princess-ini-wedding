@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence, useAnimation, type MotionValue } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence, type MotionValue } from 'framer-motion';
 import GlassPill from './GlassPill';
 
 interface AbujaProps {
@@ -11,32 +11,13 @@ interface AbujaProps {
 export default function Abuja({ onNext, abujaTextOpacity, isDesktop }: AbujaProps) {
   const [ctaVisible, setCtaVisible] = useState(false);
   const [ctaGone, setCtaGone] = useState(false);
-  const arrowControls = useAnimation();
 
-  const bounceArrow = useCallback(async () => {
-    for (let i = 0; i < 3; i++) {
-      await arrowControls.start({ y: [0, -6, 0], transition: { duration: 0.5, ease: 'easeInOut' } });
-      await new Promise(r => setTimeout(r, 180));
-    }
-  }, [arrowControls]);
-
+  // Reveal the CTA pill after a short read of the scene. No other
+  // animation owner lives here — scene motion belongs to the camera.
   useEffect(() => {
-    let cancelled = false;
-    let idleTimer: ReturnType<typeof setTimeout>;
-
-    const run = async () => {
-      if (cancelled) return;
-      setCtaVisible(true);
-      await new Promise(r => setTimeout(r, 450));
-      if (cancelled) return;
-      await bounceArrow();
-      if (cancelled) return;
-      idleTimer = setTimeout(run, 7000);
-    };
-
-    const initial = setTimeout(run, 1500);
-    return () => { cancelled = true; clearTimeout(initial); clearTimeout(idleTimer); };
-  }, [bounceArrow]);
+    const t = setTimeout(() => setCtaVisible(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   function handleNext() {
     if (ctaGone) return;

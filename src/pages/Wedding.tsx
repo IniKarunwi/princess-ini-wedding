@@ -256,14 +256,22 @@ export default function Wedding() {
   const chairScale   = useTransform(cam, [1, 2],           [1.48, 1.0]);
   const chairDim     = useTransform(cam, [1.3, 2.0],       [0, 1]);
 
-  // ── DESKTOP CAMERA STRIP ─────────────────────────────────────────────────
+  // ── DESKTOP CAMERA RIG ───────────────────────────────────────────────────
   // On desktop every scene is a static painting laid side-by-side on a
-  // 300vw strip. The ONLY animated property in the whole scene graph is
-  // this wrapper's translateX — one GPU transform of one composited layer.
-  // The images themselves carry no transforms, no opacity animation,
-  // nothing: they are frozen. The spring pans the camera; each scene is
-  // already in its final position when the camera arrives.
-  const stripX = useTransform(cam, [0, 2], ['0vw', '-200vw']);
+  // 300vw strip. All motion belongs to a two-node camera rig, both nodes
+  // driven by the SAME spring (one synchronized timeline):
+  //
+  //   zoom node (viewport-sized, scale, origin center)
+  //     └─ pan node (300vw strip, translateX)
+  //          └─ frozen paintings — no transforms, no opacity, nothing
+  //
+  // The zoom is a gentle dolly-in that peaks mid-travel and settles to 1
+  // as the camera arrives, so each pan reads as flying through one
+  // continuous world. Scale never dips below 1, so the strip can never
+  // reveal anything beyond its edges. Children remain completely static:
+  // two GPU transforms per frame, zero bitmap repaints.
+  const stripX    = useTransform(cam, [0, 2], ['0vw', '-200vw']);
+  const stripZoom = useTransform(cam, [0, 0.5, 1, 1.5, 2], [1, 1.07, 1, 1.07, 1]);
 
   // ── ABUJA TEXT OPACITY ───────────────────────────────────────────────────
   // Driven by the same spring so text and background fade in sync.
@@ -345,7 +353,7 @@ export default function Wedding() {
           Fills the full viewport on every screen size. Scene backgrounds
           are full-bleed (object-cover); sheet-style UI is centered into a
           readable column via SheetLayer so it never stretches edge-to-edge. */}
-      <motion.div
+      <div
         style={{
           width: '100%', maxWidth: '100%', height: '100dvh',
           position: 'relative', flexShrink: 0, zIndex: 10,
@@ -364,9 +372,15 @@ export default function Wedding() {
               the same spring.                                              */}
 
           {isDesktop ? (
+            /* Camera rig — zoom node (scale) wrapping pan node (translateX),
+               both driven by the same spring. Nothing inside ever animates. */
             <motion.div
               aria-hidden="true"
-              className="absolute top-0 left-0 h-full flex pointer-events-none"
+              className="absolute inset-0 pointer-events-none"
+              style={{ scale: stripZoom, transformOrigin: 'center center', willChange: 'transform' }}
+            >
+            <motion.div
+              className="absolute top-0 left-0 h-full flex"
               style={{ width: '300vw', x: stripX, willChange: 'transform' }}
             >
               {/* Panel 1 — Landing (static painting) */}
@@ -411,6 +425,7 @@ export default function Wedding() {
                   style={{ background: 'radial-gradient(ellipse 58% 62% at 50% 44%, transparent 28%, rgba(0,0,0,0.18) 68%, rgba(0,0,0,0.42) 100%)' }}
                 />
               </div>
+            </motion.div>
             </motion.div>
           ) : (
             <>
@@ -617,7 +632,7 @@ export default function Wedding() {
           </AnimatePresence>
 
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
