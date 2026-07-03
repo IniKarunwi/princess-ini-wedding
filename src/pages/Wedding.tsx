@@ -284,13 +284,13 @@ export default function Wedding() {
   // dramatic dive-through zoom, but the landscape web images have the
   // invitation text painted in — zooming through them fills the screen with
   // giant blurry letters. Desktop gets a gentle push + crossfade instead.
-  const landingScale   = useTransform(cam, [0, 1.0], isDesktop ? [1.0, 1.10] : [1.0, 3.8]);
-  const landingY       = useTransform(cam, [0, 1.0], isDesktop ? ['0%', '-2%'] : ['0%', '-6%']);
-  const landingTopGrad = useTransform(cam, [0, 0.28, 0.52],     [1, 0.15, 0]);
+  const landingScale   = useTransform(cam, [0, 1.0],        [1.0, 3.8]);
+  const landingY       = useTransform(cam, [0, 1.0],        ['0%', '-6%']);
+  const landingTopGrad = useTransform(cam, [0, 0.28, 0.52], [1, 0.15, 0]);
 
   // ── ABUJA BG ────────────────────────────────────────────────────────────────
-  const abujaScale   = useTransform(cam, [0.55, 1.0, 2], isDesktop ? [1.12, 1.0, 1.08] : [2.2, 1.0, 1.24]);
-  const abujaY       = useTransform(cam, [0.55, 1.0],    isDesktop ? ['1.5%', '0%'] : ['4%', '0%']);
+  const abujaScale   = useTransform(cam, [0.55, 1.0, 2],   [2.2, 1.0, 1.24]);
+  const abujaY       = useTransform(cam, [0.55, 1.0],      ['4%', '0%']);
   // Fades in over the still-opaque landing and then NEVER fades out — the
   // chair layer (drawn above it) becomes fully opaque and simply covers it.
   // Fading abuja out at the end risked exposing the black page base if the
@@ -303,8 +303,17 @@ export default function Wedding() {
   // Reaches full opacity by cam≈1.8 (≈700ms into the spring travel from cam=1)
   // so the chair is fully established while the spring is still decelerating.
   const chairOpacity = useTransform(cam, [1.0, 1.4, 1.8], [0, 0.5, 1]);
-  const chairScale   = useTransform(cam, [1, 2], isDesktop ? [1.10, 1.0] : [1.48, 1.0]);
+  const chairScale   = useTransform(cam, [1, 2],           [1.48, 1.0]);
   const chairDim     = useTransform(cam, [1.3, 2.0],       [0, 1]);
+
+  // ── DESKTOP CAMERA STRIP ─────────────────────────────────────────────────
+  // On desktop every scene is a static painting laid side-by-side on a
+  // 300vw strip. The ONLY animated property in the whole scene graph is
+  // this wrapper's translateX — one GPU transform of one composited layer.
+  // The images themselves carry no transforms, no opacity animation,
+  // nothing: they are frozen. The spring pans the camera; each scene is
+  // already in its final position when the camera arrives.
+  const stripX = useTransform(cam, [0, 2], ['0vw', '-200vw']);
 
   // ── ABUJA TEXT OPACITY ───────────────────────────────────────────────────
   // Driven by the same spring so text and background fade in sync.
@@ -500,25 +509,74 @@ export default function Wedding() {
         >
 
           {/* ══ WORLD CAMERA ════════════════════════════════════════════════
-              All images always present in the DOM. The spring drives their
-              opacity and scale continuously — the camera never cuts.        */}
+              Desktop: three static paintings on a 300vw strip; the camera
+              (one wrapper's translateX) is the only thing that ever moves.
+              Mobile: original stacked layers with opacity/scale driven by
+              the same spring.                                              */}
 
-          {/* Landing background — zooms toward the dome as camera advances.
-              Never fades out: abuja (above it) becomes opaque and covers it,
-              so an unloaded upper layer can only ever reveal this scene,
-              never the black page base. */}
-          <motion.img
-            src={landingSrc}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-            style={{ scale: landingScale, y: landingY, objectPosition: 'center 30%' }}
-          />
-          {/* Landing cream overlays — mobile only. They exist to give the
-              overlay invitation text legibility; the web image has its text
-              painted in, and the wash reads as a white haze on desktop.     */}
-          {!isDesktop && (
+          {isDesktop ? (
+            <motion.div
+              aria-hidden="true"
+              className="absolute top-0 left-0 h-full flex pointer-events-none"
+              style={{ width: '300vw', x: stripX, willChange: 'transform' }}
+            >
+              {/* Panel 1 — Landing (static painting) */}
+              <div className="relative h-full flex-shrink-0" style={{ width: '100vw' }}>
+                <img
+                  src={landingSrc}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover select-none"
+                  draggable={false}
+                />
+              </div>
+
+              {/* Panel 2 — Abuja (static painting + frozen legibility grad) */}
+              <div className="relative h-full flex-shrink-0" style={{ width: '100vw' }}>
+                {abujaBgUnlocked && (
+                  <img
+                    src={abujaSrc}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover select-none"
+                    draggable={false}
+                  />
+                )}
+                <div
+                  className="absolute inset-0"
+                  style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.42) 78%, rgba(0,0,0,0.6) 100%)' }}
+                />
+              </div>
+
+              {/* Panel 3 — Chair (static painting + frozen vignette) */}
+              <div className="relative h-full flex-shrink-0" style={{ width: '100vw' }}>
+                {chairBgUnlocked && (
+                  <img
+                    src={chairSrc}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover select-none"
+                    style={{ filter: 'brightness(0.9) contrast(1.06)' }}
+                    draggable={false}
+                  />
+                )}
+                <div
+                  className="absolute inset-0"
+                  style={{ background: 'radial-gradient(ellipse 58% 62% at 50% 44%, transparent 28%, rgba(0,0,0,0.18) 68%, rgba(0,0,0,0.42) 100%)' }}
+                />
+              </div>
+            </motion.div>
+          ) : (
             <>
+              {/* Landing background — zooms toward the dome as camera advances.
+                  Never fades out: abuja (above it) becomes opaque and covers it,
+                  so an unloaded upper layer can only ever reveal this scene,
+                  never the black page base. */}
+              <motion.img
+                src={landingSrc}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                style={{ scale: landingScale, y: landingY, objectPosition: 'center 30%' }}
+              />
+              {/* Landing cream overlays — give the overlay text legibility */}
               <motion.div
                 aria-hidden="true"
                 className="absolute inset-0 pointer-events-none"
@@ -535,73 +593,72 @@ export default function Wedding() {
                   background: 'linear-gradient(0deg, rgba(253,249,243,0.6) 0%, rgba(253,249,243,0) 100%)',
                 }}
               />
-            </>
-          )}
 
-          {/* Abuja background — deferred until after intro so only Landing
-              fetches on page load; user reads Landing for several seconds
-              giving the browser time to download this before they tap.     */}
-          {abujaBgUnlocked && (
-            <>
-              <motion.img
-                src={abujaSrc}
-                alt=""
-                aria-hidden="true"
-                className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-                style={{ opacity: abujaOpacity, scale: abujaScale, y: abujaY, objectPosition: 'center 40%' }}
-              />
-              <motion.div
-                aria-hidden="true"
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  opacity: abujaGrad,
-                  background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.72) 100%)',
-                }}
-              />
-            </>
-          )}
+              {/* Abuja background — deferred until after intro so only Landing
+                  fetches on page load; user reads Landing for several seconds
+                  giving the browser time to download this before they tap.     */}
+              {abujaBgUnlocked && (
+                <>
+                  <motion.img
+                    src={abujaSrc}
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                    style={{ opacity: abujaOpacity, scale: abujaScale, y: abujaY, objectPosition: 'center 40%' }}
+                  />
+                  <motion.div
+                    aria-hidden="true"
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      opacity: abujaGrad,
+                      background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.72) 100%)',
+                    }}
+                  />
+                </>
+              )}
 
-          {/* Chair background — deferred until user reaches Abuja so the
-              Chair image fetches during the ~5–15s they spend there,
-              well before AbujaChairTransition fires.                      */}
-          {chairBgUnlocked && (
-            <>
-              <motion.div
-                className="absolute inset-0 pointer-events-none"
-                initial={{ scale: 1 }}
-                animate={chairRevealControls}
-              >
-                <motion.img
-                  src={chairSrc}
-                  alt=""
-                  aria-hidden="true"
-                  className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-                  style={{
-                    opacity: chairOpacity,
-                    scale: chairScale,
-                    objectPosition: 'center 45%',
-                    filter: 'brightness(0.86) contrast(1.10)',
-                  }}
-                />
-              </motion.div>
+              {/* Chair background — deferred until user reaches Abuja so the
+                  Chair image fetches during the ~5–15s they spend there.    */}
+              {chairBgUnlocked && (
+                <>
+                  <motion.div
+                    className="absolute inset-0 pointer-events-none"
+                    initial={{ scale: 1 }}
+                    animate={chairRevealControls}
+                  >
+                    <motion.img
+                      src={chairSrc}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                      style={{
+                        opacity: chairOpacity,
+                        scale: chairScale,
+                        objectPosition: 'center 45%',
+                        filter: 'brightness(0.86) contrast(1.10)',
+                      }}
+                    />
+                  </motion.div>
 
-              <motion.div
-                aria-hidden="true"
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  opacity: chairOpacity,
-                  background: 'radial-gradient(ellipse 58% 62% at 50% 44%, transparent 28%, rgba(0,0,0,0.18) 68%, rgba(0,0,0,0.42) 100%)',
-                }}
-              />
+                  <motion.div
+                    aria-hidden="true"
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      opacity: chairOpacity,
+                      background: 'radial-gradient(ellipse 58% 62% at 50% 44%, transparent 28%, rgba(0,0,0,0.18) 68%, rgba(0,0,0,0.42) 100%)',
+                    }}
+                  />
 
-              <motion.div
-                aria-hidden="true"
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  opacity: chairDim,
-                  background: 'rgba(28, 24, 20, 0.09)',
-                }}
-              />
+                  <motion.div
+                    aria-hidden="true"
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      opacity: chairDim,
+                      background: 'rgba(28, 24, 20, 0.09)',
+                    }}
+                  />
+                </>
+              )}
             </>
           )}
 
@@ -618,10 +675,10 @@ export default function Wedding() {
                 alt=""
                 aria-hidden="true"
                 className="absolute inset-0 w-full h-full object-cover object-top select-none"
-                initial={{ opacity: 0, scale: 1.03, filter: 'blur(8px)' }}
+                initial={isDesktop ? { opacity: 0 } : { opacity: 0, scale: 1.03, filter: 'blur(8px)' }}
                 animate={introPhase === 'revealing'
-                  ? { opacity: 1, scale: 1.0, filter: 'blur(0px)' }
-                  : { opacity: 0, scale: 1.03, filter: 'blur(8px)' }}
+                  ? (isDesktop ? { opacity: 1 } : { opacity: 1, scale: 1.0, filter: 'blur(0px)' })
+                  : (isDesktop ? { opacity: 0 } : { opacity: 0, scale: 1.03, filter: 'blur(8px)' })}
                 transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
               />
             </div>
