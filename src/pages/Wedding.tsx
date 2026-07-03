@@ -57,43 +57,6 @@ type ContentPhase =
 // 'done'      – intro layer unmounts; world camera bg takes over seamlessly
 type IntroPhase = 'loading' | 'revealing' | 'done';
 
-// ─ desktop cinematic background helpers ──────────────────────────────────────
-type DesktopBgKey = 'landing' | 'abuja' | 'chair';
-
-function getDesktopBgKey(phase: ContentPhase): DesktopBgKey {
-  if (phase === 'landing') return 'landing';
-  if (phase === 'abuja') return 'abuja';
-  return 'chair';
-}
-
-const DESKTOP_BG_SRCS: Record<DesktopBgKey, string> = {
-  landing: LANDING_BG,
-  abuja:   ABUJA_BG,
-  chair:   CHAIR_BG,
-};
-
-// Stable animation constants — defined outside the component so Framer Motion
-// always receives the same object/array reference and never restarts these
-// infinite loops on a React re-render.
-const DESKTOP_BG_SCALE_KF = [1.10, 1.17, 1.10] as const;
-
-// SVG fractal-noise tile for the film grain overlay
-const GRAIN_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n' color-interpolation-filters='linearRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E";
-
-// Desktop bg opacity variants — scale is intentionally excluded so the
-// 30s scale loop (on a separate wrapper) is never restarted by a variant change.
-const DESKTOP_BG_VARIANTS = {
-  active:   { opacity: 1 },
-  inactive: { opacity: 0 },
-} as const;
-
-// Shared scale transition for the single outer wrapper — runs forever,
-// completely isolated from the per-layer opacity crossfades.
-const DESKTOP_BG_SCALE_TRANSITION = {
-  duration: 30, repeat: Infinity, repeatType: 'mirror' as const, ease: 'easeInOut',
-};
-const DESKTOP_BG_OPACITY_TRANSITION = { duration: 1.6, ease: 'easeInOut' } as const;
-
 // Max readable width for sheet-style UI (forms, cards) on wide screens.
 // Scene backgrounds stay full-bleed; only the foreground column is capped.
 const SHEET_MAX_WIDTH = 620;
@@ -112,19 +75,6 @@ function SheetLayer({ isDesktop, children }: { isDesktop: boolean; children: Rea
     </div>
   );
 }
-
-// Ambient particles — each entry carries its own stable animate/transition
-// objects, computed once at module level so renders never create new refs.
-const DESKTOP_PARTICLES = [
-  { size: 2, color: 'rgba(201,168,76,0.55)',  left: '6%',  top: '12%', animate: { y: [0, -28, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 14, delay: 0,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 3, color: 'rgba(232,213,163,0.38)', left: '89%', top: '20%', animate: { y: [0, -22, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 19, delay: 2.5, repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(201,168,76,0.42)',  left: '4%',  top: '55%', animate: { y: [0, -18, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 21, delay: 6,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(232,181,176,0.32)', left: '92%', top: '65%', animate: { y: [0, -25, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 17, delay: 9,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 3, color: 'rgba(201,168,76,0.28)',  left: '9%',  top: '80%', animate: { y: [0, -20, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 23, delay: 4,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(232,213,163,0.48)', left: '87%', top: '42%', animate: { y: [0, -26, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 18, delay: 12,  repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(240,200,184,0.35)', left: '7%',  top: '35%', animate: { y: [0, -15, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 16, delay: 7,   repeat: Infinity, ease: 'easeInOut' as const } },
-  { size: 2, color: 'rgba(201,168,76,0.30)',  left: '91%', top: '84%', animate: { y: [0, -19, 0] as number[], opacity: [0.2, 1, 0.2] as number[] }, transition: { duration: 25, delay: 15,  repeat: Infinity, ease: 'easeInOut' as const } },
-];
 
 export default function Wedding() {
   const [contentPhase, setContentPhase] = useState<ContentPhase>('landing');
@@ -384,113 +334,12 @@ export default function Wedding() {
     }
   }
 
-  const desktopBgKey = getDesktopBgKey(contentPhase);
 
   return (
     <div
       className="w-full flex justify-center relative overflow-hidden"
       style={{ minHeight: '100dvh', background: '#0d0908' }}
     >
-
-      {/* ══ DESKTOP CINEMATIC BACKGROUND ══════════════════════════════════════
-          Three blurred scene images crossfade as the guest progresses.
-          z-index 1–3 keeps them behind the phone (z-index 10) on all screen
-          sizes — on mobile the phone covers them entirely; on desktop they
-          fill the side margins. No Tailwind breakpoint classes needed.      */}
-
-      {/* Blurred scene image layers — all three always mounted; scale runs on
-          a single outer wrapper so it never restarts when opacity crossfades.
-          fetchpriority="low" keeps them from competing with world-camera imgs. */}
-      <motion.div
-        className="absolute inset-0 pointer-events-none"
-        style={{ zIndex: 1, willChange: 'transform' }}
-        animate={{ scale: DESKTOP_BG_SCALE_KF }}
-        transition={DESKTOP_BG_SCALE_TRANSITION}
-      >
-        {(Object.keys(DESKTOP_BG_SRCS) as DesktopBgKey[]).map(key => (
-          <motion.img
-            key={`dbg-${key}`}
-            src={DESKTOP_BG_SRCS[key]}
-            alt=""
-            aria-hidden="true"
-            // @ts-expect-error — fetchpriority is a valid HTML attribute
-            fetchpriority="low"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-            style={{
-              filter: 'blur(52px) saturate(1.3) brightness(0.52)',
-              willChange: 'opacity',
-            }}
-            variants={DESKTOP_BG_VARIANTS}
-            initial={key === 'landing' ? 'active' : 'inactive'}
-            animate={desktopBgKey === key ? 'active' : 'inactive'}
-            transition={DESKTOP_BG_OPACITY_TRANSITION}
-          />
-        ))}
-      </motion.div>
-
-      {/* Warm luxury color grade — golden-rose tint */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          zIndex: 2,
-          background: 'linear-gradient(135deg, rgba(201,168,76,0.08) 0%, transparent 45%, rgba(122,26,46,0.06) 100%)',
-        }}
-      />
-
-      {/* Radial vignette — darkens edges, pulls focus to the phone */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          zIndex: 2,
-          background: 'radial-gradient(ellipse 55% 68% at 50% 50%, transparent 18%, rgba(8,5,3,0.48) 60%, rgba(3,1,0,0.90) 100%)',
-        }}
-      />
-
-      {/* Film grain — fractal-noise SVG tile, barely perceptible */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          zIndex: 3,
-          opacity: 0.028,
-          backgroundImage: `url("${GRAIN_URL}")`,
-          backgroundRepeat: 'repeat',
-          backgroundSize: '256px 256px',
-        }}
-      />
-
-      {/* Soft light bloom — warm glow from the center of the scene */}
-      <div
-        aria-hidden="true"
-        className="absolute pointer-events-none"
-        style={{
-          zIndex: 2,
-          width: '44%', height: '58%',
-          left: '28%', top: '21%',
-          background: 'radial-gradient(ellipse, rgba(201,168,76,0.08) 0%, transparent 68%)',
-          filter: 'blur(28px)',
-        }}
-      />
-
-      {/* Ambient floating dust particles — only instantiated on desktop
-          where they're visible; saves 8 animated nodes on mobile.        */}
-      {isDesktop && DESKTOP_PARTICLES.map((p, i) => (
-        <motion.div
-          key={`dp-${i}`}
-          aria-hidden="true"
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            width: p.size, height: p.size,
-            background: p.color,
-            left: p.left, top: p.top,
-            zIndex: 3,
-          }}
-          animate={p.animate}
-          transition={p.transition}
-        />
-      ))}
 
       {/* ══ STAGE ══════════════════════════════════════════════════════════════
           Fills the full viewport on every screen size. Scene backgrounds
