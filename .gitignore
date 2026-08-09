@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Sync layer — secrets, spreadsheet exports and run logs
+.env
+.env.*
+!.env.example
+secrets/
+data/
+scripts/sync/logs/
