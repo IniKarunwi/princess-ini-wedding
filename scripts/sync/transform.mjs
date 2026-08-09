@@ -51,12 +51,14 @@ export function deriveTier(rawValue) {
  *   identifiers: { email: string|null, phone: string|null, sheetKey: string|null },
  *   sheetId: string|null,
  *   warnings: string[],
+ *   normalizations: string[],
  * }}
  */
 export function transformRow(sourceRow, presentHeaders) {
   const { rowNumber, values } = sourceRow;
   const record = {};
   const warnings = [];
+  const normalizations = [];
 
   // Columns whose null is a computed fact ("not approved") rather than absence
   // of information. These survive the blank-stripping pass below; without that
@@ -83,20 +85,25 @@ export function transformRow(sourceRow, presentHeaders) {
     explicitNulls.add(tierColumn);
     explicitNulls.add(statusColumn);
 
-    // An explicitly-mapped status column in the sheet is authoritative; the
-    // derived value only fills the gap when the sheet leaves it blank. This
-    // matters for plus_one_status, which exists both as its own column and as
-    // a derivation of `plus`.
+    // Reconcile the derived status against a status column the sheet owns
+    // (plus_one_status exists both ways). Meanings are compared, not
+    // spellings — ACCEPTED and APPROVED agree.
     const explicit = record[statusColumn];
+    const explicitMeaning = explicit ? (STATUS_EQUIVALENTS[explicit] || explicit) : null;
+
     if (explicit === undefined || explicit === null) {
       record[statusColumn] = status;
-    } else if (status !== 'PENDING') {
-      // Compare meanings, not spellings: ACCEPTED and APPROVED agree.
-      const a = STATUS_EQUIVALENTS[explicit] || explicit;
-      const b = STATUS_EQUIVALENTS[status] || status;
-      if (a !== b) {
-        warnings.push(`"${header}"→${status} contradicts ${statusColumn}=${explicit} — kept ${explicit}`);
-      }
+    } else if (tier && explicitMeaning === 'PENDING') {
+      // An assigned tier IS the approval. A tier alongside a pending status
+      // means the decision was made but the status cell was never updated,
+      // so promote it. Reported as a normalisation, not a problem.
+      record[statusColumn] = 'APPROVED';
+      normalizations.push(
+        `${statusColumn}: ${explicit} → APPROVED (tier "${header}"=${tier} is an approval)`
+      );
+    } else if (status !== 'PENDING' && explicitMeaning !== status) {
+      // Genuine disagreement — e.g. REJECTED against an assigned tier.
+      warnings.push(`"${header}"→${status} contradicts ${statusColumn}=${explicit} — kept ${explicit}`);
     }
   }
 
@@ -130,5 +137,6 @@ export function transformRow(sourceRow, presentHeaders) {
     identifiers,
     sheetId: text(pick(values, 'id')),
     warnings,
+    normalizations,
   };
 }

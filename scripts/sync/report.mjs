@@ -48,6 +48,7 @@ export function printReport({ source, plan, results, applied, existingCount }) {
   console.log(`${c.grey}  unchanged       ${String(plan.unchanged.length).padStart(4)}${c.reset}`);
   console.log(`${c.yellow}  skipped (dupe)  ${String(skippedDupes.length).padStart(4)}${c.reset}`);
   console.log(`${c.yellow}  missing ident.  ${String(skippedMissing.length).padStart(4)}${c.reset}`);
+  console.log(`${c.cyan}  normalised      ${String(plan.normalizations.length).padStart(4)}${c.reset}`);
   console.log(`${c.red}  errors          ${String(results?.errors.length ?? 0).padStart(4)}${c.reset}`);
 
   if (plan.inserts.length) {
@@ -74,6 +75,12 @@ export function printReport({ source, plan, results, applied, existingCount }) {
   if (skippedMissing.length) {
     console.log(`\n${c.yellow}${c.bold}MISSING IDENTIFIERS${c.reset} ${c.grey}(no email, phone or name)${c.reset}`);
     bullets(skippedMissing, i => `${c.grey}row ${String(i.rowNumber).padEnd(4)}${c.reset}${i.label}`);
+  }
+
+  if (plan.normalizations.length) {
+    console.log(`\n${c.cyan}${c.bold}NORMALISED${c.reset} ${c.grey}(applied automatically — no action needed)${c.reset}`);
+    bullets(plan.normalizations, n =>
+      `${c.grey}row ${String(n.rowNumber).padEnd(4)}${c.reset}${n.label} ${c.grey}— ${n.message}${c.reset}`);
   }
 
   if (plan.warnings.length) {
@@ -111,11 +118,13 @@ export function writeLog({ source, plan, results, applied }) {
       unchanged:         plan.unchanged.length,
       skippedDuplicate:  plan.skipped.filter(s => s.reason === 'duplicate-in-sheet').length,
       skippedNoIdentity: plan.skipped.filter(s => s.reason === 'missing-identifier').length,
+      normalised:        plan.normalizations.length,
       errors:            results?.errors.length ?? 0,
     },
     inserts:  plan.inserts.map(i => ({ rowNumber: i.rowNumber, label: i.label, id: i.id ?? null, record: i.record })),
     updates:  plan.updates.map(i => ({ rowNumber: i.rowNumber, label: i.label, id: i.id, via: i.via, changes: i.changes })),
     skipped:  plan.skipped,
+    normalizations: plan.normalizations,
     warnings: plan.warnings,
     errors:   results?.errors ?? [],
   };

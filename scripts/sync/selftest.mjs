@@ -130,6 +130,38 @@ if (approved) {
   ok(false, 'fixture: expected at least one approved guest');
 }
 
+// A tier alongside a pending status is an approval that was never written back.
+const promoted = plan1.normalizations.filter(n => n.message.includes('→ APPROVED'));
+ok(promoted.length > 0, 'tier + pending status is promoted to APPROVED', `${promoted.length} rows`);
+ok(plan1.inserts.every(i =>
+     !(i.record.plus_one_approved_for && i.record.plus_one_status === 'PENDING')),
+   'no row keeps PENDING while holding an approval tier');
+ok(plan1.inserts.every(i =>
+     i.record.plus_one_status !== 'PENDING' || !i.record.plus_one_approved_for),
+   'PENDING survives only without a tier');
+ok(!plan1.warnings.some(w => w.message.includes('contradicts')),
+   'promotions are not reported as contradictions');
+
+// guest_count is the database's to compute, never the spreadsheet's.
+ok(![...plan1.inserts].some(i => 'guest_count' in i.record),
+   'guest_count is never written by the sync');
+
+// Mirrors compute_guest_count() in 0002_guest_count.sql.
+const seats = (attending, main, plusStatus) => {
+  if ((main || '').toUpperCase() === 'REJECTED') return 0;
+  if (attending === false) return 0;
+  if ((main || '').toUpperCase() === 'APPROVED' || attending === true) {
+    return ['APPROVED', 'ACCEPTED'].includes((plusStatus || '').toUpperCase()) ? 2 : 1;
+  }
+  return 0;
+};
+ok(seats(true,  'REJECTED', null)       === 0, 'seats: rejected invite ignores attending=true');
+ok(seats(false, 'APPROVED', 'APPROVED') === 0, 'seats: guest declined → 0');
+ok(seats(null,  'APPROVED', null)       === 1, 'seats: approved, never RSVP\'d → 1');
+ok(seats(true,  'PENDING',  null)       === 1, 'seats: RSVP\'d yes, undecided → 1');
+ok(seats(true,  'APPROVED', 'APPROVED') === 2, 'seats: approved + approved +1 → 2');
+ok(seats(null,  'PENDING',  null)       === 0, 'seats: nobody decided → 0');
+
 // Protected messaging columns must never be written from a sheet lacking them.
 const touchesProtected = [...plan1.inserts, ...plan1.updates].some(i =>
   ['email_status', 'whatsapp_status', 'last_email_sent', 'last_whatsapp_sent']

@@ -17,7 +17,6 @@ export const FIELD_MAP = {
   email:                 { column: 'email',                 transform: 'email' },
   phone:                 { column: 'phone',                 transform: 'phone' },
   attending:             { column: 'attending',             transform: 'boolean' },
-  guest_count:           { column: 'guest_count',           transform: 'integer' },
   plus_one_requested:    { column: 'plus_one_requested',    transform: 'boolean' },
   plus_one_name:         { column: 'plus_one_name',         transform: 'text' },
   plus_one_relationship: { column: 'plus_one_relationship', transform: 'text' },
@@ -89,7 +88,13 @@ export const PROTECTED_COLUMNS = [
  *   id         — preserved; the database owns row identity
  *   created_at — preserved; original submission time is historical fact
  */
-export const IMMUTABLE_COLUMNS = ['id', 'created_at'];
+export const IMMUTABLE_COLUMNS = [
+  'id',          // row identity belongs to the database
+  'created_at',  // original submission time is historical fact
+  'guest_count', // computed by Supabase from the approval columns; see
+                 // supabase/migrations/0002_guest_count.sql. The spreadsheet
+                 // decides invitations, not seat counts.
+];
 
 /** Default country calling code used to normalise local phone numbers. */
 export const DEFAULT_COUNTRY_CODE = '234'; // Nigeria

@@ -32,21 +32,24 @@ export async function fetchExisting(supabase) {
 /**
  * Builds the change plan. Performs no writes.
  *
- * @returns {{ inserts: [], updates: [], unchanged: [], skipped: [], warnings: [] }}
+ * @returns {{ inserts: [], updates: [], unchanged: [], skipped: [], warnings: [], normalizations: [] }}
  */
 export function planSync(source, existingRows) {
   const index = buildIndex(existingRows);
   const seen = new Map();          // identity → first sheet row that claimed it
 
-  const plan = { inserts: [], updates: [], unchanged: [], skipped: [], warnings: [] };
+  const plan = { inserts: [], updates: [], unchanged: [], skipped: [], warnings: [], normalizations: [] };
 
   for (const sourceRow of source.rows) {
-    const { rowNumber, record, identifiers, sheetId, warnings } =
+    const { rowNumber, record, identifiers, sheetId, warnings, normalizations } =
       transformRow(sourceRow, source.headers);
 
     const label = record.full_name || `row ${rowNumber}`;
     for (const message of warnings) {
       plan.warnings.push({ rowNumber, label, message });
+    }
+    for (const message of normalizations) {
+      plan.normalizations.push({ rowNumber, label, message });
     }
 
     // No usable identity at all — cannot be matched or de-duplicated.

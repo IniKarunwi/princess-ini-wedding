@@ -6,7 +6,7 @@ to the sheet, and nothing here touches the website.
 ## Setup (once)
 
 1. **Run the migration.** Supabase dashboard → SQL Editor → paste
-   `supabase/migrations/0001_sync_layer.sql` → Run. Adds columns only; safe to
+   `supabase/migrations/` in order (0001, then 0002) → Run. Safe to
    re-run.
 
 2. **Create `.env`** from `.env.example` and fill in:
@@ -69,14 +69,22 @@ Casing and spacing are canonicalised, so `Joining`, `JOINING`, `AFTER PARTY` and
 
 Where the sheet has its **own** `plus_one_status` column, that value wins;
 the tier only fills it in when blank. `ACCEPTED` and `APPROVED` are treated as
-the same meaning, so only genuine contradictions are reported — e.g. a `plus`
-tier assigned while `plus_one_status` still reads `pending`.
+the same meaning.
+
+**An assigned tier is itself an approval.** If `plus_one_approved_for` holds a
+tier while `plus_one_status` still reads `Pending` or blank, the status is
+promoted to `APPROVED` automatically — the decision was made, the status cell
+just never caught up. `PENDING` survives only where no tier is assigned. These
+promotions appear under **NORMALISED** in the summary; they are not errors and
+need no intervention. Only a real disagreement — `REJECTED` against an assigned
+tier — is reported as a warning.
 
 ## What the sync will never write
 
 | Column | Why |
 |---|---|
 | `id`, `created_at` | Row identity and original submission time are preserved. |
+| `guest_count` | Computed by the database from the approval columns — see below. |
 | `email_status`, `whatsapp_status`, `last_email_sent`, `last_whatsapp_sent` | Owned by the future messaging automation. Written only if the column genuinely exists in the source sheet, so a sync can never clobber delivery state. |
 
 Blank cells are also skipped rather than written, so a partially-filled sheet row
@@ -84,10 +92,34 @@ never nulls out data already in the database. The one deliberate exception is th
 tier columns: moving a guest to `REJECTED` **does** clear `approved_for`, because
 there a null is the answer rather than the absence of one.
 
+## `guest_count` is computed by Supabase
+
+The spreadsheet decides **invitations**, not **seats**. A trigger
+(`supabase/migrations/0002_guest_count.sql`) derives the count on every write:
+
+| Condition | Seats |
+|---|---|
+| `main_invite_status = REJECTED` | `0` |
+| `attending = false` | `0` |
+| Approved **or** RSVP'd yes | `1` |
+| …plus an approved `plus_one_status` | `2` |
+| Nobody has decided yet | `0` |
+
+A guest holds a seat when **either** the couple approved them **or** they RSVP'd
+yes. Both halves are needed: 11 approved guests were added straight to the sheet
+and never used the website, so `attending` is blank for them; conversely someone
+may RSVP yes while their invitation is still pending. A rejection overrides both
+— one guest has `attending = true` against a rejected invite, and holds no seat.
+
+The trigger also mirrors the approval into `plus_one_approved` so the boolean and
+the status can never disagree, and it replaces the earlier
+`sync_guest_count_on_approval` trigger, which would otherwise compete for the
+same column.
+
 ## Reports
 
 Every run prints a summary — inserted, updated, unchanged, duplicates skipped,
-missing identifiers, errors — and writes the full untruncated detail to
+missing identifiers, normalised, errors — and writes the full untruncated detail to
 `scripts/sync/logs/sync-<timestamp>.json` (gitignored).
 
 ## Changing the sheet
