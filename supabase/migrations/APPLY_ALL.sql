@@ -8,7 +8,7 @@
 --    0003_seat_allocation.sql  seat_allocation generated column
 --
 --  Safe to run more than once. Verified end-to-end against PostgreSQL 16
---  before being committed.
+--  seeded with this table's actual 11-column schema.
 -- ============================================================================
 
 
@@ -133,13 +133,16 @@ BEGIN
   NEW.guest_count := compute_guest_count(
     NEW.attending, NEW.main_invite_status, NEW.plus_one_status
   );
-
-  -- Mirror the approval into the existing boolean so the two never disagree.
-  NEW.plus_one_approved := upper(coalesce(NEW.plus_one_status, '')) IN ('APPROVED', 'ACCEPTED');
-
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Note: deliberately no plus_one_approved boolean. That column does not exist
+-- on this table, and adding one would be a third place the same fact lives —
+-- plus_one_status already records the decision, and guest_count /
+-- seat_allocation derive from it. Whether a plus one is approved is
+--   upper(plus_one_status) IN ('APPROVED', 'ACCEPTED')
+-- which is what compute_guest_count() uses.
 
 DROP TRIGGER IF EXISTS trg_set_guest_count ON rsvps;
 CREATE TRIGGER trg_set_guest_count
