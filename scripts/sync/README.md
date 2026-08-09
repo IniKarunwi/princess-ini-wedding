@@ -6,7 +6,7 @@ to the sheet, and nothing here touches the website.
 ## Setup (once)
 
 1. **Run the migration.** Supabase dashboard → SQL Editor → paste
-   `supabase/migrations/` in order (0001, then 0002) → Run. Safe to
+   `supabase/migrations/` in order (0001, 0002, 0003) → Run. Safe to
    re-run.
 
 2. **Create `.env`** from `.env.example` and fill in:
@@ -85,6 +85,7 @@ tier — is reported as a warning.
 |---|---|
 | `id`, `created_at` | Row identity and original submission time are preserved. |
 | `guest_count` | Computed by the database from the approval columns — see below. |
+| `seat_allocation` | A `GENERATED` column; Postgres rejects writes to it outright. |
 | `email_status`, `whatsapp_status`, `last_email_sent`, `last_whatsapp_sent` | Owned by the future messaging automation. Written only if the column genuinely exists in the source sheet, so a sync can never clobber delivery state. |
 
 Blank cells are also skipped rather than written, so a partially-filled sheet row
@@ -115,6 +116,22 @@ The trigger also mirrors the approval into `plus_one_approved` so the boolean an
 the status can never disagree, and it replaces the earlier
 `sync_guest_count_on_approval` trigger, which would otherwise compete for the
 same column.
+
+### `seat_allocation`
+
+A readable label for the same fact, for anyone reading the table directly:
+
+| `guest_count` | `seat_allocation` |
+|---:|---|
+| `0` | `None` |
+| `1` | `Main Guest` |
+| `2` | `Main Guest + Plus One` |
+
+It is a **`GENERATED ALWAYS ... STORED`** column
+(`0003_seat_allocation.sql`), not a trigger field — Postgres computes it and
+refuses any attempt to write it, so it can never disagree with `guest_count`.
+`BEFORE` triggers run before generated columns are evaluated, so the value is
+correct on the same statement that sets `guest_count`.
 
 ## Reports
 

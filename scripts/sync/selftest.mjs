@@ -146,6 +146,16 @@ ok(!plan1.warnings.some(w => w.message.includes('contradicts')),
 ok(![...plan1.inserts].some(i => 'guest_count' in i.record),
    'guest_count is never written by the sync');
 
+// seat_allocation is a GENERATED column — writing it is an error in Postgres.
+ok(![...plan1.inserts, ...plan1.updates].some(i => 'seat_allocation' in (i.record || i.changes || {})),
+   'seat_allocation is never written by the sync');
+
+// A database row carrying generated columns must not provoke phantom updates.
+const withGenerated = commit([], planSync(source, []))
+  .map(r => ({ ...r, guest_count: 1, seat_allocation: 'Main Guest' }));
+ok(planSync(source, withGenerated).updates.length === 0,
+   'generated columns in the DB do not cause spurious updates');
+
 // Mirrors compute_guest_count() in 0002_guest_count.sql.
 const seats = (attending, main, plusStatus) => {
   if ((main || '').toUpperCase() === 'REJECTED') return 0;
@@ -161,6 +171,13 @@ ok(seats(null,  'APPROVED', null)       === 1, 'seats: approved, never RSVP\'d �
 ok(seats(true,  'PENDING',  null)       === 1, 'seats: RSVP\'d yes, undecided → 1');
 ok(seats(true,  'APPROVED', 'APPROVED') === 2, 'seats: approved + approved +1 → 2');
 ok(seats(null,  'PENDING',  null)       === 0, 'seats: nobody decided → 0');
+
+// Mirrors the generated expression in 0003_seat_allocation.sql.
+const label = n => n === 0 ? 'None' : n === 1 ? 'Main Guest'
+                : n === 2 ? 'Main Guest + Plus One' : `Main Guest + ${n - 1} Guests`;
+ok(label(0) === 'None',                  'seat_allocation: 0 → None');
+ok(label(1) === 'Main Guest',            'seat_allocation: 1 → Main Guest');
+ok(label(2) === 'Main Guest + Plus One', 'seat_allocation: 2 → Main Guest + Plus One');
 
 // Protected messaging columns must never be written from a sheet lacking them.
 const touchesProtected = [...plan1.inserts, ...plan1.updates].some(i =>

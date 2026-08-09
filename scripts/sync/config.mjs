@@ -89,11 +89,14 @@ export const PROTECTED_COLUMNS = [
  *   created_at — preserved; original submission time is historical fact
  */
 export const IMMUTABLE_COLUMNS = [
-  'id',          // row identity belongs to the database
-  'created_at',  // original submission time is historical fact
-  'guest_count', // computed by Supabase from the approval columns; see
-                 // supabase/migrations/0002_guest_count.sql. The spreadsheet
-                 // decides invitations, not seat counts.
+  'id',              // row identity belongs to the database
+  'created_at',      // original submission time is historical fact
+  'guest_count',     // computed by Supabase from the approval columns; see
+                     // supabase/migrations/0002_guest_count.sql. The spreadsheet
+                     // decides invitations, not seat counts.
+  'seat_allocation', // GENERATED column derived from guest_count (0003).
+                     // Postgres rejects writes to it outright; listing it here
+                     // means a stray sheet column can never trigger that error.
 ];
 
 /** Default country calling code used to normalise local phone numbers. */
