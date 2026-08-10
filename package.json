@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "sync:rsvps": "node --env-file=.env scripts/sync/run.mjs"
+    "sync:rsvps": "node --env-file=.env scripts/sync/run.mjs",
+    "build:appsscript": "node scripts/sync/build-appsscript.mjs",
+    "test:appsscript": "node scripts/sync/build-appsscript.mjs && node scripts/sync/appsscript-harness.mjs --file ./data/rsvps.xlsx",
+    "test:sync": "node scripts/sync/selftest.mjs --file ./data/rsvps.xlsx"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -10,7 +10,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { loadSource } from './sources/index.mjs';
-import { fetchExisting, planSync, applyPlan } from './engine.mjs';
+import { planSync } from './engine.mjs';
+import { fetchExisting, applyPlan } from './supabase-io.mjs';
 import { printReport, writeLog } from './report.mjs';
 
 function parseArgs(argv) {

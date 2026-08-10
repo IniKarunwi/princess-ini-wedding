@@ -1,33 +1,16 @@
 /**
- * Sync engine.
+ * Sync engine — the planner.
  *
  * Plans first, writes second. The plan is a pure function of (source rows,
  * database rows), which is what makes --dry-run a truthful preview of what
  * --apply would do.
+ *
+ * PURE: no Node APIs, no supabase-js. Database I/O lives in supabase-io.mjs
+ * so this file can be bundled verbatim into Google Apps Script.
  */
 
-import { TABLE } from './config.mjs';
 import { transformRow } from './transform.mjs';
 import { buildIndex, findMatch, indexNew, diffRecord } from './matcher.mjs';
-
-/** Pulls every existing row, paging past PostgREST's response cap. */
-export async function fetchExisting(supabase) {
-  const pageSize = 1000;
-  const rows = [];
-
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select('*')
-      .range(from, from + pageSize - 1);
-
-    if (error) throw new Error(`Failed to read ${TABLE}: ${error.message}`);
-    if (!data?.length) break;
-    rows.push(...data);
-    if (data.length < pageSize) break;
-  }
-  return rows;
-}
 
 /**
  * Builds the change plan. Performs no writes.
@@ -99,32 +82,3 @@ export function planSync(source, existingRows) {
   return plan;
 }
 
-/** Executes the plan. Returns per-operation outcomes, including failures. */
-export async function applyPlan(supabase, plan) {
-  const results = { inserted: 0, updated: 0, errors: [] };
-
-  for (const item of plan.inserts) {
-    const { error, data } = await supabase
-      .from(TABLE).insert(item.record).select('id').single();
-
-    if (error) {
-      results.errors.push({ op: 'insert', rowNumber: item.rowNumber, label: item.label, message: error.message });
-    } else {
-      results.inserted++;
-      item.id = data?.id;
-    }
-  }
-
-  for (const item of plan.updates) {
-    const { error } = await supabase
-      .from(TABLE).update(item.changes).eq('id', item.id);
-
-    if (error) {
-      results.errors.push({ op: 'update', rowNumber: item.rowNumber, label: item.label, message: error.message });
-    } else {
-      results.updated++;
-    }
-  }
-
-  return results;
-}
