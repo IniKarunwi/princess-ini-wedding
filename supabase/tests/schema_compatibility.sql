@@ -148,7 +148,7 @@ BEGIN
   -- 10. A row with no identifier must be refused.
   BEGIN
     INSERT INTO rsvps (full_name) VALUES ('TEST No Identifier');
-    failures := failures || 'integrity: a row with no identifier was ACCEPTED';
+    failures := failures || 'integrity: a row with no identifier was ACCEPTED'::text;
   EXCEPTION WHEN OTHERS THEN
     passes := passes + 1;                       -- rejection is the pass
   END;
@@ -156,7 +156,7 @@ BEGIN
   -- 11. A nameless row must be refused (full_name stays NOT NULL).
   BEGIN
     INSERT INTO rsvps (email, sheet_key) VALUES ('test.noname@example.invalid', 'test-noname');
-    failures := failures || 'integrity: a row with no full_name was ACCEPTED';
+    failures := failures || 'integrity: a row with no full_name was ACCEPTED'::text;
   EXCEPTION WHEN OTHERS THEN
     passes := passes + 1;
   END;

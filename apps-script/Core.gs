@@ -10,7 +10,7 @@
  * planning logic the Node runner uses — not a reimplementation. Anything
  * changed here is lost on the next build.
  *
- * Generated: 2026-08-11T17:05:42.302Z
+ * Generated: 2026-08-11T21:59:14.372Z
  */
 
 
@@ -90,11 +90,16 @@ var TIER_ALIASES = {
 };
 
 /**
- * PHASE 3 — messaging-automation columns.
+ * Messaging columns — retired from rsvps by migration 0006.
  *
- * These belong to the future email/WhatsApp automation, NOT to the spreadsheet.
- * The engine refuses to write them unless the column is physically present in
- * the source sheet, so a sync can never clobber delivery state.
+ * Delivery state now lives in message_queue, which is the single source of
+ * truth for sending, retries and history; per-guest status is read from the
+ * guest_delivery_status view. These names are kept here so that a stray
+ * column of the same name appearing in the planning sheet is still stripped
+ * rather than being sent to a table that no longer has it.
+ *
+ * Nothing here is ever written, regardless of the sheet — see
+ * IMMUTABLE_COLUMNS, which now includes them.
  */
 var PROTECTED_COLUMNS = [
   'email_status',
@@ -117,6 +122,13 @@ var IMMUTABLE_COLUMNS = [
   'seat_allocation', // GENERATED column derived from guest_count (0003).
                      // Postgres rejects writes to it outright; listing it here
                      // means a stray sheet column can never trigger that error.
+  // Retired from rsvps by 0006. Messaging is enqueued into message_queue and
+  // never written here, so these are unconditionally immutable — the sheet
+  // cannot reintroduce them even by carrying a column of the same name.
+  'email_status',
+  'whatsapp_status',
+  'last_email_sent',
+  'last_whatsapp_sent',
 ];
 
 /** Default country calling code used to normalise local phone numbers. */
