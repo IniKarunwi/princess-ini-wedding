@@ -1,16 +1,15 @@
 -- ============================================================================
---  APPLY ALL PENDING MIGRATIONS  —  paste this whole file into
---  Supabase → SQL Editor → New query → Run
+--  APPLY ALL PENDING MIGRATIONS  —  paste into Supabase → SQL Editor → Run
 --
---  Contains, in order:
 --    0001_sync_layer.sql                 sync identity + planning + messaging columns
 --    0002_guest_count.sql                guest_count computed by trigger
 --    0003_seat_allocation.sql            seat_allocation generated column
 --    0004_nullable_email.sql             email nullable + identifier check
---    0005_sheet_guest_compatibility.sql  ALL sync-written columns nullable
+--    0005_sheet_guest_compatibility.sql  remaining sync-written columns nullable
 --
---  0005 supersedes 0004 in scope and is safe on its own. Safe to run more than
---  once. Verified against PostgreSQL 16 with every sync column NOT NULL.
+--  0005 reads information_schema at run time and only alters columns that are
+--  currently NOT NULL; it never tightens one. full_name is deliberately left
+--  alone. Safe to run more than once.
 -- ============================================================================
 
 
@@ -337,8 +336,17 @@ DECLARE
   absent       text[] := ARRAY[]::text[];
   is_nullable  text;
 BEGIN
+  -- full_name is deliberately absent from this list. It is the one column
+  -- neither writer ever leaves empty: the website form requires it, and every
+  -- row in the planning sheet has one (0 of 187). sheet_key is derived from
+  -- it, so a nameless sheet-only guest could not be identified at all. If it
+  -- is currently NOT NULL it stays that way; this migration never tightens a
+  -- column, so an already-nullable full_name is left as it is.
+  --
+  -- The residual case: a sheet row carrying an email but a blank name would
+  -- produce full_name = NULL and, because inserts are one atomic batch, would
+  -- fail the entire sync. See the note in scripts/sync/README.md.
   FOREACH col IN ARRAY ARRAY[
-    'full_name',
     'email',
     'phone',
     'attending',
@@ -437,7 +445,4 @@ COMMENT ON TABLE rsvps IS
 -- ============================================================================
 -- SELECT column_name, is_nullable FROM information_schema.columns
 --  WHERE table_name = 'rsvps' AND is_nullable = 'NO' ORDER BY column_name;
---   -- expect only: guest_count, id
---
--- SELECT guest_count, seat_allocation, count(*)
---   FROM rsvps GROUP BY 1,2 ORDER BY 1;
+--   -- expect only: full_name, guest_count, id

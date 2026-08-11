@@ -40,8 +40,17 @@ DECLARE
   absent       text[] := ARRAY[]::text[];
   is_nullable  text;
 BEGIN
+  -- full_name is deliberately absent from this list. It is the one column
+  -- neither writer ever leaves empty: the website form requires it, and every
+  -- row in the planning sheet has one (0 of 187). sheet_key is derived from
+  -- it, so a nameless sheet-only guest could not be identified at all. If it
+  -- is currently NOT NULL it stays that way; this migration never tightens a
+  -- column, so an already-nullable full_name is left as it is.
+  --
+  -- The residual case: a sheet row carrying an email but a blank name would
+  -- produce full_name = NULL and, because inserts are one atomic batch, would
+  -- fail the entire sync. See the note in scripts/sync/README.md.
   FOREACH col IN ARRAY ARRAY[
-    'full_name',
     'email',
     'phone',
     'attending',
