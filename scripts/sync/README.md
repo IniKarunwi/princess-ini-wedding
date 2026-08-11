@@ -152,3 +152,33 @@ there and the pipeline picks it up; nothing else changes.
 the four steps to enable it — install `googleapis`, create a service account,
 share the sheet with it, set the env vars. Then `--sheet <id>` replaces
 `--file <path>`; the sync logic is untouched.
+
+## Schema compatibility test
+
+`supabase/tests/schema_compatibility.sql` — paste into the Supabase SQL Editor
+and Run. It inserts a representative batch of sheet-created guests and a
+representative batch of website-created guests, checks the derived
+`guest_count` / `seat_allocation`, confirms the integrity constraints still
+bite, then **rolls back**. Nothing is written.
+
+Expect `ALL CASES PASSED (15 checks)` and `leftover_test_rows = 0`.
+
+Run it after any schema change. A reintroduced `NOT NULL` fails with the case
+and the offending column named, e.g.
+
+```
+SCHEMA COMPATIBILITY FAILED — 3 of 15 cases
+  sheet: bulk mixed-null — null value in column "plus_one_status" …
+  website: attending, no +1 — null value in column "plus_one_status" …
+```
+
+It covers **both writers**, which matters: the website inserts
+`plus_one_status` as NULL when no +1 is requested and never sets the planning
+columns at all, so a constraint can break the site without the sync noticing,
+or the reverse.
+
+### Known limitation — atomic inserts
+
+Inserts are sent as one batch, so a single bad row fails all of them. A
+fallback that retries individually and reports only the genuinely bad rows is
+the planned next step.
