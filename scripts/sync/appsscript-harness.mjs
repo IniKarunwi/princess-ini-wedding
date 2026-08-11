@@ -70,6 +70,26 @@ function handleRequest(url, opts = {}) {
 
   if (method === 'post') {
     const payload = JSON.parse(opts.payload);
+
+    // Real PostgREST rejects a bulk insert whose objects do not all carry the
+    // same keys: PGRST102, "All object keys must match". The emulator enforces
+    // it too — without this, a payload that production refuses looks fine here.
+    if (Array.isArray(payload) && payload.length > 1) {
+      const signature = JSON.stringify(Object.keys(payload[0]).sort());
+      const offender = payload.findIndex(
+        r => JSON.stringify(Object.keys(r).sort()) !== signature);
+      if (offender > 0) {
+        return {
+          code: 400,
+          body: JSON.stringify({
+            code: 'PGRST102',
+            message: 'All object keys must match',
+            details: `object 0 has [${Object.keys(payload[0]).sort()}], ` +
+                     `object ${offender} has [${Object.keys(payload[offender]).sort()}]`,
+          }),
+        };
+      }
+    }
     const created = payload.map(rec => {
       // Reject writes to generated / immutable columns, as Postgres would.
       for (const col of ['id', 'created_at', 'guest_count', 'seat_allocation']) {

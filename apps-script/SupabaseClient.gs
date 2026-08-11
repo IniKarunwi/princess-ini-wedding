@@ -64,7 +64,31 @@ function sbInsertRows_(inserts) {
   if (!inserts.length) return { inserted: 0, errors: [] };
 
   var cfg = getSupabaseConfig_();
-  var payload = inserts.map(function (i) { return i.record; });
+  var records = inserts.map(function (i) { return i.record; });
+
+  // PostgREST refuses a bulk insert whose objects do not all carry the same
+  // keys — PGRST102, "All object keys must match". Records legitimately differ:
+  // transformRow drops blank fields, so a guest with no phone has no `phone`
+  // key at all while a guest with one does.
+  //
+  // Normalise to the union of every key seen, padding absences with null, and
+  // emit them in a fixed order so all objects share one shape. Explicit null is
+  // safe for these columns: none carries a database DEFAULT that omission would
+  // otherwise trigger — the columns that do (id, created_at, guest_count) are
+  // in IMMUTABLE_COLUMNS and never appear in a record.
+  var keySet = {};
+  records.forEach(function (r) {
+    Object.keys(r).forEach(function (k) { keySet[k] = true; });
+  });
+  var keys = Object.keys(keySet).sort();
+
+  var payload = records.map(function (r) {
+    var padded = {};
+    keys.forEach(function (k) {
+      padded[k] = Object.prototype.hasOwnProperty.call(r, k) ? r[k] : null;
+    });
+    return padded;
+  });
 
   var response = UrlFetchApp.fetch(
     cfg.url + '/rest/v1/' + TABLE,
