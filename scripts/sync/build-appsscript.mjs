@@ -57,6 +57,26 @@ function stripModuleSyntax(src) {
     .replace(/^export\s+(?=(?:async\s+)?(?:const|function|let|var|class)\b)/gm, '');
 }
 
+/**
+ * Converts TOP-LEVEL const/let to var.
+ *
+ * Apps Script shares one scope across .gs files, but not uniformly:
+ * `function` and `var` declarations become properties of the global object and
+ * are visible everywhere, while top-level `const`/`let` create *script-scoped*
+ * lexical bindings whose cross-file visibility depends on the order Apps Script
+ * evaluates files. Core.gs exports TABLE and friends to SupabaseClient.gs and
+ * Sync.gs, so those must be `var` to be reliable.
+ *
+ * `var` also tolerates redeclaration, so pasting a file twice degrades to a
+ * harmless overwrite rather than a SyntaxError that takes down the project.
+ *
+ * Only column-0 declarations are rewritten; everything inside a function keeps
+ * the block scoping it was written with.
+ */
+function topLevelConstToVar(src) {
+  return src.replace(/^(const|let)\s+(?=[A-Za-z_$])/gm, 'var ');
+}
+
 const banner = `/**
  * Core.gs — GENERATED FILE, DO NOT EDIT
  *
@@ -86,7 +106,7 @@ for (const name of MODULES) {
     body += `// Import aliases from ${name}, preserved so bundled code resolves them.\n`;
     body += aliases.map(a => `var ${a.alias} = ${a.original};`).join('\n') + '\n\n';
   }
-  parts.push(body + stripModuleSyntax(src).trim() + '\n');
+  parts.push(body + topLevelConstToVar(stripModuleSyntax(src)).trim() + '\n');
 }
 
 const output = parts.join('\n');
@@ -98,6 +118,7 @@ if (allAliases.length) {
 
 // Guard: nothing that only exists in Node may survive into the bundle.
 const FORBIDDEN = [
+  [/^(?:const|let)\s/m,     'top-level const/let (must be var for Apps Script)'],
   [/\brequire\s*\(/,        'require()'],
   [/\bprocess\./,           'process.*'],
   [/\bimport\s+/,           'import statement'],

@@ -10,7 +10,7 @@
  * planning logic the Node runner uses — not a reimplementation. Anything
  * changed here is lost on the next build.
  *
- * Generated: 2026-08-10T21:06:01.127Z
+ * Generated: 2026-08-11T17:05:42.302Z
  */
 
 
@@ -25,14 +25,14 @@
  * sheet gains a column, add it here and the engine picks it up.
  */
 
-const TABLE = 'rsvps';
+var TABLE = 'rsvps';
 
 /**
  * Direct sheet-column → database-column mappings.
  * Key   = header text in the spreadsheet (case-insensitive, trimmed)
  * Value = { column, transform }  — transform is applied to the raw cell value.
  */
-const FIELD_MAP = {
+var FIELD_MAP = {
   full_name:             { column: 'full_name',             transform: 'text' },
   email:                 { column: 'email',                 transform: 'email' },
   phone:                 { column: 'phone',                 transform: 'phone' },
@@ -50,13 +50,13 @@ const FIELD_MAP = {
  *
  * See transform.mjs → deriveTier().
  */
-const TIER_MAP = {
+var TIER_MAP = {
   main: { tierColumn: 'approved_for',          statusColumn: 'main_invite_status' },
   plus: { tierColumn: 'plus_one_approved_for', statusColumn: 'plus_one_status'    },
 };
 
 /** Recognised tiers. Anything else is reported as an unknown value. */
-const TIERS = ['JOINING', 'RECEPTION', 'AFTERPARTY'];
+var TIERS = ['JOINING', 'RECEPTION', 'AFTERPARTY'];
 
 /**
  * Status vocabularies that mean the same thing.
@@ -65,7 +65,7 @@ const TIERS = ['JOINING', 'RECEPTION', 'AFTERPARTY'];
  * "APPROVED"; those agree. Only genuine contradictions — say plus_one_status
  * REJECTED against a plus tier of JOINING — should be reported.
  */
-const STATUS_EQUIVALENTS = {
+var STATUS_EQUIVALENTS = {
   ACCEPTED: 'APPROVED',
   APPROVED: 'APPROVED',
   CONFIRMED: 'APPROVED',
@@ -77,13 +77,13 @@ const STATUS_EQUIVALENTS = {
 };
 
 /** Tier-column values that mean "not approved" rather than naming a tier. */
-const REJECTION_VALUES = ['REJECTED', 'DECLINED', 'NO'];
+var REJECTION_VALUES = ['REJECTED', 'DECLINED', 'NO'];
 
 /**
  * Canonicalises messy tier spellings seen in the sheet.
  * Keys are already uppercased and whitespace-collapsed before lookup.
  */
-const TIER_ALIASES = {
+var TIER_ALIASES = {
   'AFTER PARTY': 'AFTERPARTY',
   'AFTER-PARTY': 'AFTERPARTY',
   'CEREMONY': 'JOINING',
@@ -96,7 +96,7 @@ const TIER_ALIASES = {
  * The engine refuses to write them unless the column is physically present in
  * the source sheet, so a sync can never clobber delivery state.
  */
-const PROTECTED_COLUMNS = [
+var PROTECTED_COLUMNS = [
   'email_status',
   'whatsapp_status',
   'last_email_sent',
@@ -108,7 +108,7 @@ const PROTECTED_COLUMNS = [
  *   id         — preserved; the database owns row identity
  *   created_at — preserved; original submission time is historical fact
  */
-const IMMUTABLE_COLUMNS = [
+var IMMUTABLE_COLUMNS = [
   'id',              // row identity belongs to the database
   'created_at',      // original submission time is historical fact
   'guest_count',     // computed by Supabase from the approval columns; see
@@ -120,7 +120,7 @@ const IMMUTABLE_COLUMNS = [
 ];
 
 /** Default country calling code used to normalise local phone numbers. */
-const DEFAULT_COUNTRY_CODE = '234'; // Nigeria
+var DEFAULT_COUNTRY_CODE = '234'; // Nigeria
 
 
 // ==========================================================================
@@ -137,7 +137,7 @@ const DEFAULT_COUNTRY_CODE = '234'; // Nigeria
  */
 
 
-const isBlank = v => v === null || v === undefined || String(v).trim() === '';
+var isBlank = v => v === null || v === undefined || String(v).trim() === '';
 
 /** Trimmed text, or null when empty. */
 function text(v) {
@@ -221,7 +221,7 @@ function sheetKey(fullName) {
   return slug || null;
 }
 
-const TRANSFORMS = { text, email, upper, phone, boolean, integer };
+var TRANSFORMS = { text, email, upper, phone, boolean, integer };
 
 /** Applies a named transform from the field map. */
 function applyTransform(name, value) {
