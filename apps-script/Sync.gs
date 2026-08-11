@@ -37,6 +37,25 @@ function formatSummary_(source, plan, results, applied, existingCount) {
   out.push('Normalised:          ' + plan.normalizations.length);
   out.push('Errors:              ' + (results ? results.errors.length : 0));
 
+  // Every insert, numbered and never truncated: this is the list to check
+  // against the guest list before approving a sync, so an elision would
+  // defeat the point. Each line carries the identity the row will be matched
+  // on, which is what makes a re-run recognise the guest instead of
+  // inserting them twice.
+  if (plan.inserts.length) {
+    out.push('');
+    out.push((applied ? 'INSERTED GUESTS (' : 'NEW GUESTS TO INSERT (') +
+             plan.inserts.length + ')');
+    plan.inserts.forEach(function (i, n) {
+      var ident = i.identifiers.email ? '<' + i.identifiers.email + '>'
+                : i.identifiers.phone ? i.identifiers.phone
+                : 'name-key: ' + i.identifiers.sheetKey;
+      out.push('  ' + String(n + 1).padStart(3) + '. row ' +
+               String(i.rowNumber).padStart(4) + '  ' +
+               String(i.label).padEnd(30) + ' ' + ident);
+    });
+  }
+
   // Listed before anything else: these rows are the ones a human may need to
   // act on, and a bare count does not say which guest is affected.
   if (dupes.length) {
@@ -142,8 +161,8 @@ function showResult_(title, body) {
       body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
       '</pre>'
     )
-    .setWidth(620)
-    .setHeight(460);
+    .setWidth(660)
+    .setHeight(600);
   SpreadsheetApp.getUi().showModalDialog(html, title);
 }
 
