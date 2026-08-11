@@ -37,6 +37,26 @@ function formatSummary_(source, plan, results, applied, existingCount) {
   out.push('Normalised:          ' + plan.normalizations.length);
   out.push('Errors:              ' + (results ? results.errors.length : 0));
 
+  // Listed before anything else: these rows are the ones a human may need to
+  // act on, and a bare count does not say which guest is affected.
+  if (dupes.length) {
+    out.push('');
+    out.push('DUPLICATE ROWS SKIPPED — first occurrence kept, later ones ignored');
+    dupes.slice(0, 20).forEach(function (s) {
+      out.push('  row ' + s.rowNumber + '  ' + s.label + (s.detail ? '\n        ' + s.detail : ''));
+    });
+    if (dupes.length > 20) out.push('  … and ' + (dupes.length - 20) + ' more');
+  }
+
+  if (missing.length) {
+    out.push('');
+    out.push('MISSING IDENTIFIERS — no email, no phone and no name; NOT synced');
+    missing.slice(0, 20).forEach(function (s) {
+      out.push('  row ' + s.rowNumber + '  ' + s.label);
+    });
+    if (missing.length > 20) out.push('  … and ' + (missing.length - 20) + ' more');
+  }
+
   if (plan.normalizations.length) {
     out.push('');
     out.push('NORMALISED (applied automatically, no action needed)');
