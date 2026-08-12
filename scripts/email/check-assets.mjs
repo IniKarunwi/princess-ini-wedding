@@ -64,12 +64,20 @@ for (const [key, file] of Object.entries(ASSET_FILES)) {
   try {
     meta = await sharp(path).metadata();
   } catch {
-    console.log(`  ${c.red('UNREADABLE')} ${label} ${c.dim('not a valid image')}`);
+    const why = bytes < 64 ? `${bytes}-byte stub, not an image` : 'not a valid image';
+    console.log(`  ${c.red('UNREADABLE')} ${label} ${c.dim(why)}`);
     missing++;
     continue;
   }
 
   const notes = [];
+  // A JPEG named .png works in most clients because they sniff the content,
+  // but the server will serve it as image/png. Cheap to fix, so say so.
+  const claimed = file.split('.').pop().toLowerCase();
+  const actual  = meta.format === 'jpeg' ? 'jpg' : meta.format;
+  if (actual !== claimed && !(claimed === 'jpeg' && actual === 'jpg')) {
+    notes.push(`actually a ${meta.format.toUpperCase()} named .${claimed} — re-save as .${claimed}, or rename`);
+  }
   if (bytes > MAX_BYTES) {
     notes.push(`${(bytes / 1024 / 1024).toFixed(1)}MB — heavy on mobile data`);
   }

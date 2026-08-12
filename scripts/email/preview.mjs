@@ -56,13 +56,29 @@ const CAPTIONS = {
 
 const assetPath = (file) => join(process.cwd(), 'public', 'email', file);
 
+/**
+ * Sniffs the real format from the file's magic bytes rather than trusting the
+ * extension. A placeholder committed to reserve a filename, or a JPEG saved as
+ * .png, both look fine to existsSync and neither renders.
+ */
+function sniff(buf) {
+  if (buf.length < 12) return null;
+  if (buf[0] === 0x89 && buf.toString('latin1', 1, 4) === 'PNG') return 'image/png';
+  if (buf[0] === 0xff && buf[1] === 0xd8)                        return 'image/jpeg';
+  if (buf.toString('latin1', 0, 4) === 'RIFF'
+   && buf.toString('latin1', 8, 12) === 'WEBP')                  return 'image/webp';
+  if (buf.toString('latin1', 0, 3) === 'GIF')                    return 'image/gif';
+  return null;
+}
+
 /** The real file, base64'd so the preview is self-contained and shareable. */
 function inlined(file) {
   const path = assetPath(file);
   if (!existsSync(path)) return null;
-  const mime = file.endsWith('.jpg') || file.endsWith('.jpeg') ? 'image/jpeg'
-             : file.endsWith('.webp') ? 'image/webp' : 'image/png';
-  return `data:${mime};base64,${readFileSync(path).toString('base64')}`;
+  const buf = readFileSync(path);
+  const mime = sniff(buf);
+  if (!mime) return null;          // a stub or something that is not an image
+  return `data:${mime};base64,${buf.toString('base64')}`;
 }
 
 /**
