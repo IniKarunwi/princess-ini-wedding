@@ -23,7 +23,8 @@ other two events.
 ## Before the first run
 
 1. **Upload the five artwork files** to `public/email/` — `joining.png`,
-   `reception.png`, `after-party.png`, `venue.png`, `dress-guide.png`. See
+   `reception.png`, `after-party.png`, `venue.png`, `dress-guide.png`.
+   (`backdrop.png` is generated and already committed.) See
    `public/email/README.md` for sizes. Email clients cannot render embedded
    images, so these must be reachable at a public URL; serving them from the
    site's own domain is the least moving parts.
@@ -125,6 +126,8 @@ actual inbox:
 - Does the sender name read the way you want it to?
 - Does it look right on a **phone**? That is where most guests will open it.
 - **Do all five images load?** This is the most likely thing to be wrong.
+- Is the doodle backdrop *barely* visible — texture, not pattern? If it reads
+  as busy, drop `opacityOuter` in the generator and re-run.
 - Do the times, venue and dress guide read correctly?
 - Does **View Our Wedding Registry** open the Ouish page?
 - Does the map link open the right venue?
@@ -327,7 +330,7 @@ time-critical, and it makes every failure exactly attributable.
 npm run test:email
 ```
 
-134 checks, no network and no API key — a fake Resend that can be told to fail
+147 checks, no network and no API key — a fake Resend that can be told to fail
 on demand. It covers the **send guards** (that `--send` alone is refused, that
 two scopes are refused, that `y` confirms nothing, that a batch phrase cannot
 approve a full send), selection (which is what emails the wrong people if it is
@@ -335,6 +338,34 @@ wrong) and batch resilience (which is the requirement most likely to be quietly
 broken by a later edit): that a failure mid-batch does not stop the run, that
 guests after it still receive theirs, and that a failed guest is not marked
 `Sent`.
+
+## The page backdrop
+
+A very faint olive doodle pattern sits behind the card — six icons (rings,
+bouquet, champagne, heart, envelope, floral sprig) as flourishes down the
+edges, not a repeating field.
+
+It is **one generated PNG**, 13 KB:
+
+```bash
+npm run email:backdrop
+```
+
+Email clients disagree about layered background images, multiple
+`background-position` values and anything resembling compositing. One opaque
+image renders identically everywhere and degrades cleanly.
+
+| Concern | How it is handled |
+|---|---|
+| Text stays the focus | 8.5% opacity at the edge, fading to 3% nearest the content; a 700px clean channel down the middle where nothing is drawn at all |
+| Never behind cards or buttons | Every card paints its own opaque ground. That is a property of the stacking, not a rule to remember — four tests assert it |
+| Quiet margin | 56px around the card on desktop, 24px on a phone |
+| Outlook desktop | Ignores CSS background images entirely, so it gets VML `<v:background>`. If that is stripped too, the flat colour shows |
+| Images blocked | `background-color` is stated first, so the email looks exactly as it did before the backdrop existed |
+| Retina | Rendered at 2×, pinned back with `background-size`. A client ignoring that shows a 2800px tile — which only *widens* the clean channel, the safe direction to fail in |
+
+Dials are at the top of `scripts/email/generate-backdrop.mjs`. Re-running is
+deterministic.
 
 ## The design
 

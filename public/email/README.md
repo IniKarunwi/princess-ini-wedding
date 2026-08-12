@@ -11,10 +11,40 @@ the same domain as the RSVP link.
 | `after-party.png` | Hero for After Party guests |
 | `venue.png` | Watercolour of Signature by Wells Carlton, above the map button |
 | `dress-guide.png` | Full-width, in every pack |
+| `backdrop.png` | **Generated** — the page backdrop. Do not hand-edit. |
 
 The venue illustration is the one the Banani design introduced. If it is
 absent the venue card still renders — heading, address and Open Map button —
 just without the picture.
+
+## `backdrop.png` is generated, not exported
+
+```bash
+npm run email:backdrop
+```
+
+`scripts/email/generate-backdrop.mjs` draws it and writes both the PNG and the
+SVG it came from. **Do not edit the PNG by hand** — the next run overwrites it.
+The jitter is seeded, so re-running produces a byte-identical file.
+
+Six icons — rings, bouquet, champagne, heart, envelope, floral sprig —
+repeated as flourishes down the left and right edges. Fewer icons repeated
+reads as stationery; more reads as clip art.
+
+The dials are at the top of the script:
+
+| | |
+|---|---|
+| `opacityOuter` / `opacityInner` | 8.5% at the edge, fading to 3% nearest the content |
+| `channel` | 700px down the middle where nothing is drawn |
+| `ink` | `#556B4E` olive |
+| `width` × `height` | 1400 × 1000 CSS px, rendered at 2× |
+
+The doodles are drawn **into** the beige rather than composited at runtime, so
+the file is fully opaque and the CSS fallback colour matches it exactly. 13 KB.
+
+If it fails to load, or the client blocks images, the email is exactly what it
+was before the backdrop existed.
 
 ## Why they live here and not in the email
 
@@ -55,6 +85,7 @@ https://<your-site>/email/reception.png
 https://<your-site>/email/after-party.png
 https://<your-site>/email/venue.png
 https://<your-site>/email/dress-guide.png
+https://<your-site>/email/backdrop.png
 ```
 
 To host them elsewhere instead — a CDN, or Supabase storage — set

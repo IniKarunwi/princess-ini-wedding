@@ -14,6 +14,7 @@
     "test:partial": "node scripts/sync/verify-partial-update.mjs --file ./data/rsvps.xlsx",
     "email:pack": "node --env-file=.env scripts/email/send-confirmations.mjs",
     "email:preview": "node scripts/email/preview.mjs",
+    "email:backdrop": "node scripts/email/generate-backdrop.mjs",
     "test:email": "node scripts/email/selftest.mjs"
   },
   "dependencies": {
@@ -42,7 +43,7 @@
     "exceljs": "^4.4.0",
     "globals": "^15.15.0",
     "postcss": "^8.5.6",
-    "sharp": "^0.35.2",
+    "sharp": "^0.35.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",

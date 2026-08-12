@@ -60,7 +60,18 @@ export const ASSET_FILES = {
   'after-party':'after-party.png',
   'dress-guide':'dress-guide.png',
   venue:        'venue.png',      // watercolour of Signature by Wells Carlton
+  backdrop:     'backdrop.png',   // generated — npm run email:backdrop
 };
+
+/**
+ * The page backdrop tile, in CSS pixels.
+ *
+ * The PNG is rendered at 2x for retina, so background-size must pin it back to
+ * this width or the doodles arrive twice the intended size. A client that
+ * ignores background-size shows the tile at 2800px, which only widens the
+ * clean centre channel — the safe direction to fail in.
+ */
+export const BACKDROP = { tileWidth: 1400, channel: 700 };
 
 /**
  * Resolves artwork to absolute URLs.

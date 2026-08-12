@@ -9,7 +9,7 @@
  * contains no trace of the After Party.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderConfirmationPack } from './template.mjs';
 import { assetUrls, WEDDING } from './config.mjs';
@@ -23,7 +23,7 @@ const siteUrl = process.env.INVITE_SITE_URL || 'https://princessandini.com';
 const real    = assetUrls({ siteUrl, baseUrl: process.env.INVITE_ASSET_BASE_URL });
 
 /**
- * Until the four artwork files are uploaded, those URLs 404 and every preview
+ * Until the five artwork files are uploaded, those URLs 404 and every preview
  * shows a broken box — which makes the layout impossible to judge. --placeholder
  * swaps in a labelled stand-in at the right aspect ratio so the spacing and
  * rhythm read correctly.
@@ -47,12 +47,22 @@ function placeholder(caption, ratio) {
 
 const usePlaceholders = process.argv.includes('--placeholder');
 const assets = usePlaceholders ? {
-  joining:        placeholder('Joining Ceremony artwork', 1.4),
-  reception:      placeholder('Reception artwork',        1.4),
+  joining:        placeholder('Wedding Service artwork',  1.4),
+  reception:      placeholder('Wedding Reception artwork',1.4),
   'after-party':  placeholder('After Party artwork',      1.4),
   'dress-guide':  placeholder('Dress Guide artwork',      1.45),
   venue:          placeholder('Venue illustration',       0.62),
+  // The backdrop is generated, not pending, so the preview shows the real
+  // thing — inlined, because a browser opening a file:// page cannot reach
+  // the deployed URL. The email itself always uses the https URL.
+  backdrop:       localBackdrop() ?? real.backdrop,
 } : real;
+
+function localBackdrop() {
+  const file = join(process.cwd(), 'public', 'email', 'backdrop.png');
+  if (!existsSync(file)) return null;
+  return `data:image/png;base64,${readFileSync(file).toString('base64')}`;
+}
 
 const base = {
   id: 'preview', full_name: 'Ada Obi', email: 'ada@example.com',
@@ -87,4 +97,4 @@ console.log(`\n  ${WEDDING.dateLong} — ${
   renderConfirmationPack({ ...base, approved_for: 'JOINING' }, { assets, rsvpUrl: siteUrl }).days
 } days away as of today.`);
 console.log('\nOpen the .html files in a browser. Check that reception-*.html says');
-console.log('nothing at all about the Joining Ceremony or the After Party.\n');
+console.log('nothing at all about the Wedding Service or the After Party.\n');

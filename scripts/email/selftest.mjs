@@ -15,7 +15,7 @@ import { renderConfirmationPack } from './template.mjs';
 import { eventsForGuest, plusOneState, daysUntil, normaliseTier, parseTiers, TIER_EVENTS } from './events.mjs';
 import { sendWithRetry, SendError } from './resend.mjs';
 import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
-import { STATUS, SUBJECT, WEDDING, assetUrls, REGISTRY_URL } from './config.mjs';
+import { STATUS, SUBJECT, WEDDING, assetUrls, REGISTRY_URL, PALETTE, BACKDROP } from './config.mjs';
 
 let passed = 0;
 const failures = [];
@@ -380,6 +380,51 @@ check('the preheader still carries the countdown for the inbox',
   /31 days to go/i.test(joining.html));
 check('the subject is numbered, so the series shows in the inbox',
   /Wedding Update #1/.test(SUBJECT));
+
+// ── The page backdrop ───────────────────────────────────────────────────────
+// The doodles must stay on the page and never appear behind content. That is
+// enforced by every card painting its own opaque ground, which is easy to
+// break by accident later.
+section('BACKDROP');
+
+check('the backdrop is applied to the page',
+  joining.html.includes(ASSETS.backdrop));
+check('it is ONE image, not a set of layered icons',
+  (joining.html.match(new RegExp(ASSETS.backdrop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length <= 3);
+check('the flat page colour is stated first, so blocked images look unchanged',
+  /background-color:#e8e0d0/.test(joining.html));
+check('the 2x tile is pinned back to its intended size',
+  joining.html.includes(`background-size:${BACKDROP.tileWidth}px auto`));
+check('Outlook gets VML, the only background it will tile',
+  /<v:background/.test(joining.html) && /<v:fill[^>]+type="tile"/.test(joining.html));
+check('the VML carries the fallback colour too',
+  /<v:fill[^>]+color="#e8e0d0"/.test(joining.html));
+check('the vml namespace is declared on <html>',
+  /xmlns:v="urn:schemas-microsoft-com:vml"/.test(joining.html));
+
+// Every surface that holds content paints its own ground. If one of these
+// stops doing so, doodles show through behind text.
+for (const [what, colour] of [
+  ['the card',          PALETTE.card],
+  ['the alternate band', PALETTE.alt],
+  ['the registry panel', PALETTE.panel],
+  ['the footer',         PALETTE.green],
+]) {
+  check(`${what} paints an opaque ground, so no doodle shows through`,
+    joining.html.includes(`background:${colour}`) || joining.html.includes(`background-color:${colour}`));
+}
+
+check('the backdrop is never set on a card, panel or button',
+  !new RegExp(`background[^;"]*${ASSETS.backdrop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"]*"[^>]*>\\s*<tr><td[^>]*padding:(16|24|28|36)`, 'i')
+    .test(joining.html));
+check('a pack still renders if the backdrop is absent',
+  (() => {
+    const noBackdrop = { ...ASSETS };
+    delete noBackdrop.backdrop;
+    const r = renderConfirmationPack(guest(), { assets: noBackdrop, rsvpUrl: 'https://example.com' });
+    return !/<v:background/.test(r.html) && /background-color:#e8e0d0/.test(r.html)
+        && r.html.includes('Wedding Service');
+  })());
 
 section('TEMPLATE — ESCAPING');
 const nasty = render(guest({ full_name: '<script>alert(1)</script> Obi' }));

@@ -27,7 +27,7 @@
  * is built from that guest's own event list, never from the full set.
  */
 
-import { WEDDING, REGISTRY_URL, MAP_URL, PALETTE as P, TYPE, UPDATE } from './config.mjs';
+import { WEDDING, REGISTRY_URL, MAP_URL, PALETTE as P, TYPE, UPDATE, BACKDROP } from './config.mjs';
 import { eventsForGuest, heroFor, daysUntil, plusOneState } from './events.mjs';
 import { firstName } from './recipients.mjs';
 
@@ -324,6 +324,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
   const state  = plusOneState(row);
   const hero   = heroFor(events);
   const heroSrc = hero ? assets[hero] : null;
+  const backdrop = assets.backdrop ?? null;
 
   // Named from the event itself, so the alt text cannot drift from the label.
   const heroAlt = events.length
@@ -336,7 +337,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
     : `All ${events.length === 3 ? 'three ' : ''}celebrations take place on ${WEDDING.dateLong}`;
 
   const html = `<!doctype html>
-<html lang="en">
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -359,10 +360,22 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
     .h2       { font-size:23px !important; }
     .sig      { font-size:28px !important; }
     .stack    { display:block !important; width:100% !important; }
+    /* On a phone there is no room either side of the card for flourishes, so
+       the quiet margin shrinks rather than squeezing the content. */
+    .page     { padding:24px 12px !important; }
   }
 </style>
 </head>
 <body style="margin:0;padding:0;background:${P.page};-webkit-font-smoothing:antialiased;">
+
+  <!-- Outlook desktop ignores CSS background-image entirely; VML is the only
+       way it will tile one. If this is stripped or fails, the flat colour
+       below shows and the email is exactly what it was before the doodles. -->
+  ${backdrop ? `<!--[if gte mso 9]>
+  <v:background xmlns:v="urn:schemas-microsoft-com:vml" fill="t">
+    <v:fill type="tile" src="${esc(backdrop)}" color="${P.page}"/>
+  </v:background>
+  <![endif]-->` : ''}
 
   <!-- Preheader: the grey line beside the subject in the inbox. The spacer run
        stops the client pulling body copy in after it. -->
@@ -371,8 +384,20 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
     ${'&#8203;&nbsp;'.repeat(60)}
   </div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${P.page};">
-    <tr><td align="center" style="padding:48px 12px;">
+  <!-- ── PAGE ──────────────────────────────────────────────────────────────
+       The doodles live here and nowhere else. Every card below paints its own
+       opaque ground, so nothing is ever drawn behind a button or inside an
+       information card — that is a property of the stacking, not a rule to
+       remember.
+
+       background-size pins the 2x tile back to its intended size. The colour
+       is stated first so it is what shows while the image loads, and what
+       remains if images are blocked. -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         ${backdrop ? `background="${esc(backdrop)}" ` : ''}style="background-color:${P.page};${backdrop ? `
+                background-image:url('${esc(backdrop)}');background-repeat:repeat;
+                background-position:center top;background-size:${BACKDROP.tileWidth}px auto;` : ''}">
+    <tr><td class="page" align="center" style="padding:56px 28px;">
 
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
              style="width:100%;max-width:600px;background:${P.card};border-radius:4px;overflow:hidden;
