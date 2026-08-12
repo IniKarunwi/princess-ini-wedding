@@ -2,25 +2,28 @@
 /**
  * Send wedding invitations to approved guests — CLI entry point.
  *
- *   npm run email:invites                      # preview, sends nothing
- *   npm run email:invites -- --to me@x.com     # one real send, to yourself
- *   npm run email:invites -- --limit 5 --send  # first five, for real
- *   npm run email:invites -- --send            # everyone eligible
+ * Sending cannot be undone, so the scope of a run must be stated deliberately
+ * and the widest scope costs the most keystrokes. Two rules, enforced in
+ * guards.mjs:
  *
- * Dry run is the default on purpose. This one is not like the sync: a bad
- * sync can be corrected on the next run, but an email that has gone out
- * cannot be recalled.
+ *   1. No single flag sends to the whole list. --send alone is refused.
+ *   2. Every real send prints the full recipient list and then waits for a
+ *      typed confirmation containing the recipient count.
  *
- * One guest failing never stops the batch. Failures are collected, reported
- * at the end, and left with email_status untouched so the next run retries
- * exactly them.
+ *   npm run email:invites                                  preview only
+ *   npm run email:invites -- --to me@x.com --send          sample to yourself
+ *   npm run email:invites -- --guest "Ada Obi" --send      one real guest
+ *   npm run email:invites -- --limit 5 --send              a pilot group
+ *   npm run email:invites -- --confirm-send-all --send     everyone
  */
 
+import { createInterface } from 'node:readline/promises';
 import { createClient } from '@supabase/supabase-js';
 import { TABLE, STATUS, SUBJECT, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO } from './config.mjs';
 import { selectRecipients, unreachable } from './recipients.mjs';
 import { renderInvitation } from './template.mjs';
 import { sendWithRetry, sleep, SendError } from './resend.mjs';
+import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
 
 const c = {
   dim:  s => `\x1b[2m${s}\x1b[0m`,
@@ -33,13 +36,23 @@ const c = {
 const HELP = `
 Wedding invitations — approved guests → Resend
 
-  --send            Actually send. Without it nothing is sent and nothing is
-                    written; the run only shows you who would receive one.
-  --limit <n>       Send to at most n guests. Use it for the first live run.
-  --to <email>      Ignore the guest list and send one email to this address.
-                    For checking how the invitation renders in a real inbox.
-  --resend-sent     Include guests already marked Sent. Re-emails people.
-  -h, --help        This message
+Scope — exactly one, and --send needs one of them:
+  --to <email>          One sample to any address. Not a guest; nothing is
+                        written. Use this first, to see how it renders.
+  --guest <id|email|name>
+                        One real guest, marked Sent afterwards.
+  --limit <n>           The first n eligible guests. A pilot group.
+  --confirm-send-all    Everyone eligible. Required for a full send — --send
+                        on its own is refused.
+
+  --send                Actually deliver. Without it nothing is sent and
+                        nothing is written.
+  --resend-sent         Include guests already marked Sent. Re-emails people.
+  --yes                 Skip the typed confirmation. Refused for a full send.
+  -h, --help            This message
+
+Every real send prints the recipient list first and waits for you to type a
+confirmation phrase containing the recipient count.
 
 Environment (.env, loaded with --env-file):
   SUPABASE_URL                 Project URL
@@ -51,15 +64,18 @@ Environment (.env, loaded with --env-file):
 `;
 
 function parseArgs(argv) {
-  const args = { send: false, resendSent: false };
+  const args = { send: false, resendSent: false, confirmSendAll: false, yes: false };
   for (let i = 0; i < argv.length; i++) {
     const next = () => argv[++i];
     switch (argv[i]) {
-      case '--send':        args.send = true; break;
-      case '--limit':       args.limit = Number(next()); break;
-      case '--to':          args.to = next(); break;
-      case '--resend-sent': args.resendSent = true; break;
-      case '--help': case '-h': args.help = true; break;
+      case '--send':             args.send = true; break;
+      case '--limit':            args.limit = Number(next()); break;
+      case '--to':               args.to = next(); break;
+      case '--guest':            args.guest = next(); break;
+      case '--confirm-send-all': args.confirmSendAll = true; break;
+      case '--resend-sent':      args.resendSent = true; break;
+      case '--yes': case '-y':   args.yes = true; break;
+      case '--help': case '-h':  args.help = true; break;
       default:
         if (argv[i].startsWith('--')) throw new Error(`Unknown option: ${argv[i]}`);
     }
@@ -67,6 +83,8 @@ function parseArgs(argv) {
   if (args.limit !== undefined && (!Number.isInteger(args.limit) || args.limit < 1)) {
     throw new Error('--limit needs a positive whole number');
   }
+  if (args.to !== undefined && !args.to) throw new Error('--to needs an email address');
+  if (args.guest !== undefined && !args.guest) throw new Error('--guest needs an id, email or name');
   return args;
 }
 
@@ -94,7 +112,7 @@ async function fetchGuests(supabase) {
 function assertSchema(rows) {
   if (!rows.length) return;
   const columns = Object.keys(rows[0]);
-  const missing = ['email_status', 'last_email_sent'].filter(c => !columns.includes(c));
+  const missing = ['email_status', 'last_email_sent'].filter(col => !columns.includes(col));
   if (!missing.length) return;
 
   throw new Error(
@@ -107,9 +125,79 @@ function assertSchema(rows) {
   );
 }
 
+/** The recipient list. Printed before every send, not only in dry run. */
+function printRecipients(recipients, { from, replyTo, siteUrl }) {
+  console.log(`\n${c.bold('Recipients')} — ${recipients.length}\n`);
+  const width = String(recipients.length).length;
+  recipients.forEach((r, i) => {
+    console.log(`  ${String(i + 1).padStart(width)}. ` +
+                `${(r.full_name || '(no name)').padEnd(32)} ${c.dim(r.email)}`);
+  });
+  console.log(c.dim(`\n  From:     ${from}`));
+  console.log(c.dim(`  Reply-to: ${replyTo}`));
+  console.log(c.dim(`  Subject:  ${SUBJECT}`));
+  console.log(c.dim(`  RSVP:     ${siteUrl}`));
+}
+
+/**
+ * Blocks until the operator types the phrase. Returns true to proceed.
+ *
+ * A non-interactive stdin cannot confirm, so it does not send. That is
+ * deliberate: it means a cron job or a piped command can never trigger a
+ * batch, which is exactly the accident this guard exists to prevent.
+ */
+async function confirm(mode, count, { yes }) {
+  const phrase = confirmationPhrase(mode, count);
+
+  if (yes) {
+    if (mode === MODE.ALL) {
+      console.log(c.red('\n--yes cannot approve a full send. Type the phrase.'));
+    } else {
+      console.log(c.amber(`\n--yes: proceeding without typing "${phrase}".`));
+      return true;
+    }
+  }
+
+  if (!process.stdin.isTTY) {
+    console.error(c.red('\nRefusing to send: stdin is not a terminal, so the ') +
+                  c.red('confirmation cannot be typed.'));
+    console.error(c.dim('Run it directly in a terminal. This is what stops an ' +
+                        'automated job from sending a batch.'));
+    return false;
+  }
+
+  console.log(`\n${c.bold('About to email the ' + count + ' guest(s) listed above.')}`);
+  if (mode === MODE.ALL) {
+    console.log(c.amber('This is the FULL eligible guest list.'));
+  }
+  console.log(`Type ${c.bold(phrase)} to proceed, or anything else to abort.`);
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const typed = await rl.question('> ');
+    if (!matchesPhrase(typed, phrase)) {
+      console.log(c.dim('\nAborted. Nothing was sent.\n'));
+      return false;
+    }
+    return true;
+  } finally {
+    rl.close();
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) { console.log(HELP); return; }
+
+  // Scope is decided before anything else — before credentials, before the
+  // database is touched. A refused combination should fail instantly.
+  const scope = resolveMode(args);
+  if (!scope.ok) {
+    console.error(`\n${c.red(scope.error)}\n`);
+    if (scope.hint) console.error(scope.hint + '\n');
+    process.exitCode = 1;
+    return;
+  }
 
   const url     = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const key     = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -139,19 +227,28 @@ async function main() {
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-  // ── One-off render check, no guest list involved ──────────────────────────
-  if (args.to) {
-    const sample = { full_name: 'Test Guest', email: args.to };
+  // ── Sample: one email to an arbitrary address, no guest row involved ──────
+  if (args.to !== undefined) {
+    const sample = { id: 'sample', full_name: 'Test Guest', email: args.to };
     const { html, text } = renderInvitation(sample, { rsvpUrl: siteUrl });
-    if (!args.send) {
-      console.log(`\nDRY RUN — would send a sample invitation to ${args.to}`);
-      console.log(c.dim('Add --send to actually deliver it.\n'));
+
+    console.log(`\n${c.bold('Sample invitation')}`);
+    console.log(`  To:       ${args.to}`);
+    console.log(c.dim(`  From:     ${from}`));
+    console.log(c.dim(`  Subject:  ${SUBJECT}`));
+    console.log(c.dim(`  RSVP:     ${siteUrl}`));
+    console.log(c.dim('\n  No guest row is read or written by this mode.'));
+
+    if (scope.mode === MODE.DRY_RUN) {
+      console.log(`\n${c.bold('DRY RUN')} — nothing sent. Add --send to deliver it.\n`);
       return;
     }
     const id = await sendWithRetry({
       apiKey, from, replyTo, to: args.to, subject: SUBJECT, html, text,
     });
-    console.log(c.green(`\nSent sample invitation to ${args.to}  (${id})\n`));
+    console.log(c.green(`\nSent. Resend message id: ${id}\n`));
+    console.log('Check: does it land in the inbox rather than spam, does the RSVP');
+    console.log('button open the site, and does the site accept your submission?\n');
     return;
   }
 
@@ -170,13 +267,9 @@ async function main() {
     }
   }
 
-  const total = recipients.length;
-  if (args.limit) recipients = recipients.slice(0, args.limit);
-
   console.log(`\n${c.bold('Wedding invitations')}   ${rows.length} guests in ${TABLE}`);
-  console.log(`  eligible to send : ${c.bold(String(total))}` +
-              (args.limit ? c.amber(`  (--limit ${args.limit} → sending ${recipients.length})`) : ''));
-  console.log(`  skipped          : ${skipped.length}`);
+  console.log(`  eligible : ${c.bold(String(recipients.length))}`);
+  console.log(`  skipped  : ${skipped.length}`);
 
   const cannotReach = unreachable(skipped);
   if (cannotReach.length) {
@@ -186,21 +279,55 @@ async function main() {
     }
   }
 
+  // ── Narrow to the requested scope ─────────────────────────────────────────
+  if (args.guest !== undefined) {
+    const found = findGuest(rows, args.guest);
+    if (!found.ok) {
+      console.error(`\n${c.red(found.error)}`);
+      if (found.hint) console.error(found.hint);
+      console.error('');
+      process.exitCode = 1;
+      return;
+    }
+    // A named guest still has to be eligible; --guest chooses who, not whether.
+    const eligible = recipients.some(r => r.id === found.row.id);
+    if (!eligible) {
+      const why = skipped.find(s => s.row.id === found.row.id)?.reason ?? 'not eligible';
+      console.error(`\n${c.red(`${found.row.full_name} will not be emailed: ${why}`)}`);
+      console.error(c.dim('--guest picks who to send to; it does not override eligibility.'));
+      console.error(c.dim('For a render check to any address, use --to instead.\n'));
+      process.exitCode = 1;
+      return;
+    }
+    recipients = [found.row];
+  } else if (args.limit !== undefined) {
+    const total = recipients.length;
+    recipients = recipients.slice(0, args.limit);
+    if (total > recipients.length) {
+      console.log(c.dim(`\n--limit ${args.limit}: sending to the first ${recipients.length} of ${total} eligible.`));
+    }
+  }
+
   if (!recipients.length) {
     console.log(c.dim('\nNobody to email.\n'));
     return;
   }
 
-  if (!args.send) {
-    console.log(`\n${c.bold('DRY RUN')} — nothing sent, nothing written. Would email:\n`);
-    recipients.forEach((r, i) => {
-      console.log(`  ${String(i + 1).padStart(3)}. ${(r.full_name || '(no name)').padEnd(32)} ${c.dim(r.email)}`);
-    });
-    console.log(c.dim(`\nFrom:    ${from}`));
-    console.log(c.dim(`Subject: ${SUBJECT}`));
-    console.log(c.dim(`RSVP:    ${siteUrl}`));
-    console.log(`\nAdd ${c.bold('--send')} to deliver. Try ${c.bold('--to you@example.com --send')} first\n` +
-                'to see how it renders, and --limit 5 --send for a cautious first batch.\n');
+  // ── The list, always ──────────────────────────────────────────────────────
+  printRecipients(recipients, { from, replyTo, siteUrl });
+
+  if (scope.mode === MODE.DRY_RUN) {
+    console.log(`\n${c.bold('DRY RUN')} — nothing sent, nothing written.\n`);
+    console.log('When you are ready, narrowest first:');
+    console.log(`  --to you@example.com --send      ${c.dim('a sample to yourself')}`);
+    console.log(`  --guest "Name" --send            ${c.dim('one real guest')}`);
+    console.log(`  --limit 5 --send                 ${c.dim('a pilot group')}`);
+    console.log(`  --confirm-send-all --send        ${c.dim('everyone')}\n`);
+    return;
+  }
+
+  if (scope.requiresConfirmation && !await confirm(scope.mode, recipients.length, args)) {
+    process.exitCode = 1;
     return;
   }
 
@@ -222,8 +349,8 @@ async function main() {
       const { html, text } = renderInvitation(row, { rsvpUrl: siteUrl });
       messageId = await sendWithRetry({
         apiKey, from, replyTo, to: row.email, subject: SUBJECT, html, text,
-        // Same guest + same email = same key, so a retried attempt after a lost
-        // response returns the original message instead of sending twice.
+        // Same guest = same key, so a retried attempt after a lost response
+        // returns the original message instead of sending twice.
         idempotencyKey: `invitation:${row.id}`,
       }, {
         onRetry: ({ attempt, wait, message }) =>

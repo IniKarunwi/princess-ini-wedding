@@ -13,6 +13,7 @@
 import { selectRecipients, classify, isUnsent, isSendableEmail, firstName } from './recipients.mjs';
 import { renderInvitation } from './template.mjs';
 import { sendWithRetry, SendError } from './resend.mjs';
+import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
 import { STATUS, SUBJECT } from './config.mjs';
 
 let passed = 0;
@@ -33,6 +34,88 @@ const guest = (over = {}) => ({
   last_email_sent: null,
   ...over,
 });
+
+// ── Send guards ─────────────────────────────────────────────────────────────
+// The rule under test: no single flag can email the whole guest list.
+section('SEND GUARDS');
+
+const flags = (o = {}) => ({ send: false, confirmSendAll: false, yes: false, ...o });
+
+{
+  const r = resolveMode(flags({ send: true }));
+  check('--send ALONE is refused', !r.ok, r.ok ? `allowed mode ${r.mode}` : undefined);
+  check('the refusal says why', !r.ok && /entire guest list/i.test(r.error));
+  check('the refusal shows the four scopes, narrowest first',
+    !r.ok && ['--to', '--guest', '--limit', '--confirm-send-all'].every(f => r.hint.includes(f)));
+}
+
+check('--confirm-send-all --send is the only route to a full send',
+  resolveMode(flags({ send: true, confirmSendAll: true })).mode === MODE.ALL);
+check('--limit --send is a limited send',
+  resolveMode(flags({ send: true, limit: 5 })).mode === MODE.LIMITED);
+check('--guest --send is a single-guest send',
+  resolveMode(flags({ send: true, guest: 'Ada' })).mode === MODE.GUEST);
+check('--to --send is a sample, not a guest send',
+  resolveMode(flags({ send: true, to: 'me@x.com' })).mode === MODE.SAMPLE);
+
+check('no --send is always a dry run, whatever the scope',
+  resolveMode(flags({ confirmSendAll: true })).mode === MODE.DRY_RUN
+  && resolveMode(flags({ limit: 3 })).mode === MODE.DRY_RUN
+  && resolveMode(flags()).mode === MODE.DRY_RUN);
+
+check('--limit with --confirm-send-all is refused as ambiguous',
+  !resolveMode(flags({ send: true, limit: 5, confirmSendAll: true })).ok);
+check('--guest with --limit is refused as ambiguous',
+  !resolveMode(flags({ send: true, guest: 'Ada', limit: 5 })).ok);
+check('the ambiguity message names both flags',
+  /--limit and --confirm-send-all/.test(
+    resolveMode(flags({ send: true, limit: 5, confirmSendAll: true })).error));
+
+check('a full send requires confirmation',
+  resolveMode(flags({ send: true, confirmSendAll: true })).requiresConfirmation);
+check('a limited send requires confirmation',
+  resolveMode(flags({ send: true, limit: 5 })).requiresConfirmation);
+check('a single-guest send requires confirmation',
+  resolveMode(flags({ send: true, guest: 'Ada' })).requiresConfirmation);
+check('a dry run needs no confirmation',
+  !resolveMode(flags()).requiresConfirmation);
+
+// The confirmation phrase carries the count, so it cannot be typed blind.
+check('the phrase embeds the recipient count',
+  confirmationPhrase(MODE.LIMITED, 5) === 'SEND 5');
+check('a full send has a distinct phrase, never shared with a narrow one',
+  confirmationPhrase(MODE.ALL, 187) === 'SEND ALL 187'
+  && confirmationPhrase(MODE.ALL, 187) !== confirmationPhrase(MODE.LIMITED, 187));
+check('"y" does not confirm anything',
+  !matchesPhrase('y', confirmationPhrase(MODE.LIMITED, 5))
+  && !matchesPhrase('yes', confirmationPhrase(MODE.LIMITED, 5)));
+check('an empty line does not confirm',
+  !matchesPhrase('', confirmationPhrase(MODE.LIMITED, 5))
+  && !matchesPhrase('   ', confirmationPhrase(MODE.LIMITED, 5)));
+check('the wrong count does not confirm',
+  !matchesPhrase('SEND 4', confirmationPhrase(MODE.LIMITED, 5)));
+check('a limited phrase cannot approve a full send',
+  !matchesPhrase('SEND 187', confirmationPhrase(MODE.ALL, 187)));
+check('the right phrase confirms, ignoring case and spacing',
+  matchesPhrase('  send   all  187 ', confirmationPhrase(MODE.ALL, 187)));
+
+// ── Finding one guest ───────────────────────────────────────────────────────
+section('GUEST LOOKUP');
+
+const roster = [
+  { id: 'a1', full_name: 'Ada Obi',    email: 'ada@example.com' },
+  { id: 'b2', full_name: 'Grace Bello', email: 'grace.b@example.com' },
+  { id: 'c3', full_name: 'Grace Cole',  email: 'grace.c@example.com' },
+];
+check('finds by exact name',  findGuest(roster, 'Ada Obi').row?.id === 'a1');
+check('finds by email',       findGuest(roster, 'grace.b@example.com').row?.id === 'b2');
+check('finds by id',          findGuest(roster, 'c3').row?.id === 'c3');
+check('finds by unique partial name', findGuest(roster, 'ada').row?.id === 'a1');
+check('an ambiguous name is REFUSED, not guessed',
+  !findGuest(roster, 'Grace').ok);
+check('the ambiguity lists the candidates to choose between',
+  findGuest(roster, 'Grace').hint?.includes('grace.b@example.com'));
+check('an unknown name is refused', !findGuest(roster, 'Nobody').ok);
 
 // ── Selection ───────────────────────────────────────────────────────────────
 section('SELECTION');

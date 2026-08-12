@@ -25,18 +25,113 @@ row.
 3. **Check the site link in a browser.** The RSVP button is the entire purpose
    of the email.
 
-## Running
+## Sending is deliberately hard to do by accident
 
-```bash
-npm run email:invites                          # preview — sends nothing
-npm run email:invites -- --to you@example.com --send   # one, to yourself
-npm run email:invites -- --limit 5 --send      # cautious first batch
-npm run email:invites -- --send                # everyone eligible
+An email that has gone out cannot be recalled, so **no single flag sends to
+the whole guest list.** `--send` on its own is refused:
+
+```
+--send needs a scope. On its own it would email the entire guest list.
 ```
 
-**Dry run is the default.** Unlike the sync, this is not correctable on the
-next run: an email that has gone out cannot be recalled. Work up through the
-three steps above rather than starting at the last one.
+Every run needs exactly one scope, and the widest one costs the most
+keystrokes:
+
+| Scope | Reaches | Confirmation |
+|---|---|---|
+| *(none)* | nobody — dry run, the default | — |
+| `--to <email>` | one address, **not** a guest; nothing is written | none |
+| `--guest <id\|email\|name>` | one real guest | typed |
+| `--limit <n>` | the first n eligible guests | typed |
+| `--confirm-send-all` | everyone eligible | typed, distinct phrase |
+
+Two scopes at once is refused rather than resolved — guessing there means
+guessing how many people get an email.
+
+### The recipient list is printed before every send
+
+Not only in dry run. Then the run stops and waits for you to type a phrase
+that **contains the recipient count**:
+
+```
+About to email the 5 guest(s) listed above.
+Type SEND 5 to proceed, or anything else to abort.
+> 
+```
+
+`y` does not work. Neither does `SEND 4`. The count cannot be right unless the
+list above it was actually read. A full send needs `SEND ALL 187`, a phrase a
+narrower run never uses, so approving a batch can never approve everyone.
+
+`--yes` skips the prompt for narrow scopes. It is **refused for a full send** —
+that one is always typed by hand.
+
+If stdin is not a terminal the run refuses to send at all. That is deliberate:
+it means a cron job or a piped command can never trigger a batch.
+
+## The rollout, in order
+
+Each step answers a question the next one depends on. Do not skip ahead.
+
+### 1. Preview — who would get one
+
+```bash
+npm run email:invites
+```
+
+Sends nothing, writes nothing. Read the eligible count and the **approved but
+unreachable** list. If the count is wildly wrong, the problem is in the
+spreadsheet, not here.
+
+### 2. One email to yourself
+
+```bash
+npm run email:invites -- --to you@example.com --send
+```
+
+`--to` takes any address and touches no guest row — nothing is marked Sent, and
+your own address does not need to be in the guest list. Then check, in the
+actual inbox:
+
+- Does it arrive at all, and in the **inbox** rather than spam? If it is in
+  spam, the domain's DNS is not fully verified in Resend; fix that before
+  going further, because a spam-filed invitation is worse than none.
+- Does the sender name read the way you want it to?
+- Does it look right on a **phone**? That is where most guests will open it.
+- Does the **RSVP button** open the live site?
+- Complete an RSVP end to end. Does it land in Supabase?
+- Does **Add to calendar** open the right date, 26 September 2026?
+
+Send it to a second address on a different provider — a Gmail and an Outlook,
+say. Rendering differs more than you would expect.
+
+### 3. One real guest
+
+```bash
+npm run email:invites -- --guest "Their Name" --send
+```
+
+The first send that marks somebody `Sent`. Pick someone who will tell you
+honestly whether it looked right. `--guest` chooses *who*, not *whether*: a
+guest who is not approved is still refused.
+
+### 4. A pilot group
+
+```bash
+npm run email:invites -- --limit 5 --send
+```
+
+Five people, typed confirmation. Wait a day. Watch for bounces in the Resend
+dashboard and for RSVPs arriving in Supabase — if five invitations produce zero
+RSVPs, something is wrong that the previous steps could not have shown you.
+
+### 5. Everyone
+
+```bash
+npm run email:invites -- --confirm-send-all --send
+```
+
+Only after step 4 has actually produced RSVPs.
 
 ## Who gets one
 
@@ -108,8 +203,10 @@ time-critical, and it makes every failure exactly attributable.
 npm run test:email
 ```
 
-41 checks, no network and no API key — a fake Resend that can be told to fail
-on demand. It covers selection (which is what emails the wrong people if it is
+70 checks, no network and no API key — a fake Resend that can be told to fail
+on demand. It covers the **send guards** (that `--send` alone is refused, that
+two scopes are refused, that `y` confirms nothing, that a batch phrase cannot
+approve a full send), selection (which is what emails the wrong people if it is
 wrong) and batch resilience (which is the requirement most likely to be quietly
 broken by a later edit): that a failure mid-batch does not stop the run, that
 guests after it still receive theirs, and that a failed guest is not marked
