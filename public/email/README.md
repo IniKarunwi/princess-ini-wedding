@@ -71,6 +71,7 @@ client blocks images still gets their schedule, venue and plus-one status.
 ## Checking
 
 ```bash
+npm run email:assets       # are all the files here, right names, right size?
 npm run email:preview      # writes previews to scratch/, opens nothing
 npm run email:pack         # dry run against the real guest list
 ```

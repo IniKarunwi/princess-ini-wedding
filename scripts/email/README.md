@@ -45,7 +45,9 @@ other two events.
    is required — the anon key cannot update rows under RLS. `.env` is
    gitignored.
 
-4. **Confirm all five images load** in a browser at
+4. **Check them** with `npm run email:assets` — it flags a missing file, a
+   wrong name, an oversized export or one too small to stay sharp on a phone.
+   Then **confirm all five load** in a browser at
    `https://<your-site>/email/joining.png` and so on. A missing hero renders as
    nothing at all rather than a broken box — deliberate, but it means a typo is
    silent.

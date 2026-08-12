@@ -15,6 +15,7 @@
     "email:pack": "node --env-file=.env scripts/email/send-confirmations.mjs",
     "email:preview": "node scripts/email/preview.mjs",
     "email:backdrop": "node scripts/email/generate-backdrop.mjs",
+    "email:assets": "node scripts/email/check-assets.mjs",
     "test:email": "node scripts/email/selftest.mjs"
   },
   "dependencies": {
