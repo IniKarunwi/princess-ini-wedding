@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Offline test for the invitation sender. No network, no database, no API key.
+ * Offline test for the confirmation-pack sender. No network, no database, no API key.
  *
  *   npm run test:email
  *
@@ -11,10 +11,11 @@
  */
 
 import { selectRecipients, classify, isUnsent, isSendableEmail, firstName } from './recipients.mjs';
-import { renderInvitation } from './template.mjs';
+import { renderConfirmationPack } from './template.mjs';
+import { eventsForGuest, plusOneState, daysUntil, normaliseTier, TIER_EVENTS } from './events.mjs';
 import { sendWithRetry, SendError } from './resend.mjs';
 import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
-import { STATUS, SUBJECT } from './config.mjs';
+import { STATUS, SUBJECT, WEDDING, assetUrls, REGISTRY_URL } from './config.mjs';
 
 let passed = 0;
 const failures = [];
@@ -30,10 +31,19 @@ const guest = (over = {}) => ({
   full_name: 'Ada Obi',
   email: 'ada@example.com',
   main_invite_status: 'APPROVED',
+  approved_for: 'JOINING',
+  attending: true,
+  plus_one_requested: false,
+  plus_one_status: null,
+  plus_one_name: null,
   email_status: null,
   last_email_sent: null,
   ...over,
 });
+
+const ASSETS = assetUrls({ siteUrl: 'https://example.com' });
+const render = (row, now = new Date(Date.UTC(2026, 7, 26))) =>
+  renderConfirmationPack(row, { assets: ASSETS, rsvpUrl: 'https://example.com', now });
 
 // ── Send guards ─────────────────────────────────────────────────────────────
 // The rule under test: no single flag can email the whole guest list.
@@ -129,8 +139,18 @@ check('casing and spacing in the sheet do not matter',
 check("'Sent' does not count as unsent",
   !isUnsent(guest({ email_status: 'Sent' })));
 
-check('approved + unsent + valid email is selected',
+check('approved + RSVP\'d + unsent + valid email is selected',
   classify(guest()).send);
+check('an approved guest who never RSVP\'d gets NO pack',
+  !classify(guest({ attending: null })).send);
+check('a guest who RSVP\'d no gets no pack',
+  !classify(guest({ attending: false })).send);
+check('an approved guest with no tier is held back, not sent an empty pack',
+  !classify(guest({ approved_for: null })).send);
+check('an undecided plus one holds the guest back rather than guessing',
+  !classify(guest({ plus_one_requested: true, plus_one_status: null })).send);
+check('the hold reason names the undecided plus one',
+  /plus one/i.test(classify(guest({ plus_one_requested: true, plus_one_status: null })).reason));
 check('pending guests are not emailed',
   !classify(guest({ main_invite_status: null })).send);
 check('rejected guests are not emailed',
@@ -151,6 +171,7 @@ check('an ordinary address passes',
 
 const mixed = [
   guest({ full_name: 'Send Me' }),
+  guest({ full_name: 'No RSVP',  attending: null }),
   guest({ full_name: 'Pending',  main_invite_status: null }),
   guest({ full_name: 'Rejected', main_invite_status: 'REJECTED' }),
   guest({ full_name: 'Done',     email_status: 'Sent' }),
@@ -161,26 +182,106 @@ check('a mixed list selects only the eligible guest',
   picked.send.length === 1 && picked.send[0].full_name === 'Send Me',
   `selected ${picked.send.length}`);
 check('every skipped guest carries a reason',
-  picked.skipped.length === 4 && picked.skipped.every(s => s.reason));
+  picked.skipped.length === 5 && picked.skipped.every(s => s.reason));
 
 check('a "+3" seat suffix is not treated as a name',
   firstName({ full_name: 'Pastor Chingtok +3' }) === 'Pastor');
 check('a nameless guest still gets a greeting',
   firstName({ full_name: null }) === 'Friend');
 
+// ── Tiers ───────────────────────────────────────────────────────────────────
+section('TIERS');
+
+const names = (row) => eventsForGuest(row).map(e => e.name);
+
+check('a Joining guest gets the ceremony and the reception',
+  names(guest({ approved_for: 'JOINING' })).join('|') === 'Joining Ceremony|Reception');
+check('a Reception guest gets the reception alone',
+  names(guest({ approved_for: 'RECEPTION' })).join('|') === 'Reception');
+check('an After Party guest gets the after party alone',
+  names(guest({ approved_for: 'AFTERPARTY' })).join('|') === 'After Party');
+check('events always come back in running order',
+  names(guest({ approved_for: 'JOINING' }))[0] === 'Joining Ceremony');
+
+check('the sheet\'s "After Party" spelling is understood',
+  normaliseTier('After Party') === 'AFTERPARTY' && normaliseTier('after-party') === 'AFTERPARTY');
+check('"Ceremony" is understood as Joining', normaliseTier('Ceremony') === 'JOINING');
+check('a blank tier yields no events', names(guest({ approved_for: null })).length === 0);
+check('an unrecognised tier yields no events', names(guest({ approved_for: 'VIP LOUNGE' })).length === 0);
+
+check('the countdown counts whole days',
+  daysUntil(WEDDING.date, new Date(Date.UTC(2026, 8, 25))) === 1
+  && daysUntil(WEDDING.date, new Date(Date.UTC(2026, 8, 26))) === 0);
+check('the countdown never goes negative',
+  daysUntil(WEDDING.date, new Date(Date.UTC(2026, 9, 1))) === 0);
+
 // ── Template ────────────────────────────────────────────────────────────────
 section('TEMPLATE');
 
-const rendered = renderInvitation(guest({ full_name: 'Ada Obi' }), { rsvpUrl: 'https://example.com/rsvp' });
-check('greets the guest by first name', rendered.html.includes('Dear Ada,'));
-check('links the RSVP site', rendered.html.includes('https://example.com/rsvp'));
-check('carries the wedding date', rendered.html.includes('26th September 2026'));
-check('ships a plain-text alternative', rendered.text.includes('Dear Ada,'));
-check('has no external stylesheet or script',
-  !/<link[^>]+stylesheet|<script/i.test(rendered.html));
+const joining    = render(guest({ full_name: 'Ada Obi', approved_for: 'JOINING' }));
+const reception  = render(guest({ full_name: 'Ada Obi', approved_for: 'RECEPTION' }));
+const afterParty = render(guest({ full_name: 'Ada Obi', approved_for: 'AFTERPARTY' }));
 
-const nasty = renderInvitation({ full_name: '<script>alert(1)</script> Obi', email: 'x@y.com' },
-                               { rsvpUrl: 'https://example.com' });
+check('greets the guest by first name', joining.html.includes('Dear Ada,'));
+check('thanks them for RSVPing, rather than inviting them',
+  /thank you for rsvping/i.test(joining.html) && !/you.{0,3}re invited/i.test(joining.html));
+check('carries the wedding date', joining.html.includes('26th September 2026'));
+check('carries the venue', joining.html.includes('Signature by Wells Carlton')
+  && joining.html.includes('Asokoro, Abuja'));
+check('links the registry', joining.html.includes(REGISTRY_URL));
+check('embeds the dress guide artwork', joining.html.includes(ASSETS['dress-guide']));
+check('ships a plain-text alternative', joining.text.includes('Dear Ada,'));
+check('has no external stylesheet or script',
+  !/<link[^>]+stylesheet|<script/i.test(joining.html));
+check('uses no flexbox or grid, which Outlook cannot render',
+  !/display\s*:\s*(flex|grid)/i.test(joining.html));
+check('shows the countdown', joining.html.includes('>31<')
+  || /days until we say/i.test(joining.html));
+
+// THE rule: a guest must not learn that an event they are not invited to exists.
+check('a Reception guest is never shown the After Party',
+  !/after party/i.test(reception.html) && !/after party/i.test(reception.text));
+check('a Reception guest is never shown the Joining Ceremony',
+  !/joining/i.test(reception.html) && !/joining/i.test(reception.text));
+check('a Reception guest is not shown the 6 PM or 12 PM times',
+  !reception.html.includes('6:00 PM') && !reception.html.includes('12:00 PM'));
+check('an After Party guest is never shown the ceremony or reception',
+  !/joining/i.test(afterParty.html) && !/reception/i.test(afterParty.html));
+check('a Joining guest sees both their events and not the after party',
+  joining.html.includes('Joining Ceremony') && joining.html.includes('Reception')
+  && !/after party/i.test(joining.html));
+
+check('each tier opens on its own artwork',
+  joining.html.includes(ASSETS.joining)
+  && reception.html.includes(ASSETS.reception)
+  && afterParty.html.includes(ASSETS['after-party']));
+check('a tier never shows another tier\'s artwork',
+  !reception.html.includes(ASSETS.joining)
+  && !reception.html.includes(ASSETS['after-party']));
+
+// Plus one
+const p1yes = render(guest({ plus_one_requested: true, plus_one_status: 'APPROVED', plus_one_name: 'Chidi' }));
+const p1no  = render(guest({ plus_one_requested: true, plus_one_status: 'REJECTED' }));
+const p1non = render(guest({ plus_one_requested: false }));
+
+check('an approved plus one is celebrated and named',
+  /plus one has been confirmed/i.test(p1yes.html) && p1yes.html.includes('Chidi'));
+const flat = (h) => h.replace(/\s+/g, ' ');
+check('a declined plus one gets the warm wording',
+  /unable to accommodate a Plus One/i.test(flat(p1no.html))
+  && /appreciate your understanding/i.test(flat(p1no.html)));
+check('a declined plus one is never told it was confirmed',
+  !/has been confirmed/i.test(p1no.html));
+check('a guest who never asked sees NOTHING about plus ones',
+  !/plus one/i.test(p1non.html) && !/plus one/i.test(p1non.text));
+
+check('plus-one state reads the sheet\'s vocabulary',
+  plusOneState({ plus_one_requested: true, plus_one_status: 'Accepted' }) === 'approved'
+  && plusOneState({ plus_one_requested: true, plus_one_status: 'Declined' }) === 'declined'
+  && plusOneState({ plus_one_requested: true, plus_one_status: null }) === 'pending'
+  && plusOneState({ plus_one_requested: false, plus_one_status: null }) === 'none');
+
+const nasty = render(guest({ full_name: '<script>alert(1)</script> Obi' }));
 check('escapes a name containing HTML',
   !nasty.html.includes('<script>alert(1)</script>') && nasty.html.includes('&lt;script&gt;'));
 
@@ -320,6 +421,8 @@ check('a run where everything fails writes nothing',
   allBad.written.length === 0 && allBad.failed.length === 4);
 
 check('the subject names the couple', SUBJECT.includes('Princess & IniOluwa'));
+check('the subject does not re-invite people who already accepted',
+  !/invited/i.test(SUBJECT));
 
 // ── Result ──────────────────────────────────────────────────────────────────
 console.log('');

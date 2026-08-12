@@ -1,12 +1,20 @@
 /**
- * Who gets an invitation — pure functions, no I/O.
+ * Who gets the confirmation pack — pure functions, no I/O.
  *
  * Kept separate from the sender so the selection rules can be tested offline
  * against fixture rows. Getting this wrong emails the wrong people, and that
  * is not an error you can take back.
+ *
+ * ── This is not the invitation list ────────────────────────────────────────
+ * The pack opens with "Thank you for RSVPing", so it goes only to guests who
+ * actually have. An approved guest who never replied has nothing to be thanked
+ * for; eleven such guests were entered straight into the planning sheet and
+ * have `attending` blank. They are skipped, and counted separately in the
+ * report, because they are the people who still need chasing.
  */
 
 import { STATUS, APPROVED } from './config.mjs';
+import { eventsForGuest, plusOneState } from './events.mjs';
 
 /** Trimmed string, or null for blank/absent. */
 function text(v) {
@@ -68,6 +76,34 @@ export function classify(row) {
   if (text(row.main_invite_status).toUpperCase() !== APPROVED) {
     return { send: false, reason: `not approved (${text(row.main_invite_status)})` };
   }
+
+  // The pack thanks them for RSVPing, so they must have done so.
+  if (row.attending !== true) {
+    return {
+      send: false,
+      reason: row.attending === false
+        ? 'RSVP\'d no — not attending'
+        : 'has not RSVP\'d yet',
+    };
+  }
+
+  // Without a tier there are no events to confirm, and a confirmation pack
+  // listing nothing is worse than no email at all.
+  if (eventsForGuest(row).length === 0) {
+    return {
+      send: false,
+      reason: text(row.approved_for) === null
+        ? 'approved but no tier set — nothing to confirm'
+        : `unrecognised tier: ${text(row.approved_for)}`,
+    };
+  }
+
+  // Telling someone their plus one is not accommodated when the couple has
+  // not actually decided cannot be walked back. Hold them instead.
+  if (plusOneState(row) === 'pending') {
+    return { send: false, reason: 'plus one requested but not yet decided' };
+  }
+
   if (isAlreadySent(row)) {
     return { send: false, reason: `already sent (${text(row.email_status)})` };
   }
@@ -110,6 +146,25 @@ export function selectRecipients(rows) {
 export function unreachable(skipped) {
   return skipped.filter(s =>
     s.reason.startsWith('no email') || s.reason.startsWith('unusable email'));
+}
+
+/**
+ * Skips that are waiting on the couple, not on the guest.
+ *
+ * These are the rows where a decision would turn somebody into a recipient —
+ * an undecided plus one, a missing tier. Worth surfacing on every run, because
+ * otherwise they sit unsent and unnoticed until someone asks why.
+ */
+export function awaitingDecision(skipped) {
+  return skipped.filter(s =>
+    s.reason.startsWith('plus one requested')
+    || s.reason.startsWith('approved but no tier')
+    || s.reason.startsWith('unrecognised tier'));
+}
+
+/** Approved guests who have simply never replied — the chase list. */
+export function awaitingRsvp(skipped) {
+  return skipped.filter(s => s.reason === 'has not RSVP\'d yet');
 }
 
 /** First name, for the greeting. Falls back to the whole name, then a neutral one. */

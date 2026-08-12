@@ -12,7 +12,8 @@
     "test:appsscript": "node scripts/sync/build-appsscript.mjs && node scripts/sync/appsscript-harness.mjs --file ./data/rsvps.xlsx",
     "test:sync": "node scripts/sync/selftest.mjs --file ./data/rsvps.xlsx",
     "test:partial": "node scripts/sync/verify-partial-update.mjs --file ./data/rsvps.xlsx",
-    "email:invites": "node --env-file=.env scripts/email/send-invitations.mjs",
+    "email:pack": "node --env-file=.env scripts/email/send-confirmations.mjs",
+    "email:preview": "node scripts/email/preview.mjs",
     "test:email": "node scripts/email/selftest.mjs"
   },
   "dependencies": {

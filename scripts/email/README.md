@@ -1,16 +1,38 @@
-# Invitation emails
+# Wedding Confirmation & Information Pack
 
-Sends the wedding invitation to **approved guests who have not been emailed
-yet**, via [Resend](https://resend.com), then records the send on the guest's
-row.
+Sends the confirmation pack to **guests who have already RSVP'd**, via
+[Resend](https://resend.com), then records the send on the guest's row.
+
+This is not an invitation. It thanks them for replying and answers every
+question they would otherwise message about: which parts of the day they are
+invited to, what time, where, whether their plus one is confirmed, what to
+wear, and how to give.
+
+## The rule that governs everything
+
+**A guest is shown only the events they are invited to.** Not greyed out, not
+marked unavailable — absent from the HTML and from the plain text. Someone
+invited to the Reception alone must finish the email unaware that an After
+Party exists.
+
+Every section is built from that guest's own event list, so an uninvited part
+of the day cannot leak into the markup. Four tests assert it, including one
+that greps the rendered output of a Reception pack for any mention of the
+other two events.
 
 ## Before the first run
 
-1. **Verify the sending domain in Resend.** Domains → Add Domain → add the DNS
+1. **Upload the four artwork files** to `public/email/` — `joining.png`,
+   `reception.png`, `after-party.png`, `dress-guide.png`. See
+   `public/email/README.md` for sizes. Email clients cannot render embedded
+   images, so these must be reachable at a public URL; serving them from the
+   site's own domain is the least moving parts.
+
+2. **Verify the sending domain in Resend.** Domains → Add Domain → add the DNS
    records. Resend rejects unverified senders outright, so this is not
    optional, and DNS can take a while to propagate — do it early.
 
-2. **Fill in `.env`** (see `.env.example`):
+3. **Fill in `.env`** (see `.env.example`):
 
    ```
    RESEND_API_KEY=re_…
@@ -22,8 +44,10 @@ row.
    is required — the anon key cannot update rows under RLS. `.env` is
    gitignored.
 
-3. **Check the site link in a browser.** The RSVP button is the entire purpose
-   of the email.
+4. **Confirm all four images load** in a browser at
+   `https://<your-site>/email/joining.png` and so on. A missing hero renders as
+   nothing at all rather than a broken box — deliberate, but it means a typo is
+   silent.
 
 ## Sending is deliberately hard to do by accident
 
@@ -76,7 +100,7 @@ Each step answers a question the next one depends on. Do not skip ahead.
 ### 1. Preview — who would get one
 
 ```bash
-npm run email:invites
+npm run email:pack
 ```
 
 Sends nothing, writes nothing. Read the eligible count and the **approved but
@@ -86,9 +110,11 @@ spreadsheet, not here.
 ### 2. One email to yourself
 
 ```bash
-npm run email:invites -- --to you@example.com --send
+npm run email:pack -- --to you@example.com --send
 ```
 
+By default that renders the **Joining** pack, the widest one. Add
+`--preview-tier RECEPTION` or `--preview-tier AFTERPARTY` to see the others.
 `--to` takes any address and touches no guest row — nothing is marked Sent, and
 your own address does not need to be in the guest list. Then check, in the
 actual inbox:
@@ -98,9 +124,10 @@ actual inbox:
   going further, because a spam-filed invitation is worse than none.
 - Does the sender name read the way you want it to?
 - Does it look right on a **phone**? That is where most guests will open it.
-- Does the **RSVP button** open the live site?
-- Complete an RSVP end to end. Does it land in Supabase?
-- Does **Add to calendar** open the right date, 26 September 2026?
+- **Do all four images load?** This is the most likely thing to be wrong.
+- Do the times, venue and dress guide read correctly?
+- Does **View Our Wedding Registry** open the Ouish page?
+- Does the map link open the right venue?
 
 Send it to a second address on a different provider — a Gmail and an Outlook,
 say. Rendering differs more than you would expect.
@@ -108,7 +135,7 @@ say. Rendering differs more than you would expect.
 ### 3. One real guest
 
 ```bash
-npm run email:invites -- --guest "Their Name" --send
+npm run email:pack -- --guest "Their Name" --send
 ```
 
 The first send that marks somebody `Sent`. Pick someone who will tell you
@@ -118,7 +145,7 @@ guest who is not approved is still refused.
 ### 4. A pilot group
 
 ```bash
-npm run email:invites -- --limit 5 --send
+npm run email:pack -- --limit 5 --send
 ```
 
 Five people, typed confirmation. Wait a day. Watch for bounces in the Resend
@@ -128,10 +155,37 @@ RSVPs, something is wrong that the previous steps could not have shown you.
 ### 5. Everyone
 
 ```bash
-npm run email:invites -- --confirm-send-all --send
+npm run email:pack -- --confirm-send-all --send
 ```
 
 Only after step 4 has actually produced RSVPs.
+
+## Tiers → events
+
+One object in `events.mjs` decides this, and correcting it is a one-line change
+there:
+
+| `approved_for` | Sees | Hero artwork |
+|---|---|---|
+| `JOINING` | Joining Ceremony 12:00, Reception 14:00 | `joining.png` |
+| `RECEPTION` | Reception 14:00 | `reception.png` |
+| `AFTERPARTY` | After Party 18:00 | `after-party.png` |
+
+**Confirm this before the first send.** `JOINING` includes the Reception
+because the Joining artwork itself prints "Reception to follow". Whether
+ceremony guests are also welcome at the After Party is not something the
+artwork settles — if they are, add `'AFTERPARTY'` to the `JOINING` array and
+nothing else changes.
+
+## Previewing the design
+
+```bash
+npm run email:preview -- --placeholder   # stand-in artwork, before upload
+npm run email:preview                    # the real hosted artwork
+```
+
+Writes all five variants to `scratch/email-preview/` as `.html` and `.txt`.
+Open `reception-*.html` and confirm it says nothing about the other events.
 
 ## Who gets one
 
@@ -140,8 +194,27 @@ A guest is emailed when **all** of these hold:
 | Condition | Column |
 |---|---|
 | Approved by the couple | `main_invite_status = 'APPROVED'` |
+| **Has actually RSVP'd** | `attending = true` |
+| Invited to at least one event | `approved_for` names a known tier |
+| Plus one decided, if requested | `plus_one_status` |
 | Not emailed yet | `email_status` is `NULL` or `'Not Sent'` |
 | Has a usable address | `email` |
+
+### Why "has RSVP'd" matters
+
+The pack opens with *Thank you for RSVPing*. An approved guest who never
+replied has nothing to be thanked for — and eleven such guests were entered
+straight into the planning sheet, so `attending` is blank for them. They are
+skipped and counted separately as the chase list.
+
+### Why an undecided plus one holds the guest back
+
+Telling someone their plus one cannot be accommodated when the couple has not
+actually decided is not a mistake you can walk back. So `plus_one_requested`
+with no decision is a **hold**, listed under *Waiting on you*, not a guess.
+
+A guest who never asked for a plus one sees nothing about plus ones at all —
+not a card, not a comment in the source.
 
 Everyone else is skipped **with a printed reason**, because "why did 40 of my
 187 guests get nothing" is the first question anyone asks.
@@ -203,7 +276,7 @@ time-critical, and it makes every failure exactly attributable.
 npm run test:email
 ```
 
-70 checks, no network and no API key — a fake Resend that can be told to fail
+103 checks, no network and no API key — a fake Resend that can be told to fail
 on demand. It covers the **send guards** (that `--send` alone is refused, that
 two scopes are refused, that `y` confirms nothing, that a batch phrase cannot
 approve a full send), selection (which is what emails the wrong people if it is
@@ -211,6 +284,12 @@ wrong) and batch resilience (which is the requirement most likely to be quietly
 broken by a later edit): that a failure mid-batch does not stop the run, that
 guests after it still receive theirs, and that a failed guest is not marked
 `Sent`.
+
+## What is still assumed
+
+- The four artwork files are not in the repo yet.
+- Event times (12:00 / 14:00 / 18:00) come from the invitation artwork.
+- The `JOINING` tier's relationship to the After Party — see above.
 
 ## Relationship to `message_queue`
 

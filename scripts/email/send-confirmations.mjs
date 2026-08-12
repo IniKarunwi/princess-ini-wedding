@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
- * Send wedding invitations to approved guests — CLI entry point.
+ * Send the Wedding Confirmation & Information Pack — CLI entry point.
+ *
+ * Goes to guests who have ALREADY RSVP'd. Confirms which parts of the day they
+ * are invited to, their plus one, the venue, the dress code and the registry.
  *
  * Sending cannot be undone, so the scope of a run must be stated deliberately
  * and the widest scope costs the most keystrokes. Two rules, enforced in
@@ -10,20 +13,21 @@
  *   2. Every real send prints the full recipient list and then waits for a
  *      typed confirmation containing the recipient count.
  *
- *   npm run email:invites                                  preview only
- *   npm run email:invites -- --to me@x.com --send          sample to yourself
- *   npm run email:invites -- --guest "Ada Obi" --send      one real guest
- *   npm run email:invites -- --limit 5 --send              a pilot group
- *   npm run email:invites -- --confirm-send-all --send     everyone
+ *   npm run email:pack                                  preview only
+ *   npm run email:pack -- --to me@x.com --send          sample to yourself
+ *   npm run email:pack -- --guest "Ada Obi" --send      one real guest
+ *   npm run email:pack -- --limit 5 --send              a pilot group
+ *   npm run email:pack -- --confirm-send-all --send     everyone
  */
 
 import { createInterface } from 'node:readline/promises';
 import { createClient } from '@supabase/supabase-js';
-import { TABLE, STATUS, SUBJECT, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO } from './config.mjs';
-import { selectRecipients, unreachable } from './recipients.mjs';
-import { renderInvitation } from './template.mjs';
+import { TABLE, STATUS, SUBJECT, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO, assetUrls } from './config.mjs';
+import { selectRecipients, unreachable, awaitingDecision, awaitingRsvp } from './recipients.mjs';
+import { renderConfirmationPack } from './template.mjs';
 import { sendWithRetry, sleep, SendError } from './resend.mjs';
 import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
+import { eventsForGuest, plusOneState, EVENTS } from './events.mjs';
 
 const c = {
   dim:  s => `\x1b[2m${s}\x1b[0m`,
@@ -34,7 +38,7 @@ const c = {
 };
 
 const HELP = `
-Wedding invitations — approved guests → Resend
+Wedding Confirmation & Information Pack — RSVP'd guests → Resend
 
 Scope — exactly one, and --send needs one of them:
   --to <email>          One sample to any address. Not a guest; nothing is
@@ -47,6 +51,8 @@ Scope — exactly one, and --send needs one of them:
 
   --send                Actually deliver. Without it nothing is sent and
                         nothing is written.
+  --preview-tier <t>    With --to: which pack to render — JOINING (default),
+                        RECEPTION or AFTERPARTY.
   --resend-sent         Include guests already marked Sent. Re-emails people.
   --yes                 Skip the typed confirmation. Refused for a full send.
   -h, --help            This message
@@ -58,7 +64,9 @@ Environment (.env, loaded with --env-file):
   SUPABASE_URL                 Project URL
   SUPABASE_SERVICE_ROLE_KEY    Service-role key — required to write past RLS
   RESEND_API_KEY               Resend API key
-  INVITE_SITE_URL              The live RSVP site, linked from the email
+  INVITE_SITE_URL              The live site — also where the artwork is served
+                               from, unless INVITE_ASSET_BASE_URL overrides it
+  INVITE_ASSET_BASE_URL        Optional. Where the four artwork files live.
   INVITE_FROM                  Optional. Default: ${DEFAULT_FROM}
   INVITE_REPLY_TO              Optional. Default: ${DEFAULT_REPLY_TO}
 `;
@@ -72,6 +80,7 @@ function parseArgs(argv) {
       case '--limit':            args.limit = Number(next()); break;
       case '--to':               args.to = next(); break;
       case '--guest':            args.guest = next(); break;
+      case '--preview-tier':     args.previewTier = next(); break;
       case '--confirm-send-all': args.confirmSendAll = true; break;
       case '--resend-sent':      args.resendSent = true; break;
       case '--yes': case '-y':   args.yes = true; break;
@@ -119,24 +128,42 @@ function assertSchema(rows) {
     `The rsvps table has no ${missing.join(' or ')} column.\n\n` +
     'This looks like migration 0006_message_queue.sql having been applied — it\n' +
     'drops these columns and moves delivery state into message_queue.\n\n' +
-    'Hold 0006 back until the invitation send is done, or move this script onto\n' +
+    'Hold 0006 back until the packs have gone out, or move this script onto\n' +
     'enqueue_message(). Do not add the columns back by hand: 0006 also drops\n' +
     'them on re-run, so they would disappear again at the next migration.'
   );
 }
 
-/** The recipient list. Printed before every send, not only in dry run. */
+/**
+ * The recipient list. Printed before every send, not only in dry run.
+ *
+ * Each guest is shown WITH the events their pack will list and their plus-one
+ * state, because those are the parts that differ per guest and the parts that
+ * are damaging to get wrong. A list of names alone would not let anyone
+ * actually check the thing that matters.
+ */
 function printRecipients(recipients, { from, replyTo, siteUrl }) {
   console.log(`\n${c.bold('Recipients')} — ${recipients.length}\n`);
   const width = String(recipients.length).length;
+
+  const PLUS_ONE_LABEL = {
+    approved: c.green('+1 confirmed'),
+    declined: c.dim('+1 declined'),
+    none:     '',
+  };
+
   recipients.forEach((r, i) => {
+    const events = eventsForGuest(r).map(e => e.name).join(' · ');
+    const plus   = PLUS_ONE_LABEL[plusOneState(r)] ?? '';
     console.log(`  ${String(i + 1).padStart(width)}. ` +
-                `${(r.full_name || '(no name)').padEnd(32)} ${c.dim(r.email)}`);
+                `${(r.full_name || '(no name)').padEnd(30)} ${c.dim((r.email || '').padEnd(30))}`);
+    console.log(`  ${' '.repeat(width)}  ${c.dim('sees:')} ${events}${plus ? `   ${plus}` : ''}`);
   });
+
   console.log(c.dim(`\n  From:     ${from}`));
   console.log(c.dim(`  Reply-to: ${replyTo}`));
   console.log(c.dim(`  Subject:  ${SUBJECT}`));
-  console.log(c.dim(`  RSVP:     ${siteUrl}`));
+  console.log(c.dim(`  Site:     ${siteUrl}`));
 }
 
 /**
@@ -217,7 +244,7 @@ async function main() {
     console.error(
       `\nMissing configuration: ${missing.join(', ')}\n\n` +
       'Copy .env.example to .env and fill it in, then run:\n' +
-      '  npm run email:invites\n\n' +
+      '  npm run email:pack\n\n' +
       'The service-role key is required — the anon key cannot update rows under\n' +
       'RLS. Never commit it; .env is gitignored.\n'
     );
@@ -225,14 +252,29 @@ async function main() {
     return;
   }
 
+  const assets = assetUrls({ siteUrl, baseUrl: process.env.INVITE_ASSET_BASE_URL });
   const supabase = createClient(url, key, { auth: { persistSession: false } });
 
   // ── Sample: one email to an arbitrary address, no guest row involved ──────
   if (args.to !== undefined) {
-    const sample = { id: 'sample', full_name: 'Test Guest', email: args.to };
-    const { html, text } = renderInvitation(sample, { rsvpUrl: siteUrl });
+    // A sample must exercise the widest pack, or it proves nothing about the
+    // sections that only some guests see. --preview-tier narrows it.
+    const tier = (args.previewTier || 'JOINING').toUpperCase();
+    if (!EVENTS[tier]) {
+      console.error(`\n${c.red(`Unknown tier: ${args.previewTier}`)}`);
+      console.error(c.dim('Use JOINING, RECEPTION or AFTERPARTY.\n'));
+      process.exitCode = 1;
+      return;
+    }
+    const sample = {
+      id: 'sample', full_name: 'Test Guest', email: args.to,
+      approved_for: tier, attending: true, main_invite_status: 'APPROVED',
+      plus_one_requested: true, plus_one_status: 'APPROVED', plus_one_name: 'Your Guest',
+    };
+    const { html, text, events } = renderConfirmationPack(sample, { assets, rsvpUrl: siteUrl });
 
-    console.log(`\n${c.bold('Sample invitation')}`);
+    console.log(`\n${c.bold('Sample confirmation pack')}  ${c.dim(`(${tier})`)}`);
+    console.log(c.dim(`  Shows:    ${events.map(e => e.name).join(' · ')} · +1 confirmed`));
     console.log(`  To:       ${args.to}`);
     console.log(c.dim(`  From:     ${from}`));
     console.log(c.dim(`  Subject:  ${SUBJECT}`));
@@ -267,16 +309,27 @@ async function main() {
     }
   }
 
-  console.log(`\n${c.bold('Wedding invitations')}   ${rows.length} guests in ${TABLE}`);
+  console.log(`\n${c.bold('Confirmation packs')}   ${rows.length} guests in ${TABLE}`);
   console.log(`  eligible : ${c.bold(String(recipients.length))}`);
   console.log(`  skipped  : ${skipped.length}`);
 
-  const cannotReach = unreachable(skipped);
-  if (cannotReach.length) {
-    console.log(`\n${c.amber('Approved but unreachable')} — fix these in the sheet, then re-run:`);
-    for (const s of cannotReach) {
+  const listSkips = (title, rows_, note) => {
+    if (!rows_.length) return;
+    console.log(`\n${c.amber(title)} — ${note}`);
+    for (const s of rows_) {
       console.log(`  ${(s.row.full_name || '(no name)').padEnd(32)} ${c.dim(s.reason)}`);
     }
+  };
+
+  listSkips('Waiting on you', awaitingDecision(skipped),
+            'a decision here turns each of these into a recipient');
+  listSkips('Unreachable', unreachable(skipped),
+            'RSVP\'d, but no usable email. Fix in the sheet, then re-run');
+
+  const chase = awaitingRsvp(skipped);
+  if (chase.length) {
+    console.log(`\n${c.dim(`Approved but never RSVP'd: ${chase.length}`)} ` +
+                c.dim('— they get no pack; this is the chase list.'));
   }
 
   // ── Narrow to the requested scope ─────────────────────────────────────────
@@ -346,12 +399,12 @@ async function main() {
 
     let messageId;
     try {
-      const { html, text } = renderInvitation(row, { rsvpUrl: siteUrl });
+      const { html, text } = renderConfirmationPack(row, { assets, rsvpUrl: siteUrl });
       messageId = await sendWithRetry({
         apiKey, from, replyTo, to: row.email, subject: SUBJECT, html, text,
         // Same guest = same key, so a retried attempt after a lost response
         // returns the original message instead of sending twice.
-        idempotencyKey: `invitation:${row.id}`,
+        idempotencyKey: `confirmation-pack:${row.id}`,
       }, {
         onRetry: ({ attempt, wait, message }) =>
           console.log(c.amber(`${label} retry ${attempt} in ${wait}ms — ${message}`)),
