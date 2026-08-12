@@ -12,7 +12,7 @@
 
 import { selectRecipients, classify, isUnsent, isSendableEmail, firstName } from './recipients.mjs';
 import { renderConfirmationPack } from './template.mjs';
-import { eventsForGuest, plusOneState, daysUntil, normaliseTier, TIER_EVENTS } from './events.mjs';
+import { eventsForGuest, plusOneState, daysUntil, normaliseTier, parseTiers, TIER_EVENTS } from './events.mjs';
 import { sendWithRetry, SendError } from './resend.mjs';
 import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
 import { STATUS, SUBJECT, WEDDING, assetUrls, REGISTRY_URL } from './config.mjs';
@@ -196,17 +196,42 @@ const names = (row) => eventsForGuest(row).map(e => e.name);
 
 check('a Joining guest gets the whole day',
   names(guest({ approved_for: 'JOINING' })).join('|')
-    === 'Joining Ceremony|Reception|After Party');
+    === 'Wedding Service|Wedding Reception|After Party');
 check('a Reception guest gets the reception alone',
-  names(guest({ approved_for: 'RECEPTION' })).join('|') === 'Reception');
+  names(guest({ approved_for: 'RECEPTION' })).join('|') === 'Wedding Reception');
 check('an After Party guest gets the after party alone',
   names(guest({ approved_for: 'AFTERPARTY' })).join('|') === 'After Party');
 check('events always come back in running order',
-  names(guest({ approved_for: 'JOINING' }))[0] === 'Joining Ceremony');
+  names(guest({ approved_for: 'JOINING' }))[0] === 'Wedding Service');
 
 check('the sheet\'s "After Party" spelling is understood',
   normaliseTier('After Party') === 'AFTERPARTY' && normaliseTier('after-party') === 'AFTERPARTY');
 check('"Ceremony" is understood as Joining', normaliseTier('Ceremony') === 'JOINING');
+// A guest is not always one tier: reception + after party is a real
+// combination, and one cell has to say so without a schema change.
+check('a comma-separated combination unions the events',
+  names(guest({ approved_for: 'RECEPTION, AFTERPARTY' })).join('|')
+    === 'Wedding Reception|After Party');
+check('a plus-separated combination works',
+  names(guest({ approved_for: 'Reception + After Party' })).join('|')
+    === 'Wedding Reception|After Party');
+check('"and" works, as does an ampersand',
+  names(guest({ approved_for: 'reception and after party' })).length === 2
+  && names(guest({ approved_for: 'Reception & After Party' })).length === 2);
+check('a combination stays in running order, not the order typed',
+  names(guest({ approved_for: 'After Party, Reception' })).join('|')
+    === 'Wedding Reception|After Party');
+check('a duplicated tier is not doubled',
+  names(guest({ approved_for: 'RECEPTION, Reception' })).length === 1);
+check('an unrecognised fragment is dropped, not fatal to the whole cell',
+  names(guest({ approved_for: 'RECEPTION, tbc' })).join('|') === 'Wedding Reception');
+check('a combination naming JOINING still yields the whole day, once',
+  names(guest({ approved_for: 'JOINING, AFTERPARTY' })).length === 3);
+check('parseTiers returns the keys, deduplicated',
+  parseTiers('Reception + After Party').join('|') === 'RECEPTION|AFTERPARTY');
+check('"Wedding Service" is understood as the JOINING tier',
+  normaliseTier('Wedding Service') === 'JOINING' && normaliseTier('Service') === 'JOINING');
+
 check('a blank tier yields no events', names(guest({ approved_for: null })).length === 0);
 check('an unrecognised tier yields no events', names(guest({ approved_for: 'VIP LOUNGE' })).length === 0);
 
@@ -241,20 +266,30 @@ check('the serif and sans fallbacks stand alone if the font is stripped',
   /Georgia/.test(joining.html) && /Helvetica/.test(joining.html));
 check('uses no flexbox or grid, which Outlook cannot render',
   !/display\s*:\s*(flex|grid)/i.test(joining.html));
-check('shows the countdown', joining.html.includes('>31<')
-  || /days until we say/i.test(joining.html));
+check('the masthead shows the countdown', /31 Days to Go/.test(joining.html));
 
 // THE rule: a guest must not learn that an event they are not invited to exists.
 check('a Reception guest is never shown the After Party',
   !/after party/i.test(reception.html) && !/after party/i.test(reception.text));
-check('a Reception guest is never shown the Joining Ceremony',
-  !/joining/i.test(reception.html) && !/joining/i.test(reception.text));
+check('a Reception guest is never shown the Wedding Service',
+  !/joining/i.test(reception.html) && !/joining/i.test(reception.text)
+  && !/wedding service/i.test(reception.html) && !/wedding service/i.test(reception.text));
 check('a Reception guest is not shown the 6 PM or 12 PM times',
   !reception.html.includes('6:00 PM') && !reception.html.includes('12:00 PM'));
-check('an After Party guest is never shown the ceremony or reception',
-  !/joining/i.test(afterParty.html) && !/reception/i.test(afterParty.html));
+const recAfter = render(guest({ approved_for: 'RECEPTION, AFTERPARTY' }));
+check('a Reception + After Party guest sees exactly two timeline stops',
+  (recAfter.html.match(/italic 400 22px\/1\.1/g) || []).length === 2);
+check('a Reception + After Party guest is still never shown the service',
+  !/wedding service/i.test(recAfter.html) && !/wedding service/i.test(recAfter.text)
+  && !recAfter.html.includes('12:00 PM'));
+check('a Reception + After Party guest opens on the reception artwork',
+  recAfter.html.includes(ASSETS.reception) && !recAfter.html.includes(ASSETS.joining));
+
+check('an After Party guest is never shown the service or reception',
+  !/joining/i.test(afterParty.html) && !/wedding service/i.test(afterParty.html)
+  && !/reception/i.test(afterParty.html));
 check('a Joining guest sees all three events, in running order',
-  joining.events.map(e => e.name).join('|') === 'Joining Ceremony|Reception|After Party');
+  joining.events.map(e => e.name).join('|') === 'Wedding Service|Wedding Reception|After Party');
 check('a Joining guest sees all three times',
   ['12:00 PM', '2:00 PM', '6:00 PM'].every(t => joining.html.includes(t)));
 
@@ -277,8 +312,10 @@ const flat = (h) => h.replace(/\s+/g, ' ');
 check('a declined plus one gets the warm wording',
   /unable to accommodate a Plus One/i.test(flat(p1no.html))
   && /appreciate your understanding/i.test(flat(p1no.html)));
-check('a declined plus one is never told it was confirmed',
-  !/has been confirmed/i.test(p1no.html));
+// The masthead title contains "Has Been Confirmed" for every guest, so this
+// has to name the plus one specifically or it can never fail.
+check('a declined plus one is never told their PLUS ONE was confirmed',
+  !/Plus One has been confirmed/i.test(p1no.html));
 check('a guest who never asked sees NOTHING about plus ones',
   !/plus one/i.test(p1non.html) && !/plus one/i.test(p1non.text));
 
@@ -319,17 +356,30 @@ check('the weekday initials start on Monday',
   joining.html.indexOf('>MON<') < joining.html.indexOf('>SUN<'));
 
 // The timeline is built from the guest's events, like everything else.
+// 22px/1.1 is the timeline time; the masthead headline is 22px/1.3, so the
+// line-height is what keeps these two apart.
+const timelineStops = (p) => (p.html.match(/italic 400 22px\/1\.1/g) || []).length;
 check('the timeline shows one stop per invited event',
-  (reception.html.match(/italic 400 22px/g) || []).length === 1
-  && (joining.html.match(/italic 400 22px/g) || []).length === 3);
+  timelineStops(reception) === 1 && timelineStops(afterParty) === 1
+  && timelineStops(joining) === 3);
 
 check('the design palette is applied, not the old one',
   joining.html.includes('#1a3410') && joining.html.includes('#b8860b')
   && joining.html.includes('#e8e0d0') && !joining.html.includes('#1b3b2a'));
 check('the footer band is dark green',
   /background:#1a3410/.test(joining.html));
-check('the masthead carries the new headline',
-  /So Excited to Celebrate With You/.test(joining.html));
+check('the masthead carries the update label and title',
+  /WEDDING UPDATE #1/i.test(joining.html)
+  && /Your Invitation Has Been Confirmed/.test(joining.html));
+// The preheader (hidden inbox preview text) legitimately repeats the count;
+// strip it before checking the visible body.
+const visible = joining.html.replace(/<div style="display:none[\s\S]*?<\/div>/, '');
+check('the countdown appears once in the body, not twice',
+  (visible.match(/31/g) || []).length === 1);
+check('the preheader still carries the countdown for the inbox',
+  /31 days to go/i.test(joining.html));
+check('the subject is numbered, so the series shows in the inbox',
+  /Wedding Update #1/.test(SUBJECT));
 
 section('TEMPLATE — ESCAPING');
 const nasty = render(guest({ full_name: '<script>alert(1)</script> Obi' }));

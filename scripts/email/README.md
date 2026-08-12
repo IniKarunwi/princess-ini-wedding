@@ -167,14 +167,66 @@ there:
 
 | `approved_for` | Sees | Hero artwork |
 |---|---|---|
-| `JOINING` | Joining 12:00, Reception 14:00, After Party 18:00 | `joining.png` |
-| `RECEPTION` | Reception 14:00 | `reception.png` |
+| `JOINING` | Wedding Service 12:00, Wedding Reception 14:00, After Party 18:00 | `joining.png` |
+| `RECEPTION` | Wedding Reception 14:00 | `reception.png` |
 | `AFTERPARTY` | After Party 18:00 | `after-party.png` |
 
 The tiers are **nested downward, never upward**: `JOINING` is the whole day,
 and each narrower tier must never learn what it is missing. That asymmetry is
 the whole design — a Reception guest seeing the After Party is the failure
 this module exists to prevent.
+
+The key stays `JOINING` because that is what the planning sheet writes; only
+the guest-facing name is *Wedding Service*. Existing rows keep working.
+
+### Combinations
+
+A guest is not always one tier. One cell can name several, and the events are
+unioned — no schema change, no new tier value:
+
+| `approved_for` | Sees |
+|---|---|
+| `RECEPTION, AFTERPARTY` | Reception + After Party |
+| `Reception + After Party` | the same |
+| `reception and after party` | the same |
+
+Comma, `+`, `&`, `/` and the word "and" all separate. Order does not matter —
+events always come out in running order. An unrecognised fragment is dropped
+rather than failing the whole cell, so a stray note cannot silently strip a
+guest of a real tier; if *nothing* parses, the guest is held back instead.
+
+### Everything personalised follows from this
+
+The badges, the schedule timeline, the hero artwork and the plain text all
+read from one list. There is no second source anywhere, which is what makes
+"a guest never sees an event they are not invited to" a property of the code
+rather than something to remember. A Reception-only guest gets one timeline
+stop; Reception + After Party gets two; the whole day gets three.
+
+## The update series
+
+Every email is numbered. The masthead reads:
+
+```
+WEDDING UPDATE #1
+47 Days to Go
+Your Invitation Has Been Confirmed
+```
+
+The number is the point: it tells a guest who has already RSVP'd that this is
+not another invitation and that more will follow. The subject line carries it
+too, so the series is visible in the inbox before it is opened.
+
+**Sending the next one** is `number` and `title` in `config.mjs → UPDATE`, and
+nothing else. The countdown is computed at send time, so it is right on the day
+it goes out rather than the day it was written, and it degrades to *One Day to
+Go* and *Today's the Day* on its own. Planned:
+
+| # | Title |
+|---|---|
+| 2 | One Week To Go |
+| 3 | Tomorrow's the Day |
+| 4 | Thank You for Celebrating With Us |
 
 ## Previewing the design
 
@@ -183,7 +235,7 @@ npm run email:preview -- --placeholder   # stand-in artwork, before upload
 npm run email:preview                    # the real hosted artwork
 ```
 
-Writes all five variants to `scratch/email-preview/` as `.html` and `.txt`.
+Writes all six variants to `scratch/email-preview/` as `.html` and `.txt`.
 Open `reception-*.html` and confirm it says nothing about the other events.
 
 ## Who gets one
@@ -275,7 +327,7 @@ time-critical, and it makes every failure exactly attributable.
 npm run test:email
 ```
 
-119 checks, no network and no API key — a fake Resend that can be told to fail
+134 checks, no network and no API key — a fake Resend that can be told to fail
 on demand. It covers the **send guards** (that `--send` alone is refused, that
 two scopes are refused, that `y` confirms nothing, that a batch phrase cannot
 approve a full send), selection (which is what emails the wrong people if it is

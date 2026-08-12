@@ -27,7 +27,7 @@
  * is built from that guest's own event list, never from the full set.
  */
 
-import { WEDDING, REGISTRY_URL, MAP_URL, PALETTE as P, TYPE } from './config.mjs';
+import { WEDDING, REGISTRY_URL, MAP_URL, PALETTE as P, TYPE, UPDATE } from './config.mjs';
 import { eventsForGuest, heroFor, daysUntil, plusOneState } from './events.mjs';
 import { firstName } from './recipients.mjs';
 
@@ -250,7 +250,10 @@ function plusOneSection(state, plusOneName) {
 /** The plain-text alternative. Every client shows this if HTML is blocked. */
 function plainText({ name, events, days, state, plusOneName }) {
   const lines = [
-    `PRINCESS & INIOLUWA  ·  ${WEDDING.dateLong}`,
+    UPDATE.label().toUpperCase(),
+    days > 1 ? `${days} DAYS TO GO` : days === 1 ? 'ONE DAY TO GO' : "TODAY'S THE DAY",
+    UPDATE.title,
+    `Princess & IniOluwa  ·  ${WEDDING.dateLong}`,
     '',
     `Dear ${name},`,
     '',
@@ -258,7 +261,7 @@ function plainText({ name, events, days, state, plusOneName }) {
     'for your love, prayers and support. We\'re so excited to celebrate this',
     'special day with you.',
     '',
-    days > 0 ? `We are ${days} days away from saying "I do."` : 'Today is the day.',
+    'We can\'t wait to say "I do" with you there.',
     '',
     'CONFIRMED FOR',
     ...events.map(e => `  ${e.time.padEnd(9)} ${e.name}`),
@@ -322,9 +325,10 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
   const hero   = heroFor(events);
   const heroSrc = hero ? assets[hero] : null;
 
-  const heroAlt = `${WEDDING.couple} — ${
-    hero === 'joining' ? 'Joining Ceremony' : hero === 'reception' ? 'Reception' : 'After Party'
-  } invitation`;
+  // Named from the event itself, so the alt text cannot drift from the label.
+  const heroAlt = events.length
+    ? `${WEDDING.couple} — ${events[0].name} invitation`
+    : `${WEDDING.couple} invitation`;
 
   // "All three celebrations take place on…" only reads correctly for three.
   const allOnDay = events.length === 1
@@ -375,9 +379,23 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
                     box-shadow:0 8px 48px rgba(45,30,10,0.12);">
 
         <!-- ── MASTHEAD ──────────────────────────────────────────────────── -->
-        <tr><td class="pad" style="padding:52px 56px 0;text-align:center;">
+        <!-- The numbered label does the work here: it tells a guest who has
+             already RSVP'd that this is not another invitation, and that more
+             will follow. See UPDATE in config.mjs. -->
+        <tr><td class="pad" style="padding:48px 56px 0;text-align:center;">
+          <p style="margin:0 0 14px;font:700 11px/1.6 ${SANS};letter-spacing:3px;
+                    text-transform:uppercase;color:${P.gold};">
+            ${esc(UPDATE.label())}
+          </p>
+          <table role="presentation" width="28" cellpadding="0" cellspacing="0" border="0" align="center"
+                 style="margin:0 auto 14px;">
+            <tr><td height="1" style="height:1px;background:${P.rule};font-size:0;line-height:0;">&nbsp;</td></tr>
+          </table>
+          <p style="margin:0 0 10px;font:italic 400 22px/1.3 ${SERIF};color:${P.greenMid};">
+            ${UPDATE.headline(days)}
+          </p>
           <h1 class="h1" style="margin:0 0 12px;font:700 32px/1.3 ${SERIF};color:${P.green};">
-            We&rsquo;re So Excited to Celebrate With You
+            ${esc(UPDATE.title)}
           </h1>
           <p style="margin:0 0 28px;font:600 12px/1.6 ${SANS};letter-spacing:2px;color:${P.muted};">
             ${esc(WEDDING.couple)} &bull; September 26, 2026
@@ -402,11 +420,12 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
           <p style="margin:0 0 12px;font:400 16px/1.8 ${SANS};color:${P.ink};">
             We&rsquo;re so excited to celebrate this special day with you.
           </p>
-          ${days > 0 ? `
+          <!-- The countdown lives in the masthead now. Repeating the same
+               number two screens apart read as a mistake, so this beat keeps
+               the warmth without the digit. -->
           <p style="margin:20px 0 0;font:italic 400 18px/1.5 ${SERIF};color:${P.greenMid};">
-            We are <strong style="font-style:normal;font-family:${SERIF};">${days}</strong> days away from saying &ldquo;I do.&rdquo;
-          </p>` : `
-          <p style="margin:20px 0 0;font:italic 400 18px/1.5 ${SERIF};color:${P.greenMid};">Today is the day.</p>`}
+            We can&rsquo;t wait to say &ldquo;I do&rdquo; with you there.
+          </p>
         </td></tr>
 
         ${divider()}

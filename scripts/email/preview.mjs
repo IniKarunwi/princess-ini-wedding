@@ -65,6 +65,7 @@ const variants = [
   ['joining-no-plus-one',       { approved_for: 'JOINING' }],
   ['reception-plus-one-declined', { approved_for: 'RECEPTION', plus_one_requested: true, plus_one_status: 'REJECTED' }],
   ['reception-no-plus-one',     { approved_for: 'RECEPTION' }],
+  ['reception-and-after-party', { approved_for: 'RECEPTION, AFTERPARTY' }],
   ['after-party',               { approved_for: 'AFTERPARTY' }],
 ];
 

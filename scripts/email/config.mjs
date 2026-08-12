@@ -87,12 +87,53 @@ export const DEFAULT_FROM = `${WEDDING.couple} <hello@princessandini.com>`;
 export const DEFAULT_REPLY_TO = 'hello@princessandini.com';
 
 /**
+ * The update series.
+ *
+ * Every email to guests is numbered, so the masthead reads
+ *
+ *     WEDDING UPDATE #1
+ *     47 Days to Go
+ *     Your Invitation Has Been Confirmed
+ *
+ * The number is the point. It tells a guest there will be more, that they
+ * should expect to hear from us again, and that this is not another
+ * invitation — which is exactly what a guest who has already RSVP'd needs to
+ * know before they read a word.
+ *
+ * ── Sending the next one ───────────────────────────────────────────────────
+ * Change `number` and `title` here and nothing else moves. The countdown is
+ * computed, so it is right on the day it is sent rather than the day it was
+ * written. Planned:
+ *
+ *   #2  One Week To Go            — final logistics
+ *   #3  Tomorrow's the Day        — timings, parking, weather
+ *   #4  Thank You for Celebrating — photographs, after the day
+ */
+export const UPDATE = {
+  number: 1,
+  title:  'Your Invitation Has Been Confirmed',
+
+  /** The line between the label and the title. */
+  headline(days) {
+    if (days > 1)  return `${days} Days to Go`;
+    if (days === 1) return 'One Day to Go';
+    return 'Today&rsquo;s the Day';
+  },
+
+  /** "WEDDING UPDATE #1" */
+  label() { return `Wedding Update #${this.number}`; },
+};
+
+/**
  * The subject line.
  *
- * Deliberately not "You're invited" — these guests have already RSVP'd, and
- * being re-invited to something you have already accepted reads as a mistake.
+ * Numbered to match the masthead, so the series is visible in the inbox
+ * before it is opened. Deliberately not "You're invited" — these guests have
+ * already RSVP'd, and being re-invited to something you have already accepted
+ * reads as a mistake.
  */
-export const SUBJECT = `Your wedding details — ${WEDDING.couple}, ${WEDDING.dateShort}`;
+export const SUBJECT =
+  `Wedding Update #${UPDATE.number} — ${UPDATE.title} · ${WEDDING.couple}`;
 
 /**
  * Pacing.
