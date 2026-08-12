@@ -426,6 +426,32 @@ check('a pack still renders if the backdrop is absent',
         && r.html.includes('Wedding Service');
   })());
 
+// ── Artwork ─────────────────────────────────────────────────────────────────
+section('ARTWORK');
+
+check('every image resolves from /email/ on the site',
+  Object.values(ASSETS).every(u => /^https:\/\/[^/]+\/email\/[a-z-]+\.(png|jpe?g|webp)$/.test(u)));
+check('no stand-in artwork ever reaches the email',
+  !/PLACEHOLDER|UPLOAD THE ARTWORK|stroke-dasharray/i.test(joining.html));
+check('every image carries alt text, for blocked-image and screen readers',
+  (joining.html.match(/<img /g) || []).length
+    === (joining.html.match(/<img [^>]*alt=/g) || []).length);
+check('every image carries a width attribute, which Outlook needs',
+  (joining.html.match(/<img /g) || []).length
+    === (joining.html.match(/<img [^>]*width=/g) || []).length);
+
+// The artwork is the strongest part of the design, so it runs edge to edge
+// rather than sitting inside a margin.
+check('the hero is full bleed at the card width',
+  /<img[^>]+joining\.png"[^>]*width="600"/.test(joining.html));
+check('the dress guide is full bleed',
+  /<img[^>]+dress-guide\.png"[^>]*width="600"/.test(joining.html));
+check('the venue illustration fills its card',
+  /<img[^>]+venue\.png"[^>]*width="542"/.test(joining.html));
+check('images scale down on a phone rather than overflowing',
+  (joining.html.match(/<img /g) || []).length
+    === (joining.html.match(/<img [^>]*style="[^"]*width:100%/g) || []).length);
+
 section('TEMPLATE — ESCAPING');
 const nasty = render(guest({ full_name: '<script>alert(1)</script> Obi' }));
 check('escapes a name containing HTML',

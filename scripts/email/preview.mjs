@@ -12,7 +12,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderConfirmationPack } from './template.mjs';
-import { assetUrls, WEDDING } from './config.mjs';
+import { assetUrls, ASSET_FILES, WEDDING } from './config.mjs';
 
 const outDir = process.argv.includes('--out')
   ? process.argv[process.argv.indexOf('--out') + 1]
@@ -45,24 +45,54 @@ function placeholder(caption, ratio) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-const usePlaceholders = process.argv.includes('--placeholder');
-const assets = usePlaceholders ? {
-  joining:        placeholder('Wedding Service artwork',  1.4),
-  reception:      placeholder('Wedding Reception artwork',1.4),
-  'after-party':  placeholder('After Party artwork',      1.4),
-  'dress-guide':  placeholder('Dress Guide artwork',      1.45),
-  venue:          placeholder('Venue illustration',       0.62),
-  // The backdrop is generated, not pending, so the preview shows the real
-  // thing — inlined, because a browser opening a file:// page cannot reach
-  // the deployed URL. The email itself always uses the https URL.
-  backdrop:       localBackdrop() ?? real.backdrop,
-} : real;
+const CAPTIONS = {
+  joining:       ['Wedding Service artwork',   1.4],
+  reception:     ['Wedding Reception artwork', 1.4],
+  'after-party': ['After Party artwork',       1.4],
+  'dress-guide': ['Dress Guide artwork',       1.45],
+  venue:         ['Venue illustration',        0.62],
+  backdrop:      ['Backdrop',                  0.71],
+};
 
-function localBackdrop() {
-  const file = join(process.cwd(), 'public', 'email', 'backdrop.png');
-  if (!existsSync(file)) return null;
-  return `data:image/png;base64,${readFileSync(file).toString('base64')}`;
+const assetPath = (file) => join(process.cwd(), 'public', 'email', file);
+
+/** The real file, base64'd so the preview is self-contained and shareable. */
+function inlined(file) {
+  const path = assetPath(file);
+  if (!existsSync(path)) return null;
+  const mime = file.endsWith('.jpg') || file.endsWith('.jpeg') ? 'image/jpeg'
+             : file.endsWith('.webp') ? 'image/webp' : 'image/png';
+  return `data:${mime};base64,${readFileSync(path).toString('base64')}`;
 }
+
+/**
+ * Which artwork the preview uses:
+ *
+ *   default        the real file from public/email/ if it is there, a
+ *                  stand-in if it is not — so a preview is never a wall of
+ *                  broken boxes, and never silently shows a stand-in for a
+ *                  file that does exist
+ *   --placeholder  stand-ins throughout, to judge layout alone
+ *   --remote       the deployed https URLs, exactly as a guest receives them
+ *
+ * A browser opening a file:// page cannot reach the deployed URLs, which is
+ * why the default inlines. The email itself ALWAYS uses the https URLs.
+ */
+const mode = process.argv.includes('--placeholder') ? 'placeholder'
+           : process.argv.includes('--remote')      ? 'remote'
+           : 'local';
+
+const usingPlaceholder = [];
+const assets = mode === 'remote' ? real : Object.fromEntries(
+  Object.entries(ASSET_FILES).map(([key, file]) => {
+    if (mode === 'local') {
+      const data = inlined(file);
+      if (data) return [key, data];
+    }
+    usingPlaceholder.push(file);
+    return [key, placeholder(...CAPTIONS[key])];
+  }),
+);
 
 const base = {
   id: 'preview', full_name: 'Ada Obi', email: 'ada@example.com',
@@ -96,5 +126,15 @@ for (const [name, over] of variants) {
 console.log(`\n  ${WEDDING.dateLong} — ${
   renderConfirmationPack({ ...base, approved_for: 'JOINING' }, { assets, rsvpUrl: siteUrl }).days
 } days away as of today.`);
+if (mode === 'remote') {
+  console.log(`\n  Artwork: the deployed URLs under ${siteUrl}/email/`);
+} else if (usingPlaceholder.length) {
+  console.log(`\n  \x1b[33mStand-in artwork for ${usingPlaceholder.length} file(s):\x1b[0m ` +
+              usingPlaceholder.join(', '));
+  console.log('  \x1b[2mAdd them to public/email/ and re-run to see the real thing.\x1b[0m');
+} else {
+  console.log('\n  \x1b[32mAll artwork is the real thing, inlined from public/email/.\x1b[0m');
+}
+
 console.log('\nOpen the .html files in a browser. Check that reception-*.html says');
 console.log('nothing at all about the Wedding Service or the After Party.\n');

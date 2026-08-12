@@ -236,11 +236,16 @@ Go* and *Today's the Day* on its own. Planned:
 ## Previewing the design
 
 ```bash
-npm run email:preview -- --placeholder   # stand-in artwork, before upload
-npm run email:preview                    # the real hosted artwork
+npm run email:preview                 # real artwork from public/email/, inlined
+npm run email:preview -- --placeholder  # stand-ins, to judge layout alone
+npm run email:preview -- --remote       # the deployed URLs, as a guest gets them
 ```
 
-Writes all six variants to `scratch/email-preview/` as `.html` and `.txt`.
+Writes all six variants to `scratch/email-preview/` as `.html` and `.txt`, and
+reports which files it had to stand in for. The default inlines the real files
+because a browser opening a `file://` page cannot reach the deployed URLs — the
+email itself always uses the `https` URLs.
+
 Open `reception-*.html` and confirm it says nothing about the other events.
 
 ## Who gets one
@@ -332,7 +337,7 @@ time-critical, and it makes every failure exactly attributable.
 npm run test:email
 ```
 
-147 checks, no network and no API key — a fake Resend that can be told to fail
+155 checks, no network and no API key — a fake Resend that can be told to fail
 on demand. It covers the **send guards** (that `--send` alone is refused, that
 two scopes are refused, that `y` confirms nothing, that a batch phrase cannot
 approve a full send), selection (which is what emails the wrong people if it is
@@ -368,6 +373,22 @@ image renders identically everywhere and degrades cleanly.
 
 Dials are at the top of `scripts/email/generate-backdrop.mjs`. Re-running is
 deterministic.
+
+## Artwork sizing
+
+The artwork is the strongest part of the design, so it runs edge to edge
+rather than sitting inside a margin:
+
+| | Width | |
+|---|---|---|
+| Hero | 600px | full bleed, the card's own face |
+| Dress guide | 600px | full bleed |
+| Venue | 542px | fills its bordered card |
+
+Every image is `width:100%` with a `max-width`, so it scales down on a phone
+instead of overflowing, and carries both an `alt` and a `width` attribute —
+the first for blocked images and screen readers, the second because Outlook
+needs it to reserve space.
 
 ## The design
 

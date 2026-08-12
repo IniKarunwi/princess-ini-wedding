@@ -407,7 +407,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
         <!-- The numbered label does the work here: it tells a guest who has
              already RSVP'd that this is not another invitation, and that more
              will follow. See UPDATE in config.mjs. -->
-        <tr><td class="pad" style="padding:48px 56px 0;text-align:center;">
+        <tr><td class="pad" style="padding:44px 56px 32px;text-align:center;">
           <p style="margin:0 0 14px;font:700 11px/1.6 ${SANS};letter-spacing:3px;
                     text-transform:uppercase;color:${P.gold};">
             ${esc(UPDATE.label())}
@@ -422,21 +422,23 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
           <h1 class="h1" style="margin:0 0 12px;font:700 32px/1.3 ${SERIF};color:${P.green};">
             ${esc(UPDATE.title)}
           </h1>
-          <p style="margin:0 0 28px;font:600 12px/1.6 ${SANS};letter-spacing:2px;color:${P.muted};">
+          <p style="margin:0;font:600 12px/1.6 ${SANS};letter-spacing:2px;color:${P.muted};">
             ${esc(WEDDING.couple)} &bull; September 26, 2026
           </p>
         </td></tr>
 
         <!-- ── HERO ──────────────────────────────────────────────────────── -->
+        <!-- Full bleed. The invitation artwork is the strongest thing in the
+             email, so it runs edge to edge rather than sitting inside a
+             margin: an 85% inset made it read as an illustration ON the card
+             instead of as the card's own face. -->
         ${heroSrc ? `
-        <tr><td class="pad-sm" style="padding:0 40px 28px;text-align:center;">
-          <table role="presentation" width="85%" cellpadding="0" cellspacing="0" border="0" align="center">
-            <tr><td style="font-size:0;line-height:0;">${artwork(heroSrc, heroAlt, 510)}</td></tr>
-          </table>
+        <tr><td style="padding:0;font-size:0;line-height:0;">
+          ${artwork(heroSrc, heroAlt, 600)}
         </td></tr>` : ''}
 
         <!-- ── GREETING ──────────────────────────────────────────────────── -->
-        <tr><td class="pad" style="padding:40px 56px;text-align:center;">
+        <tr><td class="pad" style="padding:38px 56px 40px;text-align:center;">
           <p style="margin:0 0 12px;font:400 16px/1.7 ${SANS};color:${P.ink};">Dear ${esc(name)},</p>
           <p style="margin:0 0 12px;font:400 16px/1.8 ${SANS};color:${P.ink};">
             Thank you for taking the time to RSVP to our wedding. We&rsquo;re truly
@@ -481,7 +483,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
         </td></tr>
 
         <!-- ── VENUE ─────────────────────────────────────────────────────── -->
-        <tr><td class="pad" style="padding:48px 56px;text-align:center;">
+        <tr><td class="pad-sm" style="padding:48px 28px;text-align:center;">
           ${eyebrow('Where Everything Will Happen')}
           <h2 class="h2" style="margin:0 0 8px;font:700 28px/1.25 ${SERIF};color:${P.green};">
             ${esc(WEDDING.venueName)}
@@ -491,7 +493,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
           </p>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
                  style="border:1px solid ${P.rule};border-radius:12px;overflow:hidden;background:${P.card};">
-            ${assets.venue ? `<tr><td style="font-size:0;line-height:0;">${artwork(assets.venue, `${WEDDING.venueName} — watercolour illustration`, 488)}</td></tr>` : ''}
+            ${assets.venue ? `<tr><td style="font-size:0;line-height:0;">${artwork(assets.venue, `${WEDDING.venueName} — watercolour illustration`, 542)}</td></tr>` : ''}
             <tr><td style="padding:24px 32px;border-top:1px solid ${P.rule};text-align:center;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
                 <tr><td style="border:1px solid ${P.greenMid};border-radius:4px;">
@@ -513,9 +515,9 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
         <!-- ── DRESS GUIDE ───────────────────────────────────────────────── -->
         <!-- The artwork already carries the palette and both attire guides.
              Nothing is restated here; it would only ever disagree with it. -->
-        <tr><td style="padding:40px 0 0;background:${P.alt};">
+        <tr><td style="padding:36px 0 0;background:${P.alt};">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr><td class="pad" style="padding:0 56px 28px;text-align:center;">
+            <tr><td class="pad" style="padding:0 56px 24px;text-align:center;">
               ${eyebrow('What to Wear')}
               <h2 class="h2" style="margin:0 0 12px;font:700 28px/1.25 ${SERIF};color:${P.green};">Dress Guide</h2>
               <p style="margin:0;font:400 15px/1.6 ${SANS};color:${P.muted};">
