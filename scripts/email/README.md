@@ -167,15 +167,14 @@ there:
 
 | `approved_for` | Sees | Hero artwork |
 |---|---|---|
-| `JOINING` | Joining Ceremony 12:00, Reception 14:00 | `joining.png` |
+| `JOINING` | Joining 12:00, Reception 14:00, After Party 18:00 | `joining.png` |
 | `RECEPTION` | Reception 14:00 | `reception.png` |
 | `AFTERPARTY` | After Party 18:00 | `after-party.png` |
 
-**Confirm this before the first send.** `JOINING` includes the Reception
-because the Joining artwork itself prints "Reception to follow". Whether
-ceremony guests are also welcome at the After Party is not something the
-artwork settles — if they are, add `'AFTERPARTY'` to the `JOINING` array and
-nothing else changes.
+The tiers are **nested downward, never upward**: `JOINING` is the whole day,
+and each narrower tier must never learn what it is missing. That asymmetry is
+the whole design — a Reception guest seeing the After Party is the failure
+this module exists to prevent.
 
 ## Previewing the design
 
@@ -289,7 +288,6 @@ guests after it still receive theirs, and that a failed guest is not marked
 
 - The four artwork files are not in the repo yet.
 - Event times (12:00 / 14:00 / 18:00) come from the invitation artwork.
-- The `JOINING` tier's relationship to the After Party — see above.
 
 ## Relationship to `message_queue`
 

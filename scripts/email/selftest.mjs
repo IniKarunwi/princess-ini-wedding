@@ -194,8 +194,9 @@ section('TIERS');
 
 const names = (row) => eventsForGuest(row).map(e => e.name);
 
-check('a Joining guest gets the ceremony and the reception',
-  names(guest({ approved_for: 'JOINING' })).join('|') === 'Joining Ceremony|Reception');
+check('a Joining guest gets the whole day',
+  names(guest({ approved_for: 'JOINING' })).join('|')
+    === 'Joining Ceremony|Reception|After Party');
 check('a Reception guest gets the reception alone',
   names(guest({ approved_for: 'RECEPTION' })).join('|') === 'Reception');
 check('an After Party guest gets the after party alone',
@@ -247,9 +248,10 @@ check('a Reception guest is not shown the 6 PM or 12 PM times',
   !reception.html.includes('6:00 PM') && !reception.html.includes('12:00 PM'));
 check('an After Party guest is never shown the ceremony or reception',
   !/joining/i.test(afterParty.html) && !/reception/i.test(afterParty.html));
-check('a Joining guest sees both their events and not the after party',
-  joining.html.includes('Joining Ceremony') && joining.html.includes('Reception')
-  && !/after party/i.test(joining.html));
+check('a Joining guest sees all three events, in running order',
+  joining.events.map(e => e.name).join('|') === 'Joining Ceremony|Reception|After Party');
+check('a Joining guest sees all three times',
+  ['12:00 PM', '2:00 PM', '6:00 PM'].every(t => joining.html.includes(t)));
 
 check('each tier opens on its own artwork',
   joining.html.includes(ASSETS.joining)

@@ -41,20 +41,21 @@ export const EVENT_ORDER = ['JOINING', 'RECEPTION', 'AFTERPARTY'];
  * Everything downstream reads from this one object, so correcting it is a
  * one-line change here and nowhere else.
  *
- * The reasoning behind the current values:
+ * The tiers are nested, not parallel — each one is a superset of those below:
  *
- *   JOINING     The Joining artwork itself prints "Reception to follow", so a
- *               ceremony guest is plainly also a reception guest.
+ *   JOINING     The whole day. Confirmed by the couple: a ceremony guest is
+ *               welcome at the reception (the Joining artwork itself prints
+ *               "Reception to follow") and at the after party.
  *   RECEPTION   Reception only. The brief's own example — "someone invited
  *               only to Reception should never even know there is an After
  *               Party" — only makes sense if this tier excludes it.
  *   AFTERPARTY  The After Party alone.
  *
- * If ceremony guests are in fact also welcome at the After Party, add
- * 'AFTERPARTY' to the JOINING array and nothing else changes.
+ * Nesting downward but not upward is the point: the widest tier sees
+ * everything, and a narrower one must never learn what it is missing.
  */
 export const TIER_EVENTS = {
-  JOINING:    ['JOINING', 'RECEPTION'],
+  JOINING:    ['JOINING', 'RECEPTION', 'AFTERPARTY'],
   RECEPTION:  ['RECEPTION'],
   AFTERPARTY: ['AFTERPARTY'],
 };
