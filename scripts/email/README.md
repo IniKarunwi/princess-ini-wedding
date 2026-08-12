@@ -22,8 +22,8 @@ other two events.
 
 ## Before the first run
 
-1. **Upload the four artwork files** to `public/email/` — `joining.png`,
-   `reception.png`, `after-party.png`, `dress-guide.png`. See
+1. **Upload the five artwork files** to `public/email/` — `joining.png`,
+   `reception.png`, `after-party.png`, `venue.png`, `dress-guide.png`. See
    `public/email/README.md` for sizes. Email clients cannot render embedded
    images, so these must be reachable at a public URL; serving them from the
    site's own domain is the least moving parts.
@@ -44,7 +44,7 @@ other two events.
    is required — the anon key cannot update rows under RLS. `.env` is
    gitignored.
 
-4. **Confirm all four images load** in a browser at
+4. **Confirm all five images load** in a browser at
    `https://<your-site>/email/joining.png` and so on. A missing hero renders as
    nothing at all rather than a broken box — deliberate, but it means a typo is
    silent.
@@ -124,7 +124,7 @@ actual inbox:
   going further, because a spam-filed invitation is worse than none.
 - Does the sender name read the way you want it to?
 - Does it look right on a **phone**? That is where most guests will open it.
-- **Do all four images load?** This is the most likely thing to be wrong.
+- **Do all five images load?** This is the most likely thing to be wrong.
 - Do the times, venue and dress guide read correctly?
 - Does **View Our Wedding Registry** open the Ouish page?
 - Does the map link open the right venue?
@@ -275,7 +275,7 @@ time-critical, and it makes every failure exactly attributable.
 npm run test:email
 ```
 
-103 checks, no network and no API key — a fake Resend that can be told to fail
+119 checks, no network and no API key — a fake Resend that can be told to fail
 on demand. It covers the **send guards** (that `--send` alone is refused, that
 two scopes are refused, that `y` confirms nothing, that a batch phrase cannot
 approve a full send), selection (which is what emails the wrong people if it is
@@ -283,6 +283,29 @@ wrong) and batch resilience (which is the requirement most likely to be quietly
 broken by a later edit): that a failure mid-batch does not stop the run, that
 guests after it still receive theirs, and that a failed guest is not marked
 `Sent`.
+
+## The design
+
+Ported from the Banani export (`WeddingNewsletter.jsx`) — palette, spacing,
+alternating cream bands, gold eyebrow labels, ✦ ◆ ✦ dividers and the dark
+green footer all follow it.
+
+Three constructs in the export cannot survive an email client and were
+**rebuilt rather than copied**. Each is now asserted absent by a test, because
+each fails silently rather than loudly:
+
+| In the export | Why it breaks | Rebuilt as |
+|---|---|---|
+| `display:flex` rows | Outlook renders through Word — no flexbox | nested tables |
+| the winding SVG timeline | Gmail strips inline `<svg>`; its labels were absolutely positioned, which Outlook ignores | a centre rule with times alternating left and right |
+| the rotated teardrop date marker | `transform:rotate()` does not exist in email | a filled circle |
+
+The calendar week is **derived from the wedding date**, not typed in, so it
+cannot drift out of step with the real September 2026.
+
+PT Serif and DM Sans load via a font link that Apple Mail honours and Gmail and
+Outlook strip. Both stacks fall back to Georgia and Helvetica, which carry the
+design on their own.
 
 ## What is still assumed
 

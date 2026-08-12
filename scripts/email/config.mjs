@@ -59,6 +59,7 @@ export const ASSET_FILES = {
   reception:    'reception.png',
   'after-party':'after-party.png',
   'dress-guide':'dress-guide.png',
+  venue:        'venue.png',      // watercolour of Signature by Wells Carlton
 };
 
 /**
@@ -110,16 +111,37 @@ export const RATE = {
 /** HTTP status codes worth retrying. Anything else is a real rejection. */
 export const RETRYABLE_STATUS = [408, 429, 500, 502, 503, 504];
 
-/** Palette, lifted from the invitation suite. */
+/** Palette, taken from the Banani design pass. */
 export const PALETTE = {
-  cream:     '#faf6ee',
-  card:      '#ffffff',
-  green:     '#1b3b2a',
-  greenSoft: '#2f5742',
-  gold:      '#b3933f',
-  goldSoft:  '#d9c48a',
-  ink:       '#3a3427',
-  muted:     '#6f6757',
-  rule:      '#e6dcc6',
-  rose:      '#c0757a',
+  page:      '#e8e0d0',   // outside the card
+  card:      '#f9f5ed',   // the card itself
+  alt:       '#ede8db',   // alternating band — schedule, dress guide
+  panel:     '#fdfaf4',   // registry panel, one step lighter than the card
+  green:     '#1a3410',   // headings, footer ground
+  greenMid:  '#2d5016',   // ticks, buttons, accents
+  gold:      '#b8860b',   // eyebrow labels, times, rules
+  ink:       '#4a3e28',   // body copy
+  muted:     '#7a6e56',   // secondary copy
+  faint:     '#a89880',   // calendar weekday initials
+  rule:      '#d4c9a8',   // borders
+  plusBg:    '#f0f5ec',   // plus-one card, confirmed
+  plusRule:  '#c2d4b0',
+  plusInk:   '#4a5e3a',
+  footerInk: '#a8c090',
+  footerSub: '#6a8a5a',
+};
+
+/**
+ * Type stacks.
+ *
+ * The design specifies PT Serif and DM Sans. Apple Mail and iOS Mail honour a
+ * webfont link; Gmail and Outlook strip it and fall back. Both stacks are
+ * therefore written so the fallback carries the design on its own — Georgia
+ * for the serif warmth, Helvetica for the letter-spaced labels.
+ */
+export const TYPE = {
+  serif: "'PT Serif',Georgia,'Times New Roman',Times,serif",
+  sans:  "'DM Sans','Helvetica Neue',Helvetica,Arial,sans-serif",
+  webfont: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700' +
+           '&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap',
 };

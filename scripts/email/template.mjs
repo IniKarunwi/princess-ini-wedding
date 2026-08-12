@@ -5,21 +5,29 @@
  * answer to every question they would otherwise have to message about: where
  * am I going, what time, can I bring someone, what do I wear, how do I give.
  *
- * ── Why the markup looks like 2004 ─────────────────────────────────────────
- * Email HTML is not web HTML. Outlook renders through Word — no flexbox, no
- * grid, no border-radius on most elements, no background-image. Gmail strips
- * <style> blocks in several contexts. So: nested tables, inline styles only,
- * no web fonts, and every colour stated explicitly because dark-mode clients
- * invert anything left unpainted.
+ * ── Where this design came from ────────────────────────────────────────────
+ * Ported from the Banani export (WeddingNewsletter.jsx). Layout, spacing and
+ * palette follow it closely; three constructs in the export cannot survive an
+ * email client and were rebuilt rather than copied:
+ *
+ *   flex rows          → tables. Outlook renders through Word: no flexbox.
+ *   the winding SVG    → a table timeline. Gmail strips inline <svg> entirely,
+ *   timeline             and the labels were absolutely positioned, which is
+ *                        unsupported in Outlook and unreliable in Gmail.
+ *   the rotated map-pin→ a round cell. transform: rotate() does not exist in
+ *   date marker          email; the pin is drawn as a circle instead.
+ *
+ * Everything else — the alternating cream bands, the gold eyebrow labels, the
+ * ✦ ◆ ✦ dividers, the dark green footer — is carried over as specified.
  *
  * ── The one rule that matters ──────────────────────────────────────────────
  * A guest is shown ONLY the events they are invited to. Not greyed out, not
  * marked unavailable — absent. Someone invited to the Reception alone must
  * finish this email unaware that an After Party exists. Every section below
- * is built from `events`, never from the full list.
+ * is built from that guest's own event list, never from the full set.
  */
 
-import { WEDDING, REGISTRY_URL, MAP_URL, PALETTE as P } from './config.mjs';
+import { WEDDING, REGISTRY_URL, MAP_URL, PALETTE as P, TYPE } from './config.mjs';
 import { eventsForGuest, heroFor, daysUntil, plusOneState } from './events.mjs';
 import { firstName } from './recipients.mjs';
 
@@ -30,161 +38,257 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/* Type stacks. No web fonts — Gmail and Outlook ignore them, and a half-loaded
-   display face looks worse than a well-set fallback. Georgia carries the
-   invitation's serif warmth; the letter-spaced sans matches the artwork's
-   small-caps labels. */
-const SERIF  = "Georgia,'Times New Roman',Times,serif";
-const SANS   = "'Helvetica Neue',Helvetica,Arial,sans-serif";
+const SERIF = TYPE.serif;
+const SANS  = TYPE.sans;
 
-const label = (text, color = P.muted) =>
-  `<p style="margin:0;font:400 11px/1.7 ${SANS};letter-spacing:.22em;` +
-  `text-transform:uppercase;color:${color};">${esc(text)}</p>`;
+/* ── Small parts ─────────────────────────────────────────────────────────── */
 
-/** The small gold fleuron used between sections in the printed suite. */
+/** The gold letter-spaced eyebrow above every section heading. */
+const eyebrow = (text) =>
+  `<p style="margin:0 0 8px;font:600 11px/1.6 ${SANS};letter-spacing:3px;` +
+  `text-transform:uppercase;color:${P.gold};">${esc(text)}</p>`;
+
+/** Section heading, PT Serif 28. */
+const heading = (text, marginBottom = '32px') =>
+  `<h2 style="margin:0 0 ${marginBottom};font:700 28px/1.25 ${SERIF};color:${P.green};">${esc(text)}</h2>`;
+
+/** ✦ ◆ ✦ — the ornament between sections. */
 const divider = () => `
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td style="padding:0 0 0 0;">
-        <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0">
-          <tr>
-            <td width="70" style="height:1px;background:${P.rule};font-size:0;line-height:0;">&nbsp;</td>
-            <td style="padding:0 12px;font:400 13px/1 ${SERIF};color:${P.goldSoft};">&#10022;</td>
-            <td width="70" style="height:1px;background:${P.rule};font-size:0;line-height:0;">&nbsp;</td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>`;
-
-/** A full-bleed artwork. Width is set as an attribute for Outlook's benefit. */
-const artwork = (src, alt) => `
-  <tr><td style="padding:0;font-size:0;line-height:0;">
-    <img src="${esc(src)}" alt="${esc(alt)}" width="600"
-         style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none;">
+  <tr><td style="padding:32px 0;text-align:center;line-height:1;">
+    <span style="color:${P.gold};font-size:18px;letter-spacing:8px;font-family:Georgia,serif;">&#10022; &#9670; &#10022;</span>
   </td></tr>`;
 
-/** One card in "Your Invitation" — a tick, the event, and a line about it. */
-const inviteCard = (event) => `
+/** A full-bleed artwork. The width attribute is there for Outlook. */
+const artwork = (src, alt, width = 600) => `
+  <img src="${esc(src)}" alt="${esc(alt)}" width="${width}"
+       style="display:block;width:100%;max-width:${width}px;height:auto;border:0;outline:none;text-decoration:none;">`;
+
+/**
+ * One event badge: tick, name, time.
+ *
+ * The export used `display:flex` with a `gap`. Rebuilt as a three-cell table
+ * row, which is the only layout primitive every client agrees on. The green
+ * left rule is a border-left on the outer table, as in the design.
+ */
+const eventBadge = (event) => `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-         style="margin:0 0 10px;background:${P.cream};border:1px solid ${P.rule};">
+         style="margin:0 0 12px;background:${P.card};border:1px solid ${P.rule};border-left:3px solid ${P.greenMid};border-radius:8px;">
     <tr>
-      <td width="46" valign="top" style="padding:16px 0 16px 18px;">
-        <span style="font:400 17px/1 ${SANS};color:${P.gold};">&#10003;</span>
+      <td width="48" valign="middle" style="padding:16px 0 16px 17px;">
+        <!-- The circular tick. border-radius degrades to a square in Outlook,
+             which is acceptable; the tick still reads. -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr><td width="28" height="28" align="center" valign="middle"
+                  style="width:28px;height:28px;background:${P.greenMid};border-radius:14px;
+                         font:700 14px/28px ${SANS};color:${P.card};text-align:center;">&#10003;</td></tr>
+        </table>
       </td>
-      <td valign="top" style="padding:15px 20px 16px 0;">
-        <p style="margin:0;font:400 17px/1.4 ${SERIF};color:${P.green};">${esc(event.name)}</p>
-        <p style="margin:3px 0 0;font:400 13px/1.6 ${SERIF};color:${P.muted};">${esc(event.blurb)}</p>
+      <td valign="middle" style="padding:16px 8px 16px 0;">
+        <div style="font:700 16px/1.3 ${SERIF};color:${P.green};letter-spacing:.5px;">${esc(event.name)}</div>
+      </td>
+      <td valign="middle" align="right" style="padding:16px 20px 16px 0;white-space:nowrap;">
+        <div style="font:600 13px/1.3 ${SANS};color:${P.gold};letter-spacing:1px;text-transform:uppercase;">${esc(event.time)}</div>
       </td>
     </tr>
   </table>`;
 
-/** One row of the schedule: time on the left, event on the right. */
-const scheduleRow = (event, isLast) => `
-  <tr>
-    <td width="96" valign="top"
-        style="padding:14px 0;border-bottom:${isLast ? '0' : `1px solid ${P.rule}`};">
-      <p style="margin:0;font:400 15px/1.4 ${SERIF};color:${P.gold};">${esc(event.time)}</p>
-    </td>
-    <td valign="top"
-        style="padding:14px 0;border-bottom:${isLast ? '0' : `1px solid ${P.rule}`};">
-      <p style="margin:0;font:400 16px/1.4 ${SERIF};color:${P.green};">${esc(event.name)}</p>
-    </td>
-  </tr>`;
+/**
+ * The September week strip, with the wedding day marked.
+ *
+ * The export laid this out with flex and marked the day using a rotated
+ * teardrop (`border-radius:50% 50% 50% 0` + `transform:rotate(-45deg)`).
+ * Neither works in email, so it is a fixed table of seven cells and the day is
+ * a filled circle. Dates are derived from the wedding date rather than typed
+ * in, so they cannot drift out of alignment with the real calendar.
+ */
+function calendarStrip() {
+  const wedding = WEDDING.date;
+  const dow = (wedding.getUTCDay() + 6) % 7;              // 0 = Monday
+  const monday = new Date(Date.UTC(
+    wedding.getUTCFullYear(), wedding.getUTCMonth(), wedding.getUTCDate() - dow));
+
+  const days = Array.from({ length: 7 }, (_, i) =>
+    new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + i)));
+
+  const initials = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  const monthName = wedding.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+  const headRow = initials.map(d =>
+    `<td width="14%" align="center" style="padding:0 0 10px;font:700 9px/1.4 ${SANS};letter-spacing:1px;color:${P.faint};">${d}</td>`
+  ).join('');
+
+  const dayRow = days.map(d => {
+    const n = d.getUTCDate();
+    const isWedding = d.getUTCDate() === wedding.getUTCDate()
+                   && d.getUTCMonth() === wedding.getUTCMonth();
+    if (!isWedding) {
+      return `<td width="14%" align="center" style="padding:4px 0;font:400 15px/36px ${SANS};color:${P.muted};">${n}</td>`;
+    }
+    return `<td width="14%" align="center" style="padding:4px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+        <tr><td width="36" height="36" align="center" valign="middle"
+                style="width:36px;height:36px;background:${P.greenMid};border-radius:18px;
+                       font:700 15px/36px ${SANS};color:${P.card};text-align:center;">${n}</td></tr>
+      </table>
+    </td>`;
+  }).join('');
+
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="max-width:340px;margin:0 auto;">
+      <tr><td align="center" style="padding:0 0 14px;font:600 13px/1.4 ${SANS};letter-spacing:2px;text-transform:uppercase;color:${P.ink};">
+        ${esc(monthName)}
+      </td></tr>
+      <tr><td>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>${headRow}</tr>
+          <tr>${dayRow}</tr>
+        </table>
+      </td></tr>
+    </table>`;
+}
+
+/**
+ * The day timeline.
+ *
+ * The export drew a hand-lettered winding path in SVG with the three times
+ * absolutely positioned around it. Gmail removes inline SVG and Outlook
+ * ignores absolute positioning, so the whole thing would have vanished or
+ * collapsed into a heap.
+ *
+ * Rebuilt as a centre rule with the times alternating left and right of it,
+ * which keeps the alternating rhythm and the connected-path feeling using
+ * only table cells and borders. A dot sits on the rule at each stop.
+ */
+function timeline(events) {
+  const rule = (half) => `
+    <td width="40" align="center" valign="top" style="width:40px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" height="100%">
+        <tr><td width="1" height="18" style="width:1px;height:18px;background:${half === 'first' ? 'transparent' : P.faint};font-size:0;line-height:0;">&nbsp;</td></tr>
+        <tr><td width="9" height="9" style="width:9px;height:9px;background:${P.greenMid};border-radius:5px;font-size:0;line-height:0;">&nbsp;</td></tr>
+        <tr><td width="1" height="46" style="width:1px;height:46px;background:${half === 'last' ? 'transparent' : P.faint};font-size:0;line-height:0;">&nbsp;</td></tr>
+      </table>
+    </td>`;
+
+  const stop = (event, index) => {
+    const onLeft = index % 2 === 0;
+    const half = index === 0 ? 'first' : (index === events.length - 1 ? 'last' : 'middle');
+
+    const block = (align) => `
+      <div style="font:italic 400 22px/1.1 ${SERIF};color:${P.greenMid};">${esc(event.time)}</div>
+      <div style="margin-top:5px;font:700 10px/1.4 ${SANS};letter-spacing:2px;text-transform:uppercase;color:${P.ink};">${esc(event.name)}</div>`;
+
+    return `
+      <tr>
+        <td width="45%" align="right" valign="top" style="padding:0 14px 0 0;">${onLeft ? block('right') : '&nbsp;'}</td>
+        ${rule(half)}
+        <td width="45%" align="left" valign="top" style="padding:0 0 0 14px;">${onLeft ? '&nbsp;' : block('left')}</td>
+      </tr>`;
+  };
+
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="max-width:400px;margin:0 auto;">
+      ${events.map(stop).join('')}
+      <tr>
+        <td width="45%">&nbsp;</td>
+        <td width="40" align="center" style="padding-top:2px;font:400 18px/1 Georgia,serif;color:${P.faint};">&#9825;</td>
+        <td width="45%">&nbsp;</td>
+      </tr>
+    </table>`;
+}
 
 /**
  * The plus-one card.
  *
  * Returns '' when the guest never asked for one — a guest who did not request
- * a plus one should not be told anything about plus ones at all.
+ * a plus one should not be told anything about plus ones at all, and that
+ * includes the section heading above it.
  */
-function plusOneCard(state, plusOneName) {
+function plusOneSection(state, plusOneName) {
   if (state === 'none' || state === 'pending') return '';
 
-  const named = plusOneName ? ` ${esc(plusOneName)}` : '';
-
-  if (state === 'approved') {
-    return `
-      <!-- Plus one: confirmed -->
-      <tr><td style="padding:0 40px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-               style="background:${P.cream};border:1px solid ${P.goldSoft};">
-          <tr><td style="padding:24px 26px;text-align:center;">
-            ${label('Your Plus One', P.gold)}
-            <p style="margin:10px 0 0;font:400 19px/1.5 ${SERIF};color:${P.green};">
-              &#127881; Your Plus One has been confirmed
-            </p>
-            <p style="margin:8px 0 0;font:400 15px/1.7 ${SERIF};color:${P.muted};">
-              We&rsquo;re delighted to welcome both of you${named ? `, you and${named}` : ''}.
-            </p>
-          </td></tr>
-        </table>
+  const body = state === 'approved' ? `
+    <!-- Plus one: confirmed -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="background:${P.plusBg};border:1px solid ${P.plusRule};border-radius:12px;">
+      <tr><td style="padding:28px 32px;text-align:center;">
+        <div style="font-size:32px;line-height:1;margin-bottom:12px;">&#127881;</div>
+        <div style="font:700 19px/1.4 ${SERIF};color:${P.green};margin-bottom:8px;">
+          Your Plus One has been confirmed.
+        </div>
+        <div style="font:400 15px/1.6 ${SANS};color:${P.plusInk};margin-bottom:8px;">
+          We&rsquo;re delighted to welcome ${plusOneName ? `<strong>${esc(plusOneName)}</strong> ` : ''}alongside you.
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid ${P.plusRule};font:400 13px/1.6 ${SANS};color:${P.muted};">
+          Please ensure they are aware of the schedule and dress guide below.
+        </div>
       </td></tr>
-      <tr><td style="height:26px;font-size:0;line-height:0;">&nbsp;</td></tr>`;
-  }
-
-  // Declined. Warm on purpose — this is the paragraph most likely to be
-  // forwarded to the person who is not coming.
-  return `
+    </table>` : `
     <!-- Plus one: not accommodated -->
-    <tr><td style="padding:0 40px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-             style="background:${P.cream};border:1px solid ${P.rule};">
-        <tr><td style="padding:24px 26px;text-align:center;">
-          ${label('Your Plus One')}
-          <p style="margin:10px 0 0;font:400 15px/1.75 ${SERIF};color:${P.ink};">
-            Because seating is extremely limited, we&rsquo;re unfortunately unable
-            to accommodate a Plus One for your invitation. We truly appreciate
-            your understanding and can&rsquo;t wait to celebrate with you.
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-    <tr><td style="height:26px;font-size:0;line-height:0;">&nbsp;</td></tr>`;
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="background:${P.card};border:1px solid ${P.rule};border-radius:12px;">
+      <tr><td style="padding:28px 32px;text-align:center;">
+        <div style="font:400 15px/1.8 ${SANS};color:${P.ink};">
+          Because seating is extremely limited, we&rsquo;re unfortunately unable to
+          accommodate a Plus One for your invitation. We truly appreciate your
+          understanding and can&rsquo;t wait to celebrate with you.
+        </div>
+      </td></tr>
+    </table>`;
+
+  return `
+    <tr><td style="padding:0 56px 48px;">
+      <div style="text-align:center;">
+        ${eyebrow('Plus One Status')}
+        ${heading('Your Guest', '28px')}
+      </div>
+      ${body}
+    </td></tr>`;
 }
 
 /** The plain-text alternative. Every client shows this if HTML is blocked. */
 function plainText({ name, events, days, state, plusOneName }) {
   const lines = [
+    `PRINCESS & INIOLUWA  ·  ${WEDDING.dateLong}`,
+    '',
     `Dear ${name},`,
     '',
     'Thank you for taking the time to RSVP to our wedding. We\'re truly grateful',
-    'for your love, prayers and support, and we\'re so excited to celebrate this',
+    'for your love, prayers and support. We\'re so excited to celebrate this',
     'special day with you.',
     '',
-    days > 0
-      ? `We're now ${days} days away from saying "I do."`
-      : 'Today is the day.',
+    days > 0 ? `We are ${days} days away from saying "I do."` : 'Today is the day.',
     '',
-    'YOUR INVITATION',
-    ...events.map(e => `  - ${e.name}`),
+    'CONFIRMED FOR',
+    ...events.map(e => `  ${e.time.padEnd(9)} ${e.name}`),
     '',
-    'SCHEDULE',
-    ...events.map(e => `  ${e.time.padEnd(10)} ${e.name}`),
+    events.length > 1
+      ? `All ${events.length === 3 ? 'three' : 'these'} celebrations take place on ${WEDDING.dateLong}.`
+      : `This takes place on ${WEDDING.dateLong}.`,
     '',
-    'VENUE',
+    'WHERE EVERYTHING WILL HAPPEN',
     `  ${WEDDING.venueName}`,
     `  ${WEDDING.venueArea}`,
     `  ${MAP_URL}`,
-    '',
-    `  ${WEDDING.dateLong}`,
   ];
 
   if (state === 'approved') {
-    lines.push('', 'YOUR PLUS ONE',
-      `  Confirmed. We're delighted to welcome both of you${plusOneName ? `, you and ${plusOneName}` : ''}.`);
+    lines.push('', 'YOUR GUEST',
+      `  Your Plus One has been confirmed. We're delighted to welcome${plusOneName ? ` ${plusOneName}` : ''} alongside you.`,
+      '  Please ensure they are aware of the schedule and dress guide.');
   } else if (state === 'declined') {
-    lines.push('', 'YOUR PLUS ONE',
+    lines.push('', 'YOUR GUEST',
       '  Because seating is extremely limited, we\'re unfortunately unable to',
       '  accommodate a Plus One for your invitation. We truly appreciate your',
       '  understanding and can\'t wait to celebrate with you.');
   }
 
   lines.push(
-    '', 'WHAT TO WEAR',
-    '  Eden in Full Bloom — garden colours, English formal. The full dress',
-    '  guide is in the images of this email.',
-    '', 'OUR REGISTRY',
+    '', 'DRESS GUIDE',
+    '  Our celebration is inspired by the beauty of a flourishing garden —',
+    '  Eden in Full Bloom. The full guide is in the images of this email.',
+    '', 'WEDDING REGISTRY',
     '  Many of you have asked how you\'d like to bless us as we begin this new',
     '  chapter together. If you\'d like to support us with a gift:',
     `  ${REGISTRY_URL}`,
@@ -194,6 +298,9 @@ function plainText({ name, events, days, state, plusOneName }) {
     '',
     'With love,',
     WEDDING.couple,
+    '',
+    `SATURDAY · 26 SEPTEMBER 2026`,
+    `${WEDDING.venueName}, ${WEDDING.venueArea}`,
   );
 
   return lines.join('\n');
@@ -203,7 +310,7 @@ function plainText({ name, events, days, state, plusOneName }) {
  * Renders the pack for one guest.
  *
  * @param row      the rsvps row
- * @param assets   { joining, reception, 'after-party', 'dress-guide' } URLs
+ * @param assets   artwork URLs, keyed as in config.ASSET_FILES
  * @param rsvpUrl  the live site, linked from the footer
  * @param now      injected so the countdown is testable
  */
@@ -215,11 +322,14 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
   const hero   = heroFor(events);
   const heroSrc = hero ? assets[hero] : null;
 
-  const heroAlt = hero === 'joining'
-    ? `${WEDDING.couple} — Joining Ceremony invitation`
-    : hero === 'reception'
-      ? `${WEDDING.couple} — Reception invitation`
-      : `${WEDDING.couple} — After Party invitation`;
+  const heroAlt = `${WEDDING.couple} — ${
+    hero === 'joining' ? 'Joining Ceremony' : hero === 'reception' ? 'Reception' : 'After Party'
+  } invitation`;
+
+  // "All three celebrations take place on…" only reads correctly for three.
+  const allOnDay = events.length === 1
+    ? `This takes place on ${WEDDING.dateLong}`
+    : `All ${events.length === 3 ? 'three ' : ''}celebrations take place on ${WEDDING.dateLong}`;
 
   const html = `<!doctype html>
 <html lang="en">
@@ -230,190 +340,221 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
 <title>${esc(WEDDING.couple)} &middot; ${esc(WEDDING.dateLong)}</title>
+<!-- Honoured by Apple Mail and iOS Mail; stripped by Gmail and Outlook, which
+     fall back to Georgia and Helvetica. The design holds either way. -->
+<link rel="stylesheet" href="${TYPE.webfont}">
 <!--[if mso]>
-<style>body,table,td,p,a{font-family:Georgia,'Times New Roman',serif !important;}</style>
+<style>body,table,td,p,a,h1,h2,div{font-family:Georgia,'Times New Roman',serif !important;}</style>
 <![endif]-->
+<style>
+  /* Phones only. Gmail's app honours this; the layout is fluid regardless. */
+  @media only screen and (max-width:620px) {
+    .pad      { padding-left:24px !important; padding-right:24px !important; }
+    .pad-sm   { padding-left:20px !important; padding-right:20px !important; }
+    .h1       { font-size:26px !important; }
+    .h2       { font-size:23px !important; }
+    .sig      { font-size:28px !important; }
+    .stack    { display:block !important; width:100% !important; }
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background:${P.cream};-webkit-font-smoothing:antialiased;">
+<body style="margin:0;padding:0;background:${P.page};-webkit-font-smoothing:antialiased;">
 
   <!-- Preheader: the grey line beside the subject in the inbox. The spacer run
        stops the client pulling body copy in after it. -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-    Everything you need for ${esc(WEDDING.dateLong)} &middot; ${esc(WEDDING.venueArea)}
+    ${days > 0 ? `${days} days to go` : 'Today is the day'} &middot; ${esc(WEDDING.venueName)}, ${esc(WEDDING.venueArea)}
     ${'&#8203;&nbsp;'.repeat(60)}
   </div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-         style="background:${P.cream};">
-    <tr><td align="center" style="padding:28px 12px 40px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${P.page};">
+    <tr><td align="center" style="padding:48px 12px;">
 
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
-             style="width:100%;max-width:600px;background:${P.card};border:1px solid ${P.rule};">
+             style="width:100%;max-width:600px;background:${P.card};border-radius:4px;overflow:hidden;
+                    box-shadow:0 8px 48px rgba(45,30,10,0.12);">
 
-        <!-- Gold rule, as on the printed suite -->
-        <tr><td style="height:6px;background:${P.gold};font-size:0;line-height:0;">&nbsp;</td></tr>
+        <!-- ── MASTHEAD ──────────────────────────────────────────────────── -->
+        <tr><td class="pad" style="padding:52px 56px 0;text-align:center;">
+          <h1 class="h1" style="margin:0 0 12px;font:700 32px/1.3 ${SERIF};color:${P.green};">
+            We&rsquo;re So Excited to Celebrate With You
+          </h1>
+          <p style="margin:0 0 28px;font:600 12px/1.6 ${SANS};letter-spacing:2px;color:${P.muted};">
+            ${esc(WEDDING.couple)} &bull; September 26, 2026
+          </p>
+        </td></tr>
 
         <!-- ── HERO ──────────────────────────────────────────────────────── -->
-        ${heroSrc ? artwork(heroSrc, heroAlt) : ''}
-
-        <!-- ── THANK YOU ─────────────────────────────────────────────────── -->
-        <tr><td style="padding:38px 40px 0;text-align:center;">
-          ${label('Thank you for RSVPing', P.gold)}
-          <p style="margin:16px 0 0;font:italic 400 27px/1.35 ${SERIF};color:${P.green};">
-            ${esc(WEDDING.bride)} &amp; ${esc(WEDDING.groom)}
-          </p>
-        </td></tr>
-
-        <tr><td style="padding:24px 40px 0;">
-          <p style="margin:0;font:400 16px/1.8 ${SERIF};color:${P.ink};">
-            Dear ${esc(name)},
-          </p>
-          <p style="margin:14px 0 0;font:400 16px/1.8 ${SERIF};color:${P.ink};">
-            Thank you for taking the time to RSVP to our wedding. We&rsquo;re truly
-            grateful for your love, prayers and support, and we&rsquo;re so excited
-            to celebrate this special day with you.
-          </p>
-          <p style="margin:14px 0 0;font:400 16px/1.8 ${SERIF};color:${P.ink};">
-            Below are all the important details you&rsquo;ll need for the day.
-          </p>
-        </td></tr>
-
-        <!-- ── COUNTDOWN ─────────────────────────────────────────────────── -->
-        <tr><td style="padding:28px 40px 0;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-                 style="background:${P.cream};border-top:1px solid ${P.rule};border-bottom:1px solid ${P.rule};">
-            <tr><td style="padding:22px 20px;text-align:center;">
-              ${days > 0 ? `
-              <p style="margin:0;font:400 40px/1 ${SERIF};color:${P.green};">${days}</p>
-              <p style="margin:8px 0 0;font:400 11px/1.7 ${SANS};letter-spacing:.22em;text-transform:uppercase;color:${P.muted};">
-                days until we say &ldquo;I do&rdquo;
-              </p>` : `
-              <p style="margin:0;font:italic 400 24px/1.3 ${SERIF};color:${P.green};">Today is the day</p>`}
-            </td></tr>
+        ${heroSrc ? `
+        <tr><td class="pad-sm" style="padding:0 40px 28px;text-align:center;">
+          <table role="presentation" width="85%" cellpadding="0" cellspacing="0" border="0" align="center">
+            <tr><td style="font-size:0;line-height:0;">${artwork(heroSrc, heroAlt, 510)}</td></tr>
           </table>
+        </td></tr>` : ''}
+
+        <!-- ── GREETING ──────────────────────────────────────────────────── -->
+        <tr><td class="pad" style="padding:40px 56px;text-align:center;">
+          <p style="margin:0 0 12px;font:400 16px/1.7 ${SANS};color:${P.ink};">Dear ${esc(name)},</p>
+          <p style="margin:0 0 12px;font:400 16px/1.8 ${SANS};color:${P.ink};">
+            Thank you for taking the time to RSVP to our wedding. We&rsquo;re truly
+            grateful for your love, prayers and support.
+          </p>
+          <p style="margin:0 0 12px;font:400 16px/1.8 ${SANS};color:${P.ink};">
+            We&rsquo;re so excited to celebrate this special day with you.
+          </p>
+          ${days > 0 ? `
+          <p style="margin:20px 0 0;font:italic 400 18px/1.5 ${SERIF};color:${P.greenMid};">
+            We are <strong style="font-style:normal;font-family:${SERIF};">${days}</strong> days away from saying &ldquo;I do.&rdquo;
+          </p>` : `
+          <p style="margin:20px 0 0;font:italic 400 18px/1.5 ${SERIF};color:${P.greenMid};">Today is the day.</p>`}
         </td></tr>
+
+        ${divider()}
 
         <!-- ── YOUR INVITATION ───────────────────────────────────────────── -->
         <!-- Built from the guest's own event list, so an uninvited part of the
              day cannot leak into the markup. -->
-        <tr><td style="padding:34px 40px 0;text-align:center;">
-          ${divider()}
-          <p style="margin:20px 0 4px;font:400 22px/1.35 ${SERIF};color:${P.green};">Your Invitation</p>
-          <p style="margin:0 0 20px;font:400 14px/1.7 ${SERIF};color:${P.muted};">
-            You are warmly invited to ${events.length > 1 ? 'the following' : 'our'}:
+        <tr><td class="pad" style="padding:0 56px 48px;">
+          <div style="text-align:center;">
+            ${eyebrow('Confirmed For')}
+            ${heading('Your Invitation')}
+          </div>
+          ${events.map(eventBadge).join('')}
+          <p style="margin:20px 0 0;font:400 13px/1.6 ${SANS};color:${P.muted};text-align:center;">
+            ${esc(allOnDay)}
           </p>
         </td></tr>
 
-        <tr><td style="padding:0 40px;">
-          ${events.map(inviteCard).join('')}
-        </td></tr>
-
-        <!-- ── SCHEDULE ──────────────────────────────────────────────────── -->
-        <tr><td style="padding:30px 40px 0;text-align:center;">
-          ${label('Schedule')}
-        </td></tr>
-        <tr><td style="padding:6px 40px 0;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            ${events.map((e, i) => scheduleRow(e, i === events.length - 1)).join('')}
-          </table>
+        <!-- ── DAY SCHEDULE ──────────────────────────────────────────────── -->
+        <tr><td class="pad-sm" style="padding:48px 40px 56px;background:${P.alt};">
+          <div style="text-align:center;">
+            ${eyebrow('Saturday, 26 September 2026')}
+            ${heading('Day Schedule', '48px')}
+          </div>
+          ${calendarStrip()}
+          <div style="height:48px;font-size:0;line-height:0;">&nbsp;</div>
+          ${timeline(events)}
         </td></tr>
 
         <!-- ── VENUE ─────────────────────────────────────────────────────── -->
-        <tr><td style="padding:30px 40px 0;">
+        <tr><td class="pad" style="padding:48px 56px;text-align:center;">
+          ${eyebrow('Where Everything Will Happen')}
+          <h2 class="h2" style="margin:0 0 8px;font:700 28px/1.25 ${SERIF};color:${P.green};">
+            ${esc(WEDDING.venueName)}
+          </h2>
+          <p style="margin:0 0 28px;font:400 14px/1.6 ${SANS};color:${P.muted};letter-spacing:1px;">
+            ${esc(WEDDING.venueArea)}
+          </p>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-                 style="background:${P.green};">
-            <tr><td style="padding:26px 26px;text-align:center;">
-              ${label('Venue', P.goldSoft)}
-              <p style="margin:12px 0 0;font:400 21px/1.4 ${SERIF};color:#ffffff;">
-                ${esc(WEDDING.venueName)}
-              </p>
-              <p style="margin:5px 0 0;font:400 15px/1.6 ${SERIF};color:${P.goldSoft};">
-                ${esc(WEDDING.venueArea)}
-              </p>
-              <p style="margin:14px 0 0;font:400 14px/1.6 ${SERIF};color:#ffffff;">
-                ${esc(WEDDING.dateLong)}
-              </p>
-              <p style="margin:16px 0 0;">
-                <a href="${esc(MAP_URL)}"
-                   style="font:400 12px/1 ${SANS};letter-spacing:.16em;text-transform:uppercase;
-                          color:${P.goldSoft};text-decoration:none;border-bottom:1px solid ${P.goldSoft};
-                          padding-bottom:3px;">
-                  Open in maps
-                </a>
-              </p>
+                 style="border:1px solid ${P.rule};border-radius:12px;overflow:hidden;background:${P.card};">
+            ${assets.venue ? `<tr><td style="font-size:0;line-height:0;">${artwork(assets.venue, `${WEDDING.venueName} — watercolour illustration`, 488)}</td></tr>` : ''}
+            <tr><td style="padding:24px 32px;border-top:1px solid ${P.rule};text-align:center;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+                <tr><td style="border:1px solid ${P.greenMid};border-radius:4px;">
+                  <a href="${esc(MAP_URL)}"
+                     style="display:inline-block;padding:12px 32px;font:700 12px/1 ${SANS};
+                            letter-spacing:2.5px;text-transform:uppercase;color:${P.green};text-decoration:none;">
+                    Open Map
+                  </a>
+                </td></tr>
+              </table>
             </td></tr>
           </table>
         </td></tr>
-        <tr><td style="height:26px;font-size:0;line-height:0;">&nbsp;</td></tr>
 
-        ${plusOneCard(state, row.plus_one_name)}
+        ${state === 'approved' || state === 'declined' ? divider() : ''}
+
+        ${plusOneSection(state, row.plus_one_name)}
 
         <!-- ── DRESS GUIDE ───────────────────────────────────────────────── -->
         <!-- The artwork already carries the palette and both attire guides.
              Nothing is restated here; it would only ever disagree with it. -->
-        <tr><td style="padding:8px 40px 0;text-align:center;">
-          ${divider()}
-          <p style="margin:20px 0 4px;font:400 22px/1.35 ${SERIF};color:${P.green};">What to Wear</p>
-          <p style="margin:0 0 18px;font:italic 400 15px/1.7 ${SERIF};color:${P.gold};">
-            Eden in Full Bloom
-          </p>
-        </td></tr>
-        ${artwork(assets['dress-guide'], 'Dress guide — Eden in Full Bloom: garden colour palette, English formal for gentlemen, royal garden elegance for ladies')}
-        <tr><td style="height:30px;font-size:0;line-height:0;">&nbsp;</td></tr>
-
-        <!-- ── REGISTRY ──────────────────────────────────────────────────── -->
-        <tr><td style="padding:0 40px;text-align:center;">
-          ${divider()}
-          <p style="margin:20px 0 0;font:400 22px/1.35 ${SERIF};color:${P.green};">Our Registry</p>
-          <p style="margin:12px 0 0;font:400 16px/1.8 ${SERIF};color:${P.ink};text-align:left;">
-            Many of you have asked how you&rsquo;d like to bless us as we begin this
-            new chapter together. If you&rsquo;d like to support us with a gift,
-            we&rsquo;ve prepared our wedding registry below.
-          </p>
-        </td></tr>
-
-        <tr><td style="padding:24px 40px 0;text-align:center;">
-          <!-- Bulletproof button: the table gives Outlook a background it will
-               actually paint, since it ignores background on <a>. -->
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
-            <tr><td style="background:${P.gold};">
-              <a href="${esc(REGISTRY_URL)}"
-                 style="display:inline-block;padding:16px 38px;font:400 13px/1 ${SANS};
-                        letter-spacing:.16em;text-transform:uppercase;color:#ffffff;text-decoration:none;">
-                View Our Wedding Registry
-              </a>
+        <tr><td style="padding:40px 0 0;background:${P.alt};">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td class="pad" style="padding:0 56px 28px;text-align:center;">
+              ${eyebrow('What to Wear')}
+              <h2 class="h2" style="margin:0 0 12px;font:700 28px/1.25 ${SERIF};color:${P.green};">Dress Guide</h2>
+              <p style="margin:0;font:400 15px/1.6 ${SANS};color:${P.muted};">
+                Our celebration is inspired by the beauty of a flourishing garden &mdash; Eden in Full Bloom.
+              </p>
+            </td></tr>
+            <tr><td style="font-size:0;line-height:0;">
+              ${artwork(assets['dress-guide'], 'Dress Guide — Eden in Full Bloom: garden colour palette, English formal for gentlemen, royal garden elegance for ladies')}
             </td></tr>
           </table>
         </td></tr>
 
-        <!-- ── CLOSING ───────────────────────────────────────────────────── -->
-        <tr><td style="padding:38px 40px 0;text-align:center;">
-          ${divider()}
-        </td></tr>
-        <tr><td style="padding:22px 40px 44px;text-align:center;">
-          <p style="margin:0;font:400 16px/1.8 ${SERIF};color:${P.ink};">
-            We truly can&rsquo;t wait to celebrate with you. Thank you for being part
-            of one of the most important days of our lives.
-          </p>
-          <p style="margin:22px 0 0;font:italic 400 16px/1.6 ${SERIF};color:${P.muted};">
-            With love,
-          </p>
-          <p style="margin:6px 0 0;font:italic 400 25px/1.4 ${SERIF};color:${P.green};">
-            ${esc(WEDDING.couple)}
-          </p>
+        <!-- ── REGISTRY ──────────────────────────────────────────────────── -->
+        <tr><td class="pad" style="padding:56px 56px 48px;text-align:center;">
+          ${eyebrow('A Note on Gifts')}
+          <h2 class="h2" style="margin:0 0 20px;font:700 28px/1.25 ${SERIF};color:${P.green};">Wedding Registry</h2>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                 style="border:1px solid ${P.rule};border-radius:16px;background:${P.panel};">
+            <tr><td class="pad-sm" style="padding:36px 40px;text-align:center;">
+              <p style="margin:0 0 28px;font:italic 400 17px/1.8 ${SERIF};color:${P.ink};">
+                Many of you have asked how you&rsquo;d like to bless us as we begin this
+                new chapter together. If you&rsquo;d like to support us with a gift,
+                we&rsquo;ve prepared our wedding registry below.
+              </p>
+              <table role="presentation" width="48" cellpadding="0" cellspacing="0" border="0" align="center"
+                     style="margin:0 auto 28px;">
+                <tr><td height="1" style="height:1px;background:${P.gold};font-size:0;line-height:0;">&nbsp;</td></tr>
+              </table>
+              <!-- Bulletproof button: the table gives Outlook a background it
+                   will actually paint, since it ignores background on <a>. -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+                <tr><td style="background:${P.greenMid};border-radius:4px;">
+                  <a href="${esc(REGISTRY_URL)}"
+                     style="display:inline-block;padding:16px 40px;font:600 14px/1 ${SANS};
+                            letter-spacing:2px;text-transform:uppercase;color:${P.card};text-decoration:none;">
+                    View Our Wedding Registry
+                  </a>
+                </td></tr>
+              </table>
+              <p style="margin:16px 0 0;font:400 12px/1.6 ${SANS};color:${P.muted};">
+                ouish.co/princess-and-ini-wedding
+              </p>
+            </td></tr>
+          </table>
         </td></tr>
 
-        <tr><td style="height:6px;background:${P.gold};font-size:0;line-height:0;">&nbsp;</td></tr>
+        ${divider()}
+
+        <!-- ── CLOSING ───────────────────────────────────────────────────── -->
+        <tr><td class="pad" style="padding:8px 56px 56px;text-align:center;">
+          <p style="margin:0 0 12px;font:400 16px/1.8 ${SANS};color:${P.ink};">
+            We truly can&rsquo;t wait to celebrate with you.
+          </p>
+          <p style="margin:0 0 36px;font:400 16px/1.8 ${SANS};color:${P.ink};">
+            Thank you for being part of one of the most important days of our lives.
+          </p>
+          <p style="margin:0 0 8px;font:400 14px/1.6 ${SANS};color:${P.muted};letter-spacing:1px;">
+            With love,
+          </p>
+          <div class="sig" style="font:italic 400 36px/1.3 ${SERIF};color:${P.green};">
+            ${esc(WEDDING.couple)}
+          </div>
+        </td></tr>
+
+        <!-- ── FOOTER ────────────────────────────────────────────────────── -->
+        <tr><td class="pad" style="padding:28px 56px;text-align:center;background:${P.green};">
+          <p style="margin:0 0 6px;font:400 12px/1.6 ${SANS};color:${P.footerInk};letter-spacing:1px;">
+            SATURDAY &middot; 26 SEPTEMBER 2026
+          </p>
+          <p style="margin:0;font:400 12px/1.6 ${SANS};color:${P.footerSub};">
+            ${esc(WEDDING.venueName)}, ${esc(WEDDING.venueArea)}
+          </p>
+        </td></tr>
       </table>
 
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
              style="width:100%;max-width:600px;">
         <tr><td style="padding:20px 24px 0;text-align:center;">
-          <p style="margin:0;font:400 12px/1.8 ${SERIF};color:#9d9484;">
+          <p style="margin:0;font:400 12px/1.7 ${SANS};color:${P.muted};">
             Need to change anything? Simply reply to this email &mdash; it reaches us directly.
           </p>
-          <p style="margin:8px 0 0;font:400 12px/1.8 ${SERIF};color:#9d9484;">
-            <a href="${esc(rsvpUrl)}" style="color:#9d9484;">${esc(rsvpUrl)}</a>
+          <p style="margin:8px 0 0;font:400 12px/1.7 ${SANS};color:${P.muted};">
+            <a href="${esc(rsvpUrl)}" style="color:${P.muted};">${esc(rsvpUrl)}</a>
           </p>
         </td></tr>
       </table>

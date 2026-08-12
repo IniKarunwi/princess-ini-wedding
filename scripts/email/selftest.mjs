@@ -225,15 +225,20 @@ const afterParty = render(guest({ full_name: 'Ada Obi', approved_for: 'AFTERPART
 
 check('greets the guest by first name', joining.html.includes('Dear Ada,'));
 check('thanks them for RSVPing, rather than inviting them',
-  /thank you for rsvping/i.test(joining.html) && !/you.{0,3}re invited/i.test(joining.html));
+  /thank you for taking the time to RSVP/i.test(joining.html)
+  && !/you.{0,3}re invited/i.test(joining.html));
 check('carries the wedding date', joining.html.includes('26th September 2026'));
 check('carries the venue', joining.html.includes('Signature by Wells Carlton')
   && joining.html.includes('Asokoro, Abuja'));
 check('links the registry', joining.html.includes(REGISTRY_URL));
 check('embeds the dress guide artwork', joining.html.includes(ASSETS['dress-guide']));
 check('ships a plain-text alternative', joining.text.includes('Dear Ada,'));
-check('has no external stylesheet or script',
-  !/<link[^>]+stylesheet|<script/i.test(joining.html));
+check('loads no script at all', !/<script/i.test(joining.html));
+check('the only external stylesheet is the Google font, which degrades safely',
+  (joining.html.match(/<link[^>]*stylesheet[^>]*>/gi) || [])
+    .every(l => l.includes('fonts.googleapis.com')));
+check('the serif and sans fallbacks stand alone if the font is stripped',
+  /Georgia/.test(joining.html) && /Helvetica/.test(joining.html));
 check('uses no flexbox or grid, which Outlook cannot render',
   !/display\s*:\s*(flex|grid)/i.test(joining.html));
 check('shows the countdown', joining.html.includes('>31<')
@@ -283,6 +288,50 @@ check('plus-one state reads the sheet\'s vocabulary',
   && plusOneState({ plus_one_requested: true, plus_one_status: null }) === 'pending'
   && plusOneState({ plus_one_requested: false, plus_one_status: null }) === 'none');
 
+// ── Email-client compatibility ──────────────────────────────────────────────
+// The Banani export used flex, inline SVG, absolute positioning and a CSS
+// transform. Each is silently broken or removed by a major client, so each is
+// asserted absent rather than trusted to have been caught by eye.
+section('EMAIL-CLIENT COMPATIBILITY');
+
+const allPacks = [joining, reception, afterParty, p1yes, p1no];
+
+check('no flexbox or grid — Outlook renders through Word',
+  allPacks.every(p => !/display\s*:\s*(flex|inline-flex|grid)/i.test(p.html)));
+check('no inline SVG — Gmail strips it entirely',
+  allPacks.every(p => !/<svg/i.test(p.html)));
+check('no absolute positioning — unsupported in Outlook',
+  allPacks.every(p => !/position\s*:\s*absolute/i.test(p.html)));
+check('no CSS transforms — they do not exist in email (text-transform is fine)',
+  allPacks.every(p => !/(?<!text-)transform\s*:/i.test(p.html)));
+check('no data: image URIs — Gmail refuses to render them',
+  allPacks.every(p => !/src\s*=\s*["']data:/i.test(p.html)));
+check('every layout block is a table',
+  joining.html.includes('role="presentation"'));
+
+// The calendar strip is derived, not typed, so it cannot drift out of step
+// with the real September 2026.
+check('the calendar marks the 26th',
+  /background:#2d5016;border-radius:18px;[^"]*">26</.test(joining.html.replace(/\s+/g, ' ')));
+check('the calendar week runs Mon 21 to Sun 27',
+  ['21', '22', '23', '24', '25', '26', '27'].every(d => joining.html.includes(`>${d}<`)));
+check('the weekday initials start on Monday',
+  joining.html.indexOf('>MON<') < joining.html.indexOf('>SUN<'));
+
+// The timeline is built from the guest's events, like everything else.
+check('the timeline shows one stop per invited event',
+  (reception.html.match(/italic 400 22px/g) || []).length === 1
+  && (joining.html.match(/italic 400 22px/g) || []).length === 3);
+
+check('the design palette is applied, not the old one',
+  joining.html.includes('#1a3410') && joining.html.includes('#b8860b')
+  && joining.html.includes('#e8e0d0') && !joining.html.includes('#1b3b2a'));
+check('the footer band is dark green',
+  /background:#1a3410/.test(joining.html));
+check('the masthead carries the new headline',
+  /So Excited to Celebrate With You/.test(joining.html));
+
+section('TEMPLATE — ESCAPING');
 const nasty = render(guest({ full_name: '<script>alert(1)</script> Obi' }));
 check('escapes a name containing HTML',
   !nasty.html.includes('<script>alert(1)</script>') && nasty.html.includes('&lt;script&gt;'));

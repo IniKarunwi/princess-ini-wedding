@@ -51,6 +51,7 @@ const assets = usePlaceholders ? {
   reception:      placeholder('Reception artwork',        1.4),
   'after-party':  placeholder('After Party artwork',      1.4),
   'dress-guide':  placeholder('Dress Guide artwork',      1.45),
+  venue:          placeholder('Venue illustration',       0.62),
 } : real;
 
 const base = {

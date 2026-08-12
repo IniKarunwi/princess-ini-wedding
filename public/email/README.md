@@ -9,7 +9,12 @@ the same domain as the RSVP link.
 | `joining.png` | Hero for guests invited to the Joining Ceremony |
 | `reception.png` | Hero for Reception guests |
 | `after-party.png` | Hero for After Party guests |
+| `venue.png` | Watercolour of Signature by Wells Carlton, above the map button |
 | `dress-guide.png` | Full-width, in every pack |
+
+The venue illustration is the one the Banani design introduced. If it is
+absent the venue card still renders — heading, address and Open Map button —
+just without the picture.
 
 ## Why they live here and not in the email
 
@@ -40,14 +45,15 @@ npm run email:preview      # writes previews to scratch/, opens nothing
 npm run email:pack         # dry run against the real guest list
 ```
 
-If a hero is missing the pack still renders — the section is simply absent
+If an image is missing the pack still renders — the section is simply absent
 rather than showing a broken image. That is deliberate, but it means a missing
-file is silent, so confirm all four load in a browser before the first send:
+file is silent, so confirm all five load in a browser before the first send:
 
 ```
 https://<your-site>/email/joining.png
 https://<your-site>/email/reception.png
 https://<your-site>/email/after-party.png
+https://<your-site>/email/venue.png
 https://<your-site>/email/dress-guide.png
 ```
 
