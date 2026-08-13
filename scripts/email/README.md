@@ -208,6 +208,19 @@ read from one list. There is no second source anywhere, which is what makes
 rather than something to remember. A Reception-only guest gets one timeline
 stop; Reception + After Party gets two; the whole day gets three.
 
+## What the email says, and why
+
+| Section | Intent |
+|---|---|
+| Masthead | Why this email exists, before anything else. The confirmation carries it; the countdown is set smaller and quieter so the eye lands on *Your Invitation Has Been Confirmed* rather than on a number |
+| Introduction | Thanks them, then says plainly that their RSVP has been reviewed and what follows |
+| Confirmed For | The strongest part. Untouched |
+| Your Wedding Day Timeline | Their own events, in running order |
+| Venue | Artwork, address, and 📍 Open in Google Maps — many guests open this while travelling |
+| Your Guest | Written to be read by a person. The declined wording says what happened, why, thanks them, and stops |
+| Registry | Presence first, gifts second. An invitation, not a request |
+| Closing | One line about Abuja before the names |
+
 ## The update series
 
 Every email is numbered. The masthead reads:
@@ -337,7 +350,7 @@ time-critical, and it makes every failure exactly attributable.
 npm run test:email
 ```
 
-156 checks, no network and no API key — a fake Resend that can be told to fail
+165 checks, no network and no API key — a fake Resend that can be told to fail
 on demand. It covers the **send guards** (that `--send` alone is refused, that
 two scopes are refused, that `y` confirms nothing, that a batch phrase cannot
 approve a full send), selection (which is what emails the wrong people if it is

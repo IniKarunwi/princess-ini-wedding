@@ -28,6 +28,9 @@ export const WEDDING = {
   bride:      'Princess',
   groom:      'IniOluwa',
   dateLong:   'Saturday, 26th September 2026',
+  // The masthead form. Spelled out in full there because it is the one place
+  // a guest reads the date before anything else.
+  dateHeadline: 'Saturday, September 26, 2026',
   dateShort:  '26.09.2026',
   venueName:  'Signature by Wells Carlton',
   venueArea:  'Asokoro, Abuja',

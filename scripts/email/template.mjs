@@ -214,14 +214,15 @@ function plusOneSection(state, plusOneName) {
            style="background:${P.plusBg};border:1px solid ${P.plusRule};border-radius:12px;">
       <tr><td style="padding:28px 32px;text-align:center;">
         <div style="font-size:32px;line-height:1;margin-bottom:12px;">&#127881;</div>
-        <div style="font:700 19px/1.4 ${SERIF};color:${P.green};margin-bottom:8px;">
-          Your Plus One has been confirmed.
+        <div style="font:700 19px/1.4 ${SERIF};color:${P.green};margin-bottom:10px;">
+          Great news!
         </div>
-        <div style="font:400 15px/1.6 ${SANS};color:${P.plusInk};margin-bottom:8px;">
-          We&rsquo;re delighted to welcome ${plusOneName ? `<strong>${esc(plusOneName)}</strong> ` : ''}alongside you.
+        <div style="font:400 15px/1.7 ${SANS};color:${P.plusInk};">
+          We&rsquo;ve reserved a seat for ${plusOneName ? `<strong>${esc(plusOneName)}</strong>` : 'your guest'}
+          and look forward to welcoming both of you as we celebrate together.
         </div>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid ${P.plusRule};font:400 13px/1.6 ${SANS};color:${P.muted};">
-          Please ensure they are aware of the schedule and dress guide below.
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid ${P.plusRule};font:400 13px/1.6 ${SANS};color:${P.muted};">
+          Do share the timeline and dress guide below with them.
         </div>
       </td></tr>
     </table>` : `
@@ -229,10 +230,13 @@ function plusOneSection(state, plusOneName) {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
            style="background:${P.card};border:1px solid ${P.rule};border-radius:12px;">
       <tr><td style="padding:28px 32px;text-align:center;">
+        <!-- Read by someone who asked for a guest and is being told no. It
+             says what happened and why, thanks them, and stops — there is no
+             version of this that is improved by more words. -->
         <div style="font:400 15px/1.8 ${SANS};color:${P.ink};">
-          Because seating is extremely limited, we&rsquo;re unfortunately unable to
-          accommodate a Plus One for your invitation. We truly appreciate your
-          understanding and can&rsquo;t wait to celebrate with you.
+          Due to venue capacity, we were only able to reserve a seat for you.
+          We truly wish we could accommodate everyone, and we&rsquo;re grateful for
+          your understanding.
         </div>
       </td></tr>
     </table>`;
@@ -253,15 +257,19 @@ function plainText({ name, events, days, state, plusOneName }) {
     UPDATE.label().toUpperCase(),
     days > 1 ? `${days} DAYS TO GO` : days === 1 ? 'ONE DAY TO GO' : "TODAY'S THE DAY",
     UPDATE.title,
-    `Princess & IniOluwa  ·  ${WEDDING.dateLong}`,
+    `Princess & IniOluwa  ·  ${WEDDING.dateHeadline}`,
     '',
     `Dear ${name},`,
     '',
     'Thank you for taking the time to RSVP to our wedding. We\'re truly grateful',
-    'for your love, prayers and support. We\'re so excited to celebrate this',
-    'special day with you.',
+    'for your love, prayers and support.',
     '',
-    'We can\'t wait to say "I do" with you there.',
+    'We\'re so excited to celebrate this special day with you.',
+    '',
+    'Your RSVP has now been reviewed, and below you\'ll find everything you need',
+    'to know about your invitation, the parts of the celebration you\'ve been',
+    'invited to, the venue, dress guide and a few final details before the big',
+    'day.',
     '',
     'CONFIRMED FOR',
     ...events.map(e => `  ${e.time.padEnd(9)} ${e.name}`),
@@ -278,13 +286,14 @@ function plainText({ name, events, days, state, plusOneName }) {
 
   if (state === 'approved') {
     lines.push('', 'YOUR GUEST',
-      `  Your Plus One has been confirmed. We're delighted to welcome${plusOneName ? ` ${plusOneName}` : ''} alongside you.`,
-      '  Please ensure they are aware of the schedule and dress guide.');
+      `  Great news! We've reserved a seat for ${plusOneName || 'your guest'} and look`,
+      '  forward to welcoming both of you as we celebrate together.',
+      '  Do share the timeline and dress guide below with them.');
   } else if (state === 'declined') {
     lines.push('', 'YOUR GUEST',
-      '  Because seating is extremely limited, we\'re unfortunately unable to',
-      '  accommodate a Plus One for your invitation. We truly appreciate your',
-      '  understanding and can\'t wait to celebrate with you.');
+      '  Due to venue capacity, we were only able to reserve a seat for you.',
+      '  We truly wish we could accommodate everyone, and we\'re grateful for',
+      '  your understanding.');
   }
 
   lines.push(
@@ -292,12 +301,14 @@ function plainText({ name, events, days, state, plusOneName }) {
     '  Our celebration is inspired by the beauty of a flourishing garden —',
     '  Eden in Full Bloom. The full guide is in the images of this email.',
     '', 'WEDDING REGISTRY',
-    '  Many of you have asked how you\'d like to bless us as we begin this new',
-    '  chapter together. If you\'d like to support us with a gift:',
+    '  Your presence means the world to us, and that is truly the greatest gift',
+    '  we could receive. For those who have asked how they can support us as we',
+    '  begin this new chapter together:',
     `  ${REGISTRY_URL}`,
     '',
-    'We truly can\'t wait to celebrate with you. Thank you for being part of one',
-    'of the most important days of our lives.',
+    'Thank you for being part of one of the most important days of our lives.',
+    '',
+    'We truly can\'t wait to celebrate with you in Abuja.',
     '',
     'With love,',
     WEDDING.couple,
@@ -416,14 +427,18 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
                  style="margin:0 auto 14px;">
             <tr><td height="1" style="height:1px;background:${P.rule};font-size:0;line-height:0;">&nbsp;</td></tr>
           </table>
-          <p style="margin:0 0 10px;font:italic 400 22px/1.3 ${SERIF};color:${P.greenMid};">
+          <!-- The countdown steps back so the confirmation carries the
+               section. It was 22px italic against a 32px title, close enough
+               in weight that the eye landed on the number first — which is
+               not why this email was sent. -->
+          <p style="margin:0 0 12px;font:italic 400 17px/1.3 ${SERIF};color:${P.muted};">
             ${UPDATE.headline(days)}
           </p>
-          <h1 class="h1" style="margin:0 0 12px;font:700 32px/1.3 ${SERIF};color:${P.green};">
+          <h1 class="h1" style="margin:0 0 14px;font:700 34px/1.25 ${SERIF};color:${P.green};">
             ${esc(UPDATE.title)}
           </h1>
-          <p style="margin:0;font:600 12px/1.6 ${SANS};letter-spacing:2px;color:${P.muted};">
-            ${esc(WEDDING.couple)} &bull; September 26, 2026
+          <p style="margin:0;font:600 12px/1.7 ${SANS};letter-spacing:2px;color:${P.muted};">
+            ${esc(WEDDING.couple)} &bull; ${esc(WEDDING.dateHeadline)}
           </p>
         </td></tr>
 
@@ -447,12 +462,13 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
           <p style="margin:0 0 12px;font:400 16px/1.8 ${SANS};color:${P.ink};">
             We&rsquo;re so excited to celebrate this special day with you.
           </p>
-          <!-- The countdown lives in the masthead now. Repeating the same
-               number two screens apart read as a mistake, so this beat keeps
-               the warmth without the digit. -->
-          <p style="margin:20px 0 0;font:italic 400 18px/1.5 ${SERIF};color:${P.greenMid};">
-            We can&rsquo;t wait to say &ldquo;I do&rdquo; with you there.
+          <p style="margin:0 0 12px;font:400 16px/1.8 ${SANS};color:${P.ink};">
+            Your RSVP has now been reviewed, and below you&rsquo;ll find everything you
+            need to know about your invitation, the parts of the celebration
+            you&rsquo;ve been invited to, the venue, dress guide and a few final
+            details before the big day.
           </p>
+
         </td></tr>
 
         ${divider()}
@@ -475,7 +491,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
         <tr><td class="pad-sm" style="padding:48px 40px 56px;background:${P.alt};">
           <div style="text-align:center;">
             ${eyebrow('Saturday, 26 September 2026')}
-            ${heading('Day Schedule', '48px')}
+            ${heading('Your Wedding Day Timeline', '48px')}
           </div>
           ${calendarStrip()}
           <div style="height:48px;font-size:0;line-height:0;">&nbsp;</div>
@@ -500,7 +516,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
                   <a href="${esc(MAP_URL)}"
                      style="display:inline-block;padding:12px 32px;font:700 12px/1 ${SANS};
                             letter-spacing:2.5px;text-transform:uppercase;color:${P.green};text-decoration:none;">
-                    Open Map
+                    &#128205; Open in Google Maps
                   </a>
                 </td></tr>
               </table>
@@ -537,10 +553,13 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
                  style="border:1px solid ${P.rule};border-radius:16px;background:${P.panel};">
             <tr><td class="pad-sm" style="padding:36px 40px;text-align:center;">
-              <p style="margin:0 0 28px;font:italic 400 17px/1.8 ${SERIF};color:${P.ink};">
-                Many of you have asked how you&rsquo;d like to bless us as we begin this
-                new chapter together. If you&rsquo;d like to support us with a gift,
-                we&rsquo;ve prepared our wedding registry below.
+              <p style="margin:0 0 16px;font:italic 400 17px/1.8 ${SERIF};color:${P.ink};">
+                Your presence means the world to us, and that is truly the
+                greatest gift we could receive.
+              </p>
+              <p style="margin:0 0 28px;font:400 15px/1.8 ${SANS};color:${P.muted};">
+                For those who have asked how they can support us as we begin this
+                new chapter together, we&rsquo;ve created a wedding registry below.
               </p>
               <table role="presentation" width="48" cellpadding="0" cellspacing="0" border="0" align="center"
                      style="margin:0 auto 28px;">
@@ -571,8 +590,11 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
           <p style="margin:0 0 12px;font:400 16px/1.8 ${SANS};color:${P.ink};">
             We truly can&rsquo;t wait to celebrate with you.
           </p>
-          <p style="margin:0 0 36px;font:400 16px/1.8 ${SANS};color:${P.ink};">
+          <p style="margin:0 0 26px;font:400 16px/1.8 ${SANS};color:${P.ink};">
             Thank you for being part of one of the most important days of our lives.
+          </p>
+          <p style="margin:0 0 30px;font:italic 400 18px/1.7 ${SERIF};color:${P.greenMid};">
+            We truly can&rsquo;t wait to celebrate with you in Abuja.
           </p>
           <p style="margin:0 0 8px;font:400 14px/1.6 ${SANS};color:${P.muted};letter-spacing:1px;">
             With love,

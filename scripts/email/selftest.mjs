@@ -42,6 +42,7 @@ const guest = (over = {}) => ({
 });
 
 const ASSETS = assetUrls({ siteUrl: 'https://example.com' });
+const MAP_URL_FRAGMENT = 'google.com/maps';
 const render = (row, now = new Date(Date.UTC(2026, 7, 26))) =>
   renderConfirmationPack(row, { assets: ASSETS, rsvpUrl: 'https://example.com', now });
 
@@ -302,20 +303,26 @@ check('a tier never shows another tier\'s artwork',
   && !reception.html.includes(ASSETS['after-party']));
 
 // Plus one
+const flat = (h) => h.replace(/\s+/g, ' ');
 const p1yes = render(guest({ plus_one_requested: true, plus_one_status: 'APPROVED', plus_one_name: 'Chidi' }));
 const p1no  = render(guest({ plus_one_requested: true, plus_one_status: 'REJECTED' }));
 const p1non = render(guest({ plus_one_requested: false }));
 
 check('an approved plus one is celebrated and named',
-  /plus one has been confirmed/i.test(p1yes.html) && p1yes.html.includes('Chidi'));
-const flat = (h) => h.replace(/\s+/g, ' ');
+  /Great news/i.test(flat(p1yes.html))
+  && /reserved a seat for <strong>Chidi<\/strong>/i.test(flat(p1yes.html))
+  && /welcoming both of you/i.test(flat(p1yes.html)));
+check('an approved plus one with no name still reads correctly',
+  /reserved a seat for your guest/i.test(
+    flat(render(guest({ plus_one_requested: true, plus_one_status: 'APPROVED' })).html)));
 check('a declined plus one gets the warm wording',
-  /unable to accommodate a Plus One/i.test(flat(p1no.html))
-  && /appreciate your understanding/i.test(flat(p1no.html)));
+  /Due to venue capacity, we were only able to reserve a seat for you/i.test(flat(p1no.html))
+  && /grateful for your understanding/i.test(flat(p1no.html)));
 // The masthead title contains "Has Been Confirmed" for every guest, so this
-// has to name the plus one specifically or it can never fail.
-check('a declined plus one is never told their PLUS ONE was confirmed',
-  !/Plus One has been confirmed/i.test(p1no.html));
+// has to name something only the approved card says, or it can never fail.
+check('a declined plus one never gets the approved wording',
+  !/Great news/i.test(p1no.html) && !/both of you/i.test(p1no.html)
+  && !/reserved a seat for/i.test(p1no.html.replace(/only able to reserve a seat for you/i, '')));
 check('a guest who never asked sees NOTHING about plus ones',
   !/plus one/i.test(p1non.html) && !/plus one/i.test(p1non.text));
 
@@ -368,6 +375,25 @@ check('the design palette is applied, not the old one',
   && joining.html.includes('#e8e0d0') && !joining.html.includes('#1b3b2a'));
 check('the footer band is dark green',
   /background:#1a3410/.test(joining.html));
+// The hierarchy: the confirmation is the point, the countdown supports it.
+check('the title outweighs the countdown in the masthead',
+  Number(joining.html.match(/font:700 (\d+)px[^"]*">\s*Your Invitation Has Been Confirmed/)[1])
+    > Number(joining.html.match(/font:italic 400 (\d+)px[^"]*">\s*31 Days to Go/)[1]));
+check('the masthead spells the date out in full',
+  /Saturday, September 26, 2026/.test(joining.html));
+check('the introduction says why this email exists',
+  /Your RSVP has now been reviewed/.test(flat(joining.html)));
+check('the schedule section is the guest\'s own timeline',
+  /Your Wedding Day Timeline/.test(joining.html) && !/Day Schedule/.test(joining.html));
+check('Confirmed For is untouched',
+  /Confirmed For/.test(joining.html) && /Your Invitation<\/h2>/.test(joining.html));
+check('the map button names its destination',
+  /Open in Google Maps/.test(joining.html) && joining.html.includes(MAP_URL_FRAGMENT));
+check('the registry leads with presence, not gifts',
+  /greatest gift we could receive/.test(flat(joining.html)));
+check('the footer closes on Abuja, before the names',
+  joining.html.indexOf('celebrate with you in Abuja')
+    < joining.html.lastIndexOf('Princess &amp; IniOluwa'));
 check('the masthead carries the update label and title',
   /WEDDING UPDATE #1/i.test(joining.html)
   && /Your Invitation Has Been Confirmed/.test(joining.html));
