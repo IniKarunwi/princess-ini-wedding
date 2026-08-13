@@ -16,6 +16,7 @@
     "email:preview": "node scripts/email/preview.mjs",
     "email:backdrop": "node scripts/email/generate-backdrop.mjs",
     "email:assets": "node scripts/email/check-assets.mjs",
+    "email:optimize": "node scripts/email/optimize-artwork.mjs",
     "test:email": "node scripts/email/selftest.mjs"
   },
   "dependencies": {

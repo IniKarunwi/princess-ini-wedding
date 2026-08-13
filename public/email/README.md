@@ -6,11 +6,11 @@ the same domain as the RSVP link.
 
 | File | Used as |
 |---|---|
-| `joining.png` | Hero for guests invited to the Joining Ceremony |
-| `reception.png` | Hero for Reception guests |
-| `after-party.png` | Hero for After Party guests |
-| `venue.png` | Watercolour of Signature by Wells Carlton, above the map button |
-| `dress-guide.png` | Full-width, in every pack |
+| `joining.jpg` | Hero for guests invited to the Wedding Service |
+| `reception.jpg` | Hero for Reception guests |
+| `after-party.jpg` | Hero for After Party guests |
+| `venue.jpg` | Watercolour of Signature by Wells Carlton, above the map button |
+| `dress-guide.jpg` | Full-width, in every pack |
 | `backdrop.png` | **Generated** — the page backdrop. Do not hand-edit. |
 
 The venue illustration is the one the Banani design introduced. If it is
@@ -53,6 +53,26 @@ so artwork has to be fetched from a public https URL. Serving it from the
 site's own domain means no separate hosting, and the images keep working for
 as long as the site does.
 
+## Optimising after a re-export
+
+```bash
+npm run email:optimize            # report only
+npm run email:optimize -- --write # convert, replacing the source files
+```
+
+Export at whatever quality you like, then run this. It resizes to 1200px and
+re-encodes as JPEG — **not** PNG. These are watercolours: continuous tone, no
+flat regions, no transparency, so PNG stores every brush-texture pixel
+losslessly and comes out *larger* than the source. Re-saving them as PNG made
+them bigger, up to 3.5 MB each.
+
+The first export totalled 8.8 MB and went to 1.6 MB with no visible loss at
+the size they are displayed. The dress guide is encoded a step higher than the
+rest because it is the only one carrying text, and JPEG artefacts show first
+on hard edges.
+
+WebP would be smaller again, but Outlook does not support it.
+
 ## Before exporting
 
 - **Width 1200px**, which renders at 600 CSS px on a normal screen and stays
@@ -81,11 +101,11 @@ rather than showing a broken image. That is deliberate, but it means a missing
 file is silent, so confirm all five load in a browser before the first send:
 
 ```
-https://<your-site>/email/joining.png
-https://<your-site>/email/reception.png
-https://<your-site>/email/after-party.png
-https://<your-site>/email/venue.png
-https://<your-site>/email/dress-guide.png
+https://<your-site>/email/joining.jpg
+https://<your-site>/email/reception.jpg
+https://<your-site>/email/after-party.jpg
+https://<your-site>/email/venue.jpg
+https://<your-site>/email/dress-guide.jpg
 https://<your-site>/email/backdrop.png
 ```
 

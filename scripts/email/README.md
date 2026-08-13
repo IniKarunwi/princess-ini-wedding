@@ -22,9 +22,9 @@ other two events.
 
 ## Before the first run
 
-1. **Upload the five artwork files** to `public/email/` — `joining.png`,
-   `reception.png`, `after-party.png`, `venue.png`, `dress-guide.png`.
-   (`backdrop.png` is generated and already committed.) See
+1. **Upload the five artwork files** to `public/email/`, then run
+   `npm run email:optimize -- --write`. (`backdrop.png` is generated and
+   already committed.) See
    `public/email/README.md` for sizes. Email clients cannot render embedded
    images, so these must be reachable at a public URL; serving them from the
    site's own domain is the least moving parts.
@@ -48,7 +48,7 @@ other two events.
 4. **Check them** with `npm run email:assets` — it flags a missing file, a
    wrong name, an oversized export or one too small to stay sharp on a phone.
    Then **confirm all five load** in a browser at
-   `https://<your-site>/email/joining.png` and so on. A missing hero renders as
+   `https://<your-site>/email/joining.jpg` and so on. A missing hero renders as
    nothing at all rather than a broken box — deliberate, but it means a typo is
    silent.
 
@@ -172,9 +172,9 @@ there:
 
 | `approved_for` | Sees | Hero artwork |
 |---|---|---|
-| `JOINING` | Wedding Service 12:00, Wedding Reception 14:00, After Party 18:00 | `joining.png` |
-| `RECEPTION` | Wedding Reception 14:00 | `reception.png` |
-| `AFTERPARTY` | After Party 18:00 | `after-party.png` |
+| `JOINING` | Wedding Service 12:00, Wedding Reception 14:00, After Party 18:00 | `joining.jpg` |
+| `RECEPTION` | Wedding Reception 14:00 | `reception.jpg` |
+| `AFTERPARTY` | After Party 18:00 | `after-party.jpg` |
 
 The tiers are **nested downward, never upward**: `JOINING` is the whole day,
 and each narrower tier must never learn what it is missing. That asymmetry is
@@ -337,7 +337,7 @@ time-critical, and it makes every failure exactly attributable.
 npm run test:email
 ```
 
-155 checks, no network and no API key — a fake Resend that can be told to fail
+156 checks, no network and no API key — a fake Resend that can be told to fail
 on demand. It covers the **send guards** (that `--send` alone is refused, that
 two scopes are refused, that `y` confirms nothing, that a batch phrase cannot
 approve a full send), selection (which is what emails the wrong people if it is
@@ -373,6 +373,16 @@ image renders identically everywhere and degrades cleanly.
 
 Dials are at the top of `scripts/email/generate-backdrop.mjs`. Re-running is
 deterministic.
+
+## Artwork weight
+
+A guest downloads **under 1 MB**, all in: hero, venue, dress guide and the
+backdrop. It was 5.4 MB before optimisation, which matters — most guests are
+on Nigerian mobile data, and several clients refuse to fetch images that
+large. `npm run email:optimize` is how that is maintained.
+
+The HTML itself is ~30 KB, comfortably under the 102 KB at which Gmail clips a
+message and hides the end behind a "View entire message" link.
 
 ## Artwork sizing
 

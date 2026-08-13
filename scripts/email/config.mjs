@@ -48,18 +48,26 @@ export const MAP_URL =
  * Artwork.
  *
  * Email clients do not render `data:` image URIs — Gmail strips them outright —
- * so every image must be a public https URL. The four files live in the site's
- * own `public/email/` folder and ship with the next deploy, which keeps the
+ * so every image must be a public https URL. The files live in the site's own
+ * `public/email/` folder and ship with the next deploy, which keeps the
  * artwork on the same domain as the RSVP link and needs no separate hosting.
  *
  * See public/email/README.md for the exact filenames.
+ *
+ * JPEG, not PNG. These are watercolours — continuous tone, no flat regions,
+ * no transparency — so PNG encodes every brush-texture pixel losslessly and
+ * comes out LARGER than the source. The five together went from 8.8 MB to
+ * 1.6 MB as JPEG with no visible loss at the size they are displayed. See
+ * scripts/email/optimize-artwork.mjs.
+ *
+ * backdrop.png stays a PNG: flat colour, 14 KB, and JPEG would band it.
  */
 export const ASSET_FILES = {
-  joining:      'joining.png',
-  reception:    'reception.png',
-  'after-party':'after-party.png',
-  'dress-guide':'dress-guide.png',
-  venue:        'venue.png',      // watercolour of Signature by Wells Carlton
+  joining:      'joining.jpg',
+  reception:    'reception.jpg',
+  'after-party':'after-party.jpg',
+  'dress-guide':'dress-guide.jpg',
+  venue:        'venue.jpg',      // watercolour of Signature by Wells Carlton
   backdrop:     'backdrop.png',   // generated — npm run email:backdrop
 };
 

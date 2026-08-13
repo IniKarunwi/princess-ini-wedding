@@ -431,6 +431,12 @@ section('ARTWORK');
 
 check('every image resolves from /email/ on the site',
   Object.values(ASSETS).every(u => /^https:\/\/[^/]+\/email\/[a-z-]+\.(png|jpe?g|webp)$/.test(u)));
+// Photographic artwork must not be PNG: these are watercolours, so PNG encodes
+// every brush-texture pixel and comes out larger than the JPEG source.
+check('the watercolours ship as JPEG, the flat backdrop as PNG',
+  ['joining', 'reception', 'after-party', 'dress-guide', 'venue']
+    .every(k => ASSETS[k].endsWith('.jpg'))
+  && ASSETS.backdrop.endsWith('.png'));
 check('no stand-in artwork ever reaches the email',
   !/PLACEHOLDER|UPLOAD THE ARTWORK|stroke-dasharray/i.test(joining.html));
 check('every image carries alt text, for blocked-image and screen readers',
@@ -442,12 +448,16 @@ check('every image carries a width attribute, which Outlook needs',
 
 // The artwork is the strongest part of the design, so it runs edge to edge
 // rather than sitting inside a margin.
+const imgWidth = (html, key) => {
+  const m = html.match(new RegExp(`<img[^>]+${key}\\.[a-z]+"[^>]*width="(\\d+)"`));
+  return m ? Number(m[1]) : null;
+};
 check('the hero is full bleed at the card width',
-  /<img[^>]+joining\.png"[^>]*width="600"/.test(joining.html));
+  imgWidth(joining.html, 'joining') === 600);
 check('the dress guide is full bleed',
-  /<img[^>]+dress-guide\.png"[^>]*width="600"/.test(joining.html));
+  imgWidth(joining.html, 'dress-guide') === 600);
 check('the venue illustration fills its card',
-  /<img[^>]+venue\.png"[^>]*width="542"/.test(joining.html));
+  imgWidth(joining.html, 'venue') === 542);
 check('images scale down on a phone rather than overflowing',
   (joining.html.match(/<img /g) || []).length
     === (joining.html.match(/<img [^>]*style="[^"]*width:100%/g) || []).length);
