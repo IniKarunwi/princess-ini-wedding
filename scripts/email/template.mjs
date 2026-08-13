@@ -28,7 +28,7 @@
  */
 
 import { WEDDING, REGISTRY_URL, MAP_URL, PALETTE as P, TYPE, UPDATE, BACKDROP } from './config.mjs';
-import { eventsForGuest, heroFor, daysUntil, plusOneState } from './events.mjs';
+import { eventsForGuest, eventsForPlusOne, heroFor, daysUntil, plusOneState } from './events.mjs';
 import { firstName } from './recipients.mjs';
 
 /** Escapes text interpolated into HTML. Names come from a spreadsheet. */
@@ -205,8 +205,52 @@ function timeline(events) {
  * a plus one should not be told anything about plus ones at all, and that
  * includes the section heading above it.
  */
-function plusOneSection(state, plusOneName) {
+/**
+ * A compact line per event, for the plus one's own invitation.
+ *
+ * Deliberately lighter than the main guest's badge — this is their guest's
+ * invitation shown inside theirs, so it should read as a nested detail rather
+ * than compete with "Your Invitation" above it.
+ */
+const plusOneEventRow = (event, isLast) => `
+  <tr>
+    <td width="22" valign="top" style="padding:7px 0;">
+      <span style="font:400 13px/1.4 ${SANS};color:${P.greenMid};">&#10003;</span>
+    </td>
+    <td valign="top" style="padding:7px 0;border-bottom:${isLast ? '0' : `1px solid ${P.plusRule}`};">
+      <span style="font:700 14px/1.4 ${SERIF};color:${P.green};">${esc(event.name)}</span>
+    </td>
+    <td valign="top" align="right" style="padding:7px 0;border-bottom:${isLast ? '0' : `1px solid ${P.plusRule}`};white-space:nowrap;">
+      <span style="font:600 12px/1.5 ${SANS};color:${P.gold};letter-spacing:1px;">${esc(event.time)}</span>
+    </td>
+  </tr>`;
+
+/**
+ * The plus-one card.
+ *
+ * Returns '' when the guest never asked for one — a guest who did not request
+ * a plus one should not be told anything about plus ones at all, including
+ * the heading above the card.
+ *
+ * When approved, the events listed are the PLUS ONE's own, from
+ * plus_one_approved_for. They are not derived from the main guest's
+ * invitation and do not fall back to it: a couple may seat someone's guest at
+ * the reception without a place at the service, and the email has to be able
+ * to say exactly that.
+ */
+function plusOneSection(state, plusOneName, plusOneEvents = []) {
   if (state === 'none' || state === 'pending') return '';
+
+  const guestName = plusOneName ? esc(plusOneName) : 'your guest';
+
+  const eventList = plusOneEvents.length ? `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="margin:16px 0 0;border-top:1px solid ${P.plusRule};">
+          <tr><td colspan="3" style="padding:14px 0 6px;font:600 10px/1.6 ${SANS};letter-spacing:2.5px;text-transform:uppercase;color:${P.gold};text-align:left;">
+            ${plusOneName ? `${guestName} is invited to` : 'Your guest is invited to'}
+          </td></tr>
+          ${plusOneEvents.map((e, i) => plusOneEventRow(e, i === plusOneEvents.length - 1)).join('')}
+        </table>` : '';
 
   const body = state === 'approved' ? `
     <!-- Plus one: confirmed -->
@@ -218,9 +262,10 @@ function plusOneSection(state, plusOneName) {
           Great news!
         </div>
         <div style="font:400 15px/1.7 ${SANS};color:${P.plusInk};">
-          We&rsquo;ve reserved a seat for ${plusOneName ? `<strong>${esc(plusOneName)}</strong>` : 'your guest'}
+          We&rsquo;ve reserved a seat for ${plusOneName ? `<strong>${guestName}</strong>` : 'your guest'}
           and look forward to welcoming both of you as we celebrate together.
         </div>
+        ${eventList}
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid ${P.plusRule};font:400 13px/1.6 ${SANS};color:${P.muted};">
           Do share the timeline and dress guide below with them.
         </div>
@@ -252,7 +297,7 @@ function plusOneSection(state, plusOneName) {
 }
 
 /** The plain-text alternative. Every client shows this if HTML is blocked. */
-function plainText({ name, events, days, state, plusOneName }) {
+function plainText({ name, events, days, state, plusOneName, plusOneEvents = [] }) {
   const lines = [
     UPDATE.label().toUpperCase(),
     days > 1 ? `${days} DAYS TO GO` : days === 1 ? 'ONE DAY TO GO' : "TODAY'S THE DAY",
@@ -287,8 +332,12 @@ function plainText({ name, events, days, state, plusOneName }) {
   if (state === 'approved') {
     lines.push('', 'YOUR GUEST',
       `  Great news! We've reserved a seat for ${plusOneName || 'your guest'} and look`,
-      '  forward to welcoming both of you as we celebrate together.',
-      '  Do share the timeline and dress guide below with them.');
+      '  forward to welcoming both of you as we celebrate together.');
+    if (plusOneEvents.length) {
+      lines.push('', `  ${plusOneName || 'Your guest'} is invited to:`,
+        ...plusOneEvents.map(e => `    ${e.time.padEnd(9)} ${e.name}`));
+    }
+    lines.push('  Do share the timeline and dress guide below with them.');
   } else if (state === 'declined') {
     lines.push('', 'YOUR GUEST',
       '  Due to venue capacity, we were only able to reserve a seat for you.',
@@ -336,6 +385,8 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
   const hero   = heroFor(events);
   const heroSrc = hero ? assets[hero] : null;
   const backdrop = assets.backdrop ?? null;
+  // The plus one's own invitation, independent of the main guest's.
+  const plusOneEvents = state === 'approved' ? eventsForPlusOne(row) : [];
 
   // Named from the event itself, so the alt text cannot drift from the label.
   const heroAlt = events.length
@@ -526,7 +577,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
 
         ${state === 'approved' || state === 'declined' ? divider() : ''}
 
-        ${plusOneSection(state, row.plus_one_name)}
+        ${plusOneSection(state, row.plus_one_name, plusOneEvents)}
 
         <!-- ── DRESS GUIDE ───────────────────────────────────────────────── -->
         <!-- The artwork already carries the palette and both attire guides.
@@ -634,10 +685,11 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
 
   return {
     html,
-    text: plainText({ name, events, days, state, plusOneName: row.plus_one_name }),
+    text: plainText({ name, events, days, state, plusOneName: row.plus_one_name, plusOneEvents }),
     events,
     days,
     plusOne: state,
+    plusOneEvents,
     hero,
   };
 }

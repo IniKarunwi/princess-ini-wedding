@@ -184,6 +184,29 @@ this module exists to prevent.
 The key stays `JOINING` because that is what the planning sheet writes; only
 the guest-facing name is *Wedding Service*. Existing rows keep working.
 
+### The plus one is invited separately
+
+A plus one is not always welcome at the same parts of the day. Their
+invitation comes from **`plus_one_approved_for`** — a different column, parsed
+the same way, and **never derived from the main guest's**:
+
+| `approved_for` | `plus_one_approved_for` | Guest sees | Their guest sees |
+|---|---|---|---|
+| `JOINING` | `JOINING` | all three | all three |
+| `JOINING` | `RECEPTION` | all three | Reception only |
+| `RECEPTION` | `RECEPTION` | Reception | Reception |
+
+There is deliberately **no fallback**. An approved plus one with no tier set
+is a half-made decision: the pack would confirm a seat without saying which
+parts of the day it covers, and the guest would have to ask — the one thing
+this email exists to prevent. Those guests are **held** and listed under
+*Waiting on you* with the column named, so it is a quick fix in the sheet.
+
+If the plus one is invited to something the main guest is not, the pack
+renders it faithfully but the sender warns first. It is almost certainly a
+slip, and it has a second effect: the main guest learns an event they are
+excluded from exists.
+
 ### Combinations
 
 A guest is not always one tier. One cell can name several, and the events are
@@ -217,7 +240,7 @@ stop; Reception + After Party gets two; the whole day gets three.
 | Confirmed For | The strongest part. Untouched |
 | Your Wedding Day Timeline | Their own events, in running order |
 | Venue | Artwork, address, and 📍 Open in Google Maps — many guests open this while travelling |
-| Your Guest | Written to be read by a person. The declined wording says what happened, why, thanks them, and stops |
+| Your Guest | Rendered only when a plus one was requested. When approved, lists **their** events from `plus_one_approved_for`, independent of the main invitation. The declined wording says what happened, why, thanks them, and stops |
 | Registry | Presence first, gifts second. An invitation, not a request |
 | Closing | One line about Abuja before the names |
 
@@ -350,7 +373,7 @@ time-critical, and it makes every failure exactly attributable.
 npm run test:email
 ```
 
-165 checks, no network and no API key — a fake Resend that can be told to fail
+182 checks, no network and no API key — a fake Resend that can be told to fail
 on demand. It covers the **send guards** (that `--send` alone is refused, that
 two scopes are refused, that `y` confirms nothing, that a batch phrase cannot
 approve a full send), selection (which is what emails the wrong people if it is

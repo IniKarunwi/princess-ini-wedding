@@ -14,7 +14,7 @@
  */
 
 import { STATUS, APPROVED } from './config.mjs';
-import { eventsForGuest, plusOneState } from './events.mjs';
+import { eventsForGuest, eventsForPlusOne, plusOneState, plusOneBeyondMain } from './events.mjs';
 
 /** Trimmed string, or null for blank/absent. */
 function text(v) {
@@ -100,8 +100,21 @@ export function classify(row) {
 
   // Telling someone their plus one is not accommodated when the couple has
   // not actually decided cannot be walked back. Hold them instead.
-  if (plusOneState(row) === 'pending') {
+  const plusOne = plusOneState(row);
+  if (plusOne === 'pending') {
     return { send: false, reason: 'plus one requested but not yet decided' };
+  }
+
+  // An approved plus one with no tier recorded is a half-made decision. The
+  // pack would confirm a seat without saying which parts of the day it is
+  // for, and the guest would have to ask — which is the one thing this email
+  // exists to prevent. The main guest's tier is deliberately NOT used as a
+  // fallback; that is exactly the coupling this separation removes.
+  if (plusOne === 'approved' && eventsForPlusOne(row).length === 0) {
+    return {
+      send: false,
+      reason: 'plus one approved but plus_one_approved_for is not set',
+    };
   }
 
   if (isAlreadySent(row)) {
@@ -158,8 +171,23 @@ export function unreachable(skipped) {
 export function awaitingDecision(skipped) {
   return skipped.filter(s =>
     s.reason.startsWith('plus one requested')
+    || s.reason.startsWith('plus one approved but')
     || s.reason.startsWith('approved but no tier')
     || s.reason.startsWith('unrecognised tier'));
+}
+
+/**
+ * Guests whose plus one is invited to something they are not.
+ *
+ * Not a reason to hold — the data is internally consistent and the pack
+ * renders it faithfully — but it is almost certainly a slip, and it means the
+ * main guest learns an event they are excluded from exists. Worth a look
+ * before a send rather than after.
+ */
+export function plusOneOutranksGuest(rows) {
+  return rows
+    .map(row => ({ row, extra: plusOneBeyondMain(row) }))
+    .filter(x => x.extra.length && plusOneState(x.row) === 'approved');
 }
 
 /** Approved guests who have simply never replied — the chase list. */

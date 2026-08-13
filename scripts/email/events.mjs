@@ -122,6 +122,41 @@ export function eventsForGuest(row) {
 }
 
 /**
+ * The events a guest's PLUS ONE is invited to.
+ *
+ * Read from plus_one_approved_for, never from the main guest's approved_for.
+ * A plus one is not always welcome at the same parts of the day — a couple may
+ * be happy to seat someone at the reception without a place at the service —
+ * so the two are separate columns and separate lists, and nothing here
+ * consults or falls back to the main invitation.
+ *
+ * Empty when no tier is recorded. An approved plus one with no tier is an
+ * incomplete decision rather than a plus one invited to nothing, and is held
+ * back rather than guessed at — see classify() in recipients.mjs.
+ */
+export function eventsForPlusOne(row) {
+  const tiers = parseTiers(row.plus_one_approved_for);
+  if (!tiers.length) return [];
+
+  const keys = new Set(tiers.flatMap(t => TIER_EVENTS[t] ?? []));
+  return EVENT_ORDER.filter(k => keys.has(k)).map(k => EVENTS[k]);
+}
+
+/**
+ * Events the plus one is invited to that the main guest is not.
+ *
+ * Almost certainly a data-entry slip — it is hard to imagine seating someone's
+ * guest at the service while the guest themselves is not — and it has a second
+ * consequence: the main guest would learn that an event they are excluded from
+ * exists. Reported before sending rather than silently rendered or silently
+ * dropped; see the sender's "Waiting on you" list.
+ */
+export function plusOneBeyondMain(row) {
+  const mainKeys = new Set(eventsForGuest(row).map(e => e.key));
+  return eventsForPlusOne(row).filter(e => !mainKeys.has(e.key));
+}
+
+/**
  * Which artwork heads the email.
  *
  * The earliest event the guest is invited to, because that is the one that

@@ -10,9 +10,9 @@
  * likely to be quietly wrong.
  */
 
-import { selectRecipients, classify, isUnsent, isSendableEmail, firstName } from './recipients.mjs';
+import { selectRecipients, classify, isUnsent, isSendableEmail, firstName, plusOneOutranksGuest } from './recipients.mjs';
 import { renderConfirmationPack } from './template.mjs';
-import { eventsForGuest, plusOneState, daysUntil, normaliseTier, parseTiers, TIER_EVENTS } from './events.mjs';
+import { eventsForGuest, eventsForPlusOne, plusOneBeyondMain, plusOneState, daysUntil, normaliseTier, parseTiers, TIER_EVENTS } from './events.mjs';
 import { sendWithRetry, SendError } from './resend.mjs';
 import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
 import { STATUS, SUBJECT, WEDDING, assetUrls, REGISTRY_URL, PALETTE, BACKDROP } from './config.mjs';
@@ -489,6 +489,74 @@ check('images scale down on a phone rather than overflowing',
     === (joining.html.match(/<img [^>]*style="[^"]*width:100%/g) || []).length);
 
 section('TEMPLATE — ESCAPING');
+// ── The plus one's own invitation ───────────────────────────────────────────
+// A plus one is not always welcome at the same parts of the day as the guest
+// who brought them. The two invitations are separate columns and separate
+// lists, and nothing derives one from the other.
+section('PLUS ONE — INDEPENDENT INVITATION');
+
+const p1Names = (row) => eventsForPlusOne(row).map(e => e.name).join('|');
+
+check('the plus one\'s events come from plus_one_approved_for',
+  p1Names({ approved_for: 'JOINING', plus_one_approved_for: 'RECEPTION' }) === 'Wedding Reception');
+check('they are NOT inherited from the main guest',
+  p1Names({ approved_for: 'JOINING', plus_one_approved_for: null }) === '');
+check('a narrower guest can have a WIDER plus one, if that is what the data says',
+  p1Names({ approved_for: 'RECEPTION', plus_one_approved_for: 'JOINING' })
+    === 'Wedding Service|Wedding Reception|After Party');
+check('the plus one can hold a combination too',
+  p1Names({ approved_for: 'JOINING', plus_one_approved_for: 'Reception + After Party' })
+    === 'Wedding Reception|After Party');
+check('changing the main tier does not change the plus one\'s',
+  p1Names({ approved_for: 'JOINING', plus_one_approved_for: 'RECEPTION' })
+    === p1Names({ approved_for: 'AFTERPARTY', plus_one_approved_for: 'RECEPTION' }));
+
+const recOnly = render(guest({
+  approved_for: 'JOINING', plus_one_requested: true, plus_one_status: 'APPROVED',
+  plus_one_name: 'Chidi', plus_one_approved_for: 'RECEPTION',
+}));
+check('the card lists the plus one\'s own events, not the guest\'s',
+  /Chidi is invited to/i.test(flat(recOnly.html))
+  && recOnly.plusOneEvents.map(e => e.name).join('|') === 'Wedding Reception');
+check('the plain text carries them too',
+  /Chidi is invited to:/.test(recOnly.text) && /2:00 PM   Wedding Reception/.test(recOnly.text));
+check('the guest still sees their own full invitation',
+  recOnly.events.map(e => e.name).join('|') === 'Wedding Service|Wedding Reception|After Party');
+check('an unnamed plus one still reads correctly',
+  /Your guest is invited to/i.test(flat(render(guest({
+    plus_one_requested: true, plus_one_status: 'APPROVED', plus_one_approved_for: 'RECEPTION',
+  })).html)));
+check('a declined plus one is never given an event list',
+  !/is invited to/i.test(flat(p1no.html)));
+check('a guest with no plus one is never given one',
+  !/is invited to/i.test(flat(render(guest({ plus_one_requested: false })).html)));
+
+// An approved plus one with no tier is a half-made decision. Falling back to
+// the main guest's tier is exactly the coupling this removes, so it holds.
+check('approved with no tier is HELD, not guessed from the main guest',
+  !classify(guest({ plus_one_requested: true, plus_one_status: 'APPROVED' })).send);
+check('the hold reason names the column to fill in',
+  /plus_one_approved_for/.test(
+    classify(guest({ plus_one_requested: true, plus_one_status: 'APPROVED' })).reason));
+check('with a tier set, the guest sends',
+  classify(guest({ plus_one_requested: true, plus_one_status: 'APPROVED',
+                   plus_one_approved_for: 'RECEPTION' })).send);
+
+// A plus one invited to more than the guest renders faithfully, but is
+// reported — it is almost certainly a slip, and it tells the main guest that
+// an event they are excluded from exists.
+check('a plus one outranking the guest is detected',
+  plusOneBeyondMain({ approved_for: 'RECEPTION', plus_one_approved_for: 'JOINING' })
+    .map(e => e.name).join('|') === 'Wedding Service|After Party');
+check('a plus one within the guest\'s invitation is not flagged',
+  plusOneBeyondMain({ approved_for: 'JOINING', plus_one_approved_for: 'RECEPTION' }).length === 0);
+check('the sender surfaces only genuinely outranking rows',
+  plusOneOutranksGuest([
+    guest({ approved_for: 'RECEPTION', plus_one_requested: true, plus_one_status: 'APPROVED', plus_one_approved_for: 'JOINING' }),
+    guest({ approved_for: 'JOINING',   plus_one_requested: true, plus_one_status: 'APPROVED', plus_one_approved_for: 'RECEPTION' }),
+    guest({ approved_for: 'RECEPTION', plus_one_requested: true, plus_one_status: 'REJECTED', plus_one_approved_for: 'JOINING' }),
+  ]).length === 1);
+
 const nasty = render(guest({ full_name: '<script>alert(1)</script> Obi' }));
 check('escapes a name containing HTML',
   !nasty.html.includes('<script>alert(1)</script>') && nasty.html.includes('&lt;script&gt;'));

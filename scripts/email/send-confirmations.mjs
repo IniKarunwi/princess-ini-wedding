@@ -23,11 +23,11 @@
 import { createInterface } from 'node:readline/promises';
 import { createClient } from '@supabase/supabase-js';
 import { TABLE, STATUS, SUBJECT, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO, assetUrls } from './config.mjs';
-import { selectRecipients, unreachable, awaitingDecision, awaitingRsvp } from './recipients.mjs';
+import { selectRecipients, unreachable, awaitingDecision, awaitingRsvp, plusOneOutranksGuest } from './recipients.mjs';
 import { renderConfirmationPack } from './template.mjs';
 import { sendWithRetry, sleep, SendError } from './resend.mjs';
 import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
-import { eventsForGuest, plusOneState, EVENTS } from './events.mjs';
+import { eventsForGuest, eventsForPlusOne, plusOneState, EVENTS } from './events.mjs';
 
 const c = {
   dim:  s => `\x1b[2m${s}\x1b[0m`,
@@ -154,10 +154,17 @@ function printRecipients(recipients, { from, replyTo, siteUrl }) {
 
   recipients.forEach((r, i) => {
     const events = eventsForGuest(r).map(e => e.name).join(' · ');
-    const plus   = PLUS_ONE_LABEL[plusOneState(r)] ?? '';
+    const state  = plusOneState(r);
+    const plus   = PLUS_ONE_LABEL[state] ?? '';
     console.log(`  ${String(i + 1).padStart(width)}. ` +
                 `${(r.full_name || '(no name)').padEnd(30)} ${c.dim((r.email || '').padEnd(30))}`);
     console.log(`  ${' '.repeat(width)}  ${c.dim('sees:')} ${events}${plus ? `   ${plus}` : ''}`);
+    // The plus one's invitation is its own; show it rather than let anyone
+    // assume it matches the line above.
+    if (state === 'approved') {
+      const theirs = eventsForPlusOne(r).map(e => e.name).join(' · ');
+      console.log(`  ${' '.repeat(width)}  ${c.dim('+1:')}   ${theirs || c.amber('no tier set')}`);
+    }
   });
 
   console.log(c.dim(`\n  From:     ${from}`));
@@ -325,6 +332,18 @@ async function main() {
             'a decision here turns each of these into a recipient');
   listSkips('Unreachable', unreachable(skipped),
             'RSVP\'d, but no usable email. Fix in the sheet, then re-run');
+
+  // Renders faithfully, but almost certainly a slip — and it means the main
+  // guest learns an event they are excluded from exists.
+  const outranked = plusOneOutranksGuest(recipients);
+  if (outranked.length) {
+    console.log(`\n${c.amber('Plus one invited to more than the guest')} — check these before sending:`);
+    for (const o of outranked) {
+      console.log(`  ${(o.row.full_name || '(no name)').padEnd(28)} ` +
+                  c.dim(`guest: ${eventsForGuest(o.row).map(e => e.name).join(', ') || 'none'}`));
+      console.log(`  ${' '.repeat(28)}   ${c.dim(`+1 also: ${o.extra.map(e => e.name).join(', ')}`)}`);
+    }
+  }
 
   const chase = awaitingRsvp(skipped);
   if (chase.length) {

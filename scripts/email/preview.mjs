@@ -114,14 +114,20 @@ const base = {
   id: 'preview', full_name: 'Ada Obi', email: 'ada@example.com',
   main_invite_status: 'APPROVED', attending: true,
   plus_one_requested: false, plus_one_status: null, plus_one_name: null,
+  plus_one_approved_for: null,
 };
 
 const variants = [
-  ['joining-plus-one-approved', { approved_for: 'JOINING',    plus_one_requested: true, plus_one_status: 'APPROVED', plus_one_name: 'Chidi Obi' }],
+  ['joining-plus-one-approved', { approved_for: 'JOINING', plus_one_requested: true,
+    plus_one_status: 'APPROVED', plus_one_name: 'Chidi Obi', plus_one_approved_for: 'JOINING' }],
   ['joining-no-plus-one',       { approved_for: 'JOINING' }],
   ['reception-plus-one-declined', { approved_for: 'RECEPTION', plus_one_requested: true, plus_one_status: 'REJECTED' }],
   ['reception-no-plus-one',     { approved_for: 'RECEPTION' }],
   ['reception-and-after-party', { approved_for: 'RECEPTION, AFTERPARTY' }],
+  // The plus one's invitation is independent of the main guest's: here the
+  // guest has the whole day and their guest only the reception.
+  ['joining-plus-one-reception-only', { approved_for: 'JOINING', plus_one_requested: true,
+    plus_one_status: 'APPROVED', plus_one_name: 'Chidi Obi', plus_one_approved_for: 'RECEPTION' }],
   ['after-party',               { approved_for: 'AFTERPARTY' }],
 ];
 
@@ -130,13 +136,14 @@ mkdirSync(outDir, { recursive: true });
 console.log(`\nPreviews → ${outDir}\n`);
 for (const [name, over] of variants) {
   const row = { ...base, ...over };
-  const { html, text, events, days, plusOne } = renderConfirmationPack(row, { assets, rsvpUrl: siteUrl });
+  const { html, text, events, plusOne, plusOneEvents } =
+    renderConfirmationPack(row, { assets, rsvpUrl: siteUrl });
 
   writeFileSync(join(outDir, `${name}.html`), html);
   writeFileSync(join(outDir, `${name}.txt`), text);
 
-  console.log(`  ${name.padEnd(30)} ${events.map(e => e.name).join(' · ').padEnd(34)} ` +
-              `+1: ${plusOne}`);
+  console.log(`  ${name.padEnd(34)} ${events.map(e => e.name).join(' · ').padEnd(48)} ` +
+              `+1: ${plusOne}${plusOneEvents?.length ? ` (${plusOneEvents.map(e => e.name).join(', ')})` : ''}`);
 }
 
 console.log(`\n  ${WEDDING.dateLong} — ${
