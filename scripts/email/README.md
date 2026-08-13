@@ -120,6 +120,31 @@ that the site responds. It prints no secrets.
 `.env` is gitignored. Never paste the Resend key or the service-role key into
 a chat, an issue or a commit; rotate it if you do.
 
+### 0b. Audit against real data
+
+```bash
+npm run email:audit                    # from the sheet export
+npm run email:audit -- --live          # from Supabase, read-only
+npm run email:audit -- --write-samples # one real guest's pack per scenario
+```
+
+Sends nothing and writes nothing. Renders the pack for **every eligible
+guest** and checks the invariants against the rendered output: every invited
+event present, no uninvited event mentioned anywhere, no exclusion wording,
+the plus-one list matching the **plus one's own** tier, and the registry in
+every pack.
+
+It re-derives what each guest should see from the raw `approved_for` /
+`plus_one_approved_for` text, using a second implementation that does not
+import `events.mjs`. That matters: the first version asked the production
+parser what a guest was invited to and then checked the email against that
+answer, so it agreed with itself and passed a deliberately broken build.
+Three injected faults are now caught — a plus one inheriting the main guest's
+tier, a tier leaking an extra event, and a broken registry link.
+
+It also reports which real guests sit in each scenario, which tier
+combinations actually occur, and the rows waiting on a decision.
+
 ### 1. Preview — who would get one
 
 ```bash
