@@ -6,11 +6,11 @@ the same domain as the RSVP link.
 
 | File | Used as |
 |---|---|
-| `joining.jpg` | Hero for guests invited to the Wedding Service |
-| `reception.jpg` | Hero for Reception guests |
-| `after-party.jpg` | Hero for After Party guests |
-| `venue.jpg` | Watercolour of Signature by Wells Carlton, above the map button |
-| `dress-guide.jpg` | Full-width, in every pack |
+| `joining.png` | Hero for guests invited to the Wedding Service |
+| `reception.png` | Hero for Reception guests |
+| `after-party.png` | Hero for After Party guests |
+| `venue.png` | Watercolour of Signature by Wells Carlton, above the map button |
+| `dress-guide.png` | Full-width, in every pack |
 | `backdrop.png` | **Generated** — the page backdrop. Do not hand-edit. |
 
 The venue illustration is the one the Banani design introduced. If it is
@@ -55,13 +55,18 @@ as long as the site does.
 
 ## Optimising after a re-export
 
+**The filenames here and `ASSET_FILES` in `scripts/email/config.mjs` must
+match exactly.** An email fetches images by URL, so a name the site does not
+serve renders as nothing at all — silently.
+
 ```bash
 npm run email:optimize            # report only
-npm run email:optimize -- --write # convert, replacing the source files
+npm run email:optimize -- --write # convert to .jpg, replacing the sources
 ```
 
-Export at whatever quality you like, then run this. It resizes to 1200px and
-re-encodes as JPEG — **not** PNG. These are watercolours: continuous tone, no
+The five PNGs total **8.8 MB**, and a guest invited to the whole day loads
+about **5.4 MB**. This resizes to 1200px and re-encodes as JPEG — **not**
+PNG. These are watercolours: continuous tone, no
 flat regions, no transparency, so PNG stores every brush-texture pixel
 losslessly and comes out *larger* than the source. Re-saving them as PNG made
 them bigger, up to 3.5 MB each.
@@ -101,11 +106,11 @@ rather than showing a broken image. That is deliberate, but it means a missing
 file is silent, so confirm all five load in a browser before the first send:
 
 ```
-https://<your-site>/email/joining.jpg
-https://<your-site>/email/reception.jpg
-https://<your-site>/email/after-party.jpg
-https://<your-site>/email/venue.jpg
-https://<your-site>/email/dress-guide.jpg
+https://<your-site>/email/joining.png
+https://<your-site>/email/reception.png
+https://<your-site>/email/after-party.png
+https://<your-site>/email/venue.png
+https://<your-site>/email/dress-guide.png
 https://<your-site>/email/backdrop.png
 ```
 

@@ -15,7 +15,7 @@ import { renderConfirmationPack } from './template.mjs';
 import { eventsForGuest, eventsForPlusOne, plusOneBeyondMain, plusOneState, daysUntil, normaliseTier, parseTiers, TIER_EVENTS } from './events.mjs';
 import { sendWithRetry, SendError } from './resend.mjs';
 import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
-import { STATUS, SUBJECT, WEDDING, assetUrls, REGISTRY_URL, PALETTE, BACKDROP } from './config.mjs';
+import { STATUS, SUBJECT, WEDDING, assetUrls, ASSET_FILES, REGISTRY_URL, PALETTE, BACKDROP } from './config.mjs';
 
 let passed = 0;
 const failures = [];
@@ -457,12 +457,13 @@ section('ARTWORK');
 
 check('every image resolves from /email/ on the site',
   Object.values(ASSETS).every(u => /^https:\/\/[^/]+\/email\/[a-z-]+\.(png|jpe?g|webp)$/.test(u)));
-// Photographic artwork must not be PNG: these are watercolours, so PNG encodes
-// every brush-texture pixel and comes out larger than the JPEG source.
-check('the watercolours ship as JPEG, the flat backdrop as PNG',
-  ['joining', 'reception', 'after-party', 'dress-guide', 'venue']
-    .every(k => ASSETS[k].endsWith('.jpg'))
-  && ASSETS.backdrop.endsWith('.png'));
+// The filenames the template emits must match what is deployed. A URL the
+// site does not serve renders as nothing at all — silently — so this is
+// pinned rather than left to be noticed in an inbox.
+check('every asset URL ends in a real image extension',
+  Object.values(ASSETS).every(u => /\.(png|jpe?g|webp)$/.test(u)));
+check('the template references exactly the files in ASSET_FILES',
+  Object.entries(ASSET_FILES).every(([k, f]) => ASSETS[k].endsWith(`/${f}`)));
 check('no stand-in artwork ever reaches the email',
   !/PLACEHOLDER|UPLOAD THE ARTWORK|stroke-dasharray/i.test(joining.html));
 check('every image carries alt text, for blocked-image and screen readers',

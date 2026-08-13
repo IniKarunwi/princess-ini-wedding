@@ -50,10 +50,22 @@ function loadEnvFile() {
 
 const hadEnvFile = loadEnvFile();
 
-console.log(`\n${c.bold('Preflight')}  ${hadEnvFile ? c.dim('.env loaded') : c.dim('no .env — reading the environment')}\n`);
+/**
+ * --site <url> checks the artwork URLs alone, with no .env and no secrets.
+ * Useful straight after a deploy, and safe to run anywhere.
+ */
+const siteArg = process.argv.includes('--site')
+  ? process.argv[process.argv.indexOf('--site') + 1]
+  : null;
+if (siteArg) process.env.INVITE_SITE_URL = siteArg;
+const urlsOnly = Boolean(siteArg) || process.argv.includes('--urls-only');
+
+console.log(`\n${c.bold('Preflight')}  ${
+  urlsOnly ? c.dim('artwork URLs only')
+           : hadEnvFile ? c.dim('.env loaded') : c.dim('no .env — reading the environment')}\n`);
 
 // ── 1. Environment ──────────────────────────────────────────────────────────
-console.log(c.bold('Configuration'));
+if (!urlsOnly) console.log(c.bold('Configuration'));
 
 const env = {
   RESEND_API_KEY:  process.env.RESEND_API_KEY,
@@ -64,7 +76,7 @@ const env = {
 const from    = process.env.INVITE_FROM     || DEFAULT_FROM;
 const replyTo = process.env.INVITE_REPLY_TO || null;
 
-for (const [k, v] of Object.entries(env)) {
+if (!urlsOnly) for (const [k, v] of Object.entries(env)) {
   // Never print a secret. Length alone is enough to tell "set" from "truncated".
   const secret = k.includes('KEY');
   if (!v) {
@@ -76,20 +88,24 @@ for (const [k, v] of Object.entries(env)) {
   }
 }
 
-if (!/^re_/.test(env.RESEND_API_KEY ?? '')) {
-  if (env.RESEND_API_KEY) warn('RESEND_API_KEY does not start with re_', 'is that a Resend key?');
+if (!urlsOnly && env.RESEND_API_KEY && !/^re_/.test(env.RESEND_API_KEY)) {
+  warn('RESEND_API_KEY does not start with re_', 'is that a Resend key?');
 }
 
 const fromAddress = (from.match(/<([^>]+)>/)?.[1] ?? from).trim();
 const fromDomain  = fromAddress.split('@')[1];
-ok('From', from);
-console.log(`  ${c.dim('      Reply-to')} ${c.dim(replyTo ?? '(same as From)')}`);
-console.log(`  ${c.dim('      Subject ')} ${c.dim(SUBJECT)}`);
+if (!urlsOnly) {
+  ok('From', from);
+  console.log(`  ${c.dim('      Reply-to')} ${c.dim(replyTo ?? '(same as From)')}`);
+  console.log(`  ${c.dim('      Subject ')} ${c.dim(SUBJECT)}`);
+}
 
 // ── 2 & 3. Resend ───────────────────────────────────────────────────────────
-console.log(`\n${c.bold('Resend')}`);
+if (!urlsOnly) console.log(`\n${c.bold('Resend')}`);
 
-if (!env.RESEND_API_KEY) {
+if (urlsOnly) {
+  // skipped
+} else if (!env.RESEND_API_KEY) {
   bad('cannot check the account without RESEND_API_KEY');
 } else {
   let res, body;
@@ -194,4 +210,6 @@ if (failed) {
   console.log(c.green('Everything checks out.\n'));
 }
 
-console.log(c.dim('Next:  npm run email:pack -- --to you@example.com --send\n'));
+console.log(c.dim(urlsOnly
+  ? 'Full check:  npm run email:doctor    (needs .env)\n'
+  : 'Next:  npm run email:pack -- --to you@example.com --send\n'));

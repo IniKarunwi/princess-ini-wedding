@@ -22,10 +22,10 @@ other two events.
 
 ## Before the first run
 
-1. **Upload the five artwork files** to `public/email/`, then run
-   `npm run email:optimize -- --write`. (`backdrop.png` is generated and
-   already committed.) See
-   `public/email/README.md` for sizes. Email clients cannot render embedded
+1. **Upload the five artwork files** to `public/email/`. Their names must
+   match `ASSET_FILES` in `scripts/email/config.mjs` exactly — they are
+   currently `.png`. (`backdrop.png` is generated and already committed.) See
+   `public/email/README.md` for sizes and for how to make them lighter. Email clients cannot render embedded
    images, so these must be reachable at a public URL; serving them from the
    site's own domain is the least moving parts.
 
@@ -48,7 +48,7 @@ other two events.
 4. **Check them** with `npm run email:assets` — it flags a missing file, a
    wrong name, an oversized export or one too small to stay sharp on a phone.
    Then **confirm all five load** in a browser at
-   `https://<your-site>/email/joining.jpg` and so on. A missing hero renders as
+   `https://<your-site>/email/joining.png` and so on. A missing hero renders as
    nothing at all rather than a broken box — deliberate, but it means a typo is
    silent.
 
@@ -104,8 +104,12 @@ Each step answers a question the next one depends on. Do not skip ahead.
 
 ```bash
 cp .env.example .env      # then fill in RESEND_API_KEY and INVITE_SITE_URL
-npm run email:doctor
+npm run email:doctor              # everything, needs .env
+npm run email:doctor -- --site https://your-site.com   # artwork URLs only
 ```
+
+The second form needs no `.env` and no secrets — run it straight after a
+deploy to confirm every image is actually being served.
 
 Checks against the live services, not against assumptions: that the Resend key
 is accepted, that the **From domain is verified** (the most common first-send
@@ -190,9 +194,9 @@ there:
 
 | `approved_for` | Sees | Hero artwork |
 |---|---|---|
-| `JOINING` | Wedding Service 12:00, Wedding Reception 14:00, After Party 18:00 | `joining.jpg` |
-| `RECEPTION` | Wedding Reception 14:00 | `reception.jpg` |
-| `AFTERPARTY` | After Party 18:00 | `after-party.jpg` |
+| `JOINING` | Wedding Service 12:00, Wedding Reception 14:00, After Party 18:00 | `joining.png` |
+| `RECEPTION` | Wedding Reception 14:00 | `reception.png` |
+| `AFTERPARTY` | After Party 18:00 | `after-party.png` |
 
 The tiers are **nested downward, never upward**: `JOINING` is the whole day,
 and each narrower tier must never learn what it is missing. That asymmetry is
@@ -430,10 +434,14 @@ deterministic.
 
 ## Artwork weight
 
-A guest downloads **under 1 MB**, all in: hero, venue, dress guide and the
-backdrop. It was 5.4 MB before optimisation, which matters — most guests are
-on Nigerian mobile data, and several clients refuse to fetch images that
-large. `npm run email:optimize` is how that is maintained.
+A guest invited to the whole day downloads about **5.4 MB** — hero, venue,
+dress guide and backdrop — because the artwork ships as PNG, and these are
+watercolours, which PNG stores pixel by pixel.
+
+`npm run email:optimize -- --write` gets the same five to 1.2 MB with no
+visible loss at the size they are displayed. It converts to `.jpg`, so
+`ASSET_FILES` has to change with it — the two must always match, or the email
+requests a URL the site does not serve and shows nothing at all.
 
 The HTML itself is ~30 KB, comfortably under the 102 KB at which Gmail clips a
 message and hides the end behind a "View entire message" link.
