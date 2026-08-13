@@ -100,6 +100,22 @@ it means a cron job or a piped command can never trigger a batch.
 
 Each step answers a question the next one depends on. Do not skip ahead.
 
+### 0. Preflight
+
+```bash
+cp .env.example .env      # then fill in RESEND_API_KEY and INVITE_SITE_URL
+npm run email:doctor
+```
+
+Checks against the live services, not against assumptions: that the Resend key
+is accepted, that the **From domain is verified** (the most common first-send
+failure — Resend rejects unverified senders outright), that every image the
+email references actually loads over https with an image content-type, and
+that the site responds. It prints no secrets.
+
+`.env` is gitignored. Never paste the Resend key or the service-role key into
+a chat, an issue or a commit; rotate it if you do.
+
 ### 1. Preview — who would get one
 
 ```bash
