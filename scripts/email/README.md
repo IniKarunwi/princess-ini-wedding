@@ -118,8 +118,10 @@ npm run email:pack -- --to you@example.com --send
 
 By default that renders the **Joining** pack, the widest one. Add
 `--preview-tier RECEPTION` or `--preview-tier AFTERPARTY` to see the others.
-`--to` takes any address and touches no guest row — nothing is marked Sent, and
-your own address does not need to be in the guest list. Then check, in the
+`--to` takes any address and touches no guest row — nothing is marked Sent,
+your own address does not need to be in the guest list, and it needs **only**
+`RESEND_API_KEY` and `INVITE_SITE_URL`. No database credentials are involved,
+so the service-role key does not have to travel anywhere for this step. Then check, in the
 actual inbox:
 
 - Does it arrive at all, and in the **inbox** rather than spam? If it is in

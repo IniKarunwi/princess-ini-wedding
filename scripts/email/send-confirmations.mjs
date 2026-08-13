@@ -240,9 +240,14 @@ async function main() {
   const from    = process.env.INVITE_FROM     || DEFAULT_FROM;
   const replyTo = process.env.INVITE_REPLY_TO || DEFAULT_REPLY_TO;
 
+  // --to reads no guest and writes no row, so it needs no database. Requiring
+  // the service-role key for a render check would mean moving that key around
+  // for the one step that cannot touch anything.
+  const needsDatabase = args.to === undefined;
+
   const missing = [
-    !url     && 'SUPABASE_URL',
-    !key     && 'SUPABASE_SERVICE_ROLE_KEY',
+    needsDatabase && !url && 'SUPABASE_URL',
+    needsDatabase && !key && 'SUPABASE_SERVICE_ROLE_KEY',
     !apiKey  && 'RESEND_API_KEY',
     !siteUrl && 'INVITE_SITE_URL',
   ].filter(Boolean);
@@ -251,16 +256,21 @@ async function main() {
     console.error(
       `\nMissing configuration: ${missing.join(', ')}\n\n` +
       'Copy .env.example to .env and fill it in, then run:\n' +
-      '  npm run email:pack\n\n' +
-      'The service-role key is required — the anon key cannot update rows under\n' +
-      'RLS. Never commit it; .env is gitignored.\n'
+      '  npm run email:pack\n' +
+      (needsDatabase
+        ? '\nThe service-role key is required to read and update guests — the anon\n' +
+          'key cannot get past RLS. Never commit it; .env is gitignored.\n'
+        : '\n--to needs only RESEND_API_KEY and INVITE_SITE_URL. It reads no guest\n' +
+          'and writes no row, so no database credentials are involved.\n')
     );
     process.exitCode = 1;
     return;
   }
 
   const assets = assetUrls({ siteUrl, baseUrl: process.env.INVITE_ASSET_BASE_URL });
-  const supabase = createClient(url, key, { auth: { persistSession: false } });
+  const supabase = needsDatabase
+    ? createClient(url, key, { auth: { persistSession: false } })
+    : null;
 
   // ── Sample: one email to an arbitrary address, no guest row involved ──────
   if (args.to !== undefined) {
