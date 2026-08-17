@@ -183,10 +183,10 @@ export const LAYOUT = {
  * INVITE_ASSET_BASE_URL overrides, for hosting the images elsewhere (a CDN,
  * or Supabase storage) without touching the template.
  */
-export function assetUrls({ siteUrl, baseUrl }) {
+export function assetUrls({ siteUrl, baseUrl, files = ASSET_FILES }) {
   const base = (baseUrl || `${String(siteUrl).replace(/\/+$/, '')}/email`).replace(/\/+$/, '');
   return Object.fromEntries(
-    Object.entries(ASSET_FILES).map(([key, file]) => [key, `${base}/${file}`]),
+    Object.entries(files).map(([key, file]) => [key, `${base}/${file}`]),
   );
 }
 

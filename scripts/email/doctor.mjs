@@ -16,7 +16,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { assetUrls, ASSET_FILES, DEFAULT_FROM, SUBJECT } from './config.mjs';
+import { assetUrls, ASSET_FILES, SENT_ASSET_FILES, DEFAULT_FROM, SUBJECT } from './config.mjs';
 
 const c = {
   dim:   s => `\x1b[2m${s}\x1b[0m`,
@@ -182,6 +182,42 @@ if (!env.INVITE_SITE_URL) {
     const mb = total / 1024 / 1024;
     const line = `${mb.toFixed(2)}MB if a guest loaded every image`;
     mb > 3 ? warn('total artwork weight', line) : ok('total artwork weight', line);
+  }
+
+  // ── The artwork ALREADY-DELIVERED email points at ─────────────────────────
+  // 136 confirmation packs are in inboxes with /email/<name>.png written into
+  // them. An email fetches its images when it is OPENED, so these URLs have to
+  // keep resolving for as long as anyone might reopen theirs. Nothing we send
+  // from now on uses them, which is exactly why they need checking here — a
+  // break would be invisible from the sending side and show up only as
+  // artwork quietly vanishing out of mail people already have.
+  console.log(`\n${c.bold('Delivered artwork')}  ${c.dim('the .png URLs in the 136 already sent')}`);
+  const sent = assetUrls({
+    siteUrl: env.INVITE_SITE_URL,
+    baseUrl: process.env.INVITE_ASSET_BASE_URL,
+    files: SENT_ASSET_FILES,
+  });
+  for (const [key, url] of Object.entries(sent)) {
+    const file = SENT_ASSET_FILES[key];
+    try {
+      let r = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+      if (r.status === 405 || r.status === 501) {
+        r = await fetch(url, { headers: { Range: 'bytes=0-0' }, redirect: 'follow' });
+      }
+      if (!r.ok && r.status !== 206) {
+        bad(file, `HTTP ${r.status} — artwork has disappeared from mail already sent`);
+        continue;
+      }
+      const type = r.headers.get('content-type') ?? '';
+      const len  = Number(r.headers.get('content-length') ?? 0);
+      const kb   = len ? `, ${(len / 1024).toFixed(0)}KB` : '';
+      // Still resolving but never shrunk means the delivered mail is still
+      // loading the multi-megabyte originals that caused the placeholders.
+      if (len > 1024 * 1024) warn(file, `${type}${kb} — deploy the shrunk PNG`);
+      else ok(file, `${type}${kb}`);
+    } catch (e) {
+      bad(file, e.message);
+    }
   }
 }
 
