@@ -17,6 +17,7 @@
     "email:backdrop": "node scripts/email/generate-backdrop.mjs",
     "email:assets": "node scripts/email/check-assets.mjs",
     "email:optimize": "node scripts/email/optimize-artwork.mjs",
+    "email:shrink": "node scripts/email/shrink-artwork.mjs",
     "email:doctor": "node scripts/email/doctor.mjs",
     "email:audit": "node --env-file-if-exists=.env scripts/email/audit.mjs",
     "email:custom": "node --env-file-if-exists=.env scripts/email/send-custom.mjs",

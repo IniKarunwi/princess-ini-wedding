@@ -90,6 +90,37 @@ export const ASSET_FILES = {
 };
 
 /**
+ * Intrinsic pixel dimensions of each artwork. Used only for its aspect ratio.
+ *
+ * An <img> carrying a width attribute and no height reserves no vertical space
+ * until the bytes arrive. Until then the client either collapses the row or
+ * paints its own placeholder of arbitrary size, and the layout jumps when the
+ * image finally lands — which on a slow connection reads as a blank gap, or as
+ * a grey/black box sitting where the artwork should be.
+ *
+ * Supplying the height as well fixes the box before a byte is downloaded.
+ * Clients that honour `height:auto` in the inline style override it when the
+ * card is narrower than full width; Outlook, which does not, uses the
+ * attribute and gets the proportions right instead of squashing to a square.
+ *
+ * The self test asserts these against the real files, so they cannot quietly
+ * drift from the artwork after a re-export or a re-encode.
+ */
+export const ASSET_SIZE = {
+  joining:       { width: 1060, height: 1484 },
+  reception:     { width: 1023, height: 1537 },
+  'after-party': { width: 1023, height: 1537 },
+  'dress-guide': { width: 1024, height: 1536 },
+  venue:         { width: 1429, height: 1100 },
+};
+
+/** Displayed height for `key` rendered at `displayWidth` CSS px. */
+export function scaledHeight(key, displayWidth) {
+  const size = ASSET_SIZE[key];
+  return size ? Math.round((size.height / size.width) * displayWidth) : null;
+}
+
+/**
  * The page backdrop tile, in CSS pixels.
  *
  * The PNG is rendered at 2x for retina, so background-size must pin it back to

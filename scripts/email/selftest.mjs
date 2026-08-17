@@ -742,6 +742,39 @@ const allBad = await runBatch(batch, {
 check('a run where everything fails writes nothing',
   allBad.written.length === 0 && allBad.failed.length === 4);
 
+// ── Artwork: the reserved box must match the real files ─────────────────────
+// Every artwork carries a height attribute so the client reserves the right
+// space before the bytes arrive. That height is only correct while ASSET_SIZE
+// matches the images on disk, so pin the two together: a re-export or a
+// re-encode that changes an aspect ratio must update the table or fail here.
+{
+  const { ASSET_SIZE, ASSET_FILES, scaledHeight, LAYOUT } = await import('./config.mjs');
+  const sharp = (await import('sharp')).default;
+  const { existsSync } = await import('node:fs');
+  const { join } = await import('node:path');
+
+  for (const [key, declared] of Object.entries(ASSET_SIZE)) {
+    const path = join(process.cwd(), 'public', 'email', ASSET_FILES[key]);
+    if (!existsSync(path)) { check(`${key}: artwork present`, false, path); continue; }
+    const real = await sharp(path).metadata();
+    // Compare the ratio, not the pixel count: shrinking an image is fine,
+    // changing its shape is not — only the shape affects the reserved box.
+    //
+    // Tolerance of 5 parts per thousand, because a resize rounds to whole
+    // pixels and so moves the ratio very slightly. That is half a percent:
+    // three pixels of slack on a 700px-wide artwork, far too small to see,
+    // and still tight enough to catch a genuinely different crop.
+    const ratio = (w, h) => (h / w) * 1000;
+    const drift = Math.abs(ratio(declared.width, declared.height) - ratio(real.width, real.height));
+    check(`${key}: ASSET_SIZE ratio matches the file on disk`,
+      drift <= 5,
+      `declared ${declared.width}x${declared.height}, file ${real.width}x${real.height}, drift ${drift.toFixed(1)}‰`);
+  }
+
+  check('every artwork resolves a height, so none renders as an unsized box',
+    Object.keys(ASSET_SIZE).every(k => scaledHeight(k, LAYOUT.card) > 0));
+}
+
 check('the subject names the couple', SUBJECT.includes('Princess & IniOluwa'));
 check('the subject does not re-invite people who already accepted',
   !/invited/i.test(SUBJECT));

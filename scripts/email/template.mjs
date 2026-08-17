@@ -27,7 +27,7 @@
  * is built from that guest's own event list, never from the full set.
  */
 
-import { WEDDING, REGISTRY_URL, BANK_ACCOUNTS, MAP_URL, PALETTE as P, TYPE, UPDATE, BACKDROP, LAYOUT } from './config.mjs';
+import { WEDDING, REGISTRY_URL, BANK_ACCOUNTS, MAP_URL, PALETTE as P, TYPE, UPDATE, BACKDROP, LAYOUT, scaledHeight } from './config.mjs';
 import { eventsForGuest, eventsForPlusOne, heroFor, daysUntil, plusOneState } from './events.mjs';
 import { firstName } from './recipients.mjs';
 
@@ -58,10 +58,24 @@ const divider = () => `
     <span style="color:${P.gold};font-size:18px;letter-spacing:8px;font-family:Georgia,serif;">&#10022; &#9670; &#10022;</span>
   </td></tr>`;
 
-/** A full-bleed artwork. The width attribute is there for Outlook. */
-const artwork = (src, alt, width = LAYOUT.card) => `
-  <img src="${esc(src)}" alt="${esc(alt)}" width="${width}"
+/**
+ * A full-bleed artwork.
+ *
+ * `key` names the asset in ASSET_SIZE, so the height attribute is computed
+ * from its real aspect ratio. Both dimensions are given for Outlook, and —
+ * more importantly — so every client reserves the correct amount of space
+ * before the image has loaded. Without a height the row has no size until the
+ * bytes land, and the space where the artwork belongs reads as blank.
+ *
+ * `height:auto` in the inline style still wins wherever it is supported, so
+ * the image stays fluid when the card is narrower than `width`.
+ */
+const artwork = (key, src, alt, width = LAYOUT.card) => {
+  const height = scaledHeight(key, width);
+  return `
+  <img src="${esc(src)}" alt="${esc(alt)}" width="${width}"${height ? ` height="${height}"` : ''}
        style="display:block;width:100%;max-width:${width}px;height:auto;border:0;outline:none;text-decoration:none;">`;
+};
 
 /**
  * One event badge: tick, name, time.
@@ -522,7 +536,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
              instead of as the card's own face. -->
         ${heroSrc ? `
         <tr><td style="padding:0;font-size:0;line-height:0;">
-          ${artwork(heroSrc, heroAlt)}
+          ${artwork(hero, heroSrc, heroAlt)}
         </td></tr>` : ''}
 
         <!-- ── GREETING ──────────────────────────────────────────────────── -->
@@ -582,7 +596,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
           </p>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
                  style="border:1px solid ${P.rule};border-radius:12px;overflow:hidden;background:${P.card};">
-            ${assets.venue ? `<tr><td style="font-size:0;line-height:0;">${artwork(assets.venue, `${WEDDING.venueName} — watercolour illustration`, LAYOUT.card - 58)}</td></tr>` : ''}
+            ${assets.venue ? `<tr><td style="font-size:0;line-height:0;">${artwork('venue', assets.venue, `${WEDDING.venueName} — watercolour illustration`, LAYOUT.card - 58)}</td></tr>` : ''}
             <tr><td style="padding:24px 32px;border-top:1px solid ${P.rule};text-align:center;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
                 <tr><td style="border:1px solid ${P.greenMid};border-radius:4px;">
@@ -614,7 +628,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
               </p>
             </td></tr>
             <tr><td style="font-size:0;line-height:0;">
-              ${artwork(assets['dress-guide'], 'Dress Guide — Eden in Full Bloom: garden colour palette, English formal for gentlemen, royal garden elegance for ladies')}
+              ${artwork('dress-guide', assets['dress-guide'], 'Dress Guide — Eden in Full Bloom: garden colour palette, English formal for gentlemen, royal garden elegance for ladies')}
             </td></tr>
           </table>
         </td></tr>
