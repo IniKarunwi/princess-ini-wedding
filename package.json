@@ -21,7 +21,10 @@
     "email:doctor": "node scripts/email/doctor.mjs",
     "email:audit": "node --env-file-if-exists=.env scripts/email/audit.mjs",
     "email:custom": "node --env-file-if-exists=.env scripts/email/send-custom.mjs",
-    "test:email": "node scripts/email/selftest.mjs"
+    "test:email": "node scripts/email/selftest.mjs",
+    "pdf:guides": "node scripts/pdf/build.mjs",
+    "pdf:qr": "python3 scripts/pdf/make-qr.py",
+    "pdf:verify": "node scripts/pdf/verify.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

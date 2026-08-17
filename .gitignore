@@ -31,3 +31,6 @@ secrets/
 data/
 scripts/sync/logs/
 scratch/
+
+# Built guest guides — regenerate with `npm run pdf:guides`
+dist/guides/
