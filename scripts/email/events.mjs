@@ -167,11 +167,44 @@ export function heroFor(events) {
   return events.length ? events[0].hero : null;
 }
 
-/** Whole days from today until the wedding. Never negative. */
+/**
+ * The wedding's own timezone. The countdown is a statement about the couple's
+ * calendar, not the sender's or the reader's.
+ */
+export const WEDDING_TZ = 'Africa/Lagos';
+
+/**
+ * The calendar day a moment falls on, in a given timezone, as a UTC midnight.
+ *
+ * Reducing both ends to a calendar day before subtracting is what makes the
+ * answer a count of days rather than a count of 24-hour periods — the two
+ * differ whenever the clock is not exactly midnight, which is almost always.
+ */
+function calendarDayIn(timeZone, moment) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(moment);
+  const field = (type) => Number(parts.find(p => p.type === type).value);
+  return Date.UTC(field('year'), field('month') - 1, field('day'));
+}
+
+/**
+ * Whole days from today until the wedding, counted in Lagos. Never negative.
+ *
+ * Both dates are resolved in Africa/Lagos rather than UTC. Lagos is UTC+1, so
+ * for one hour every night the two disagree: at 23:30 UTC it is already
+ * tomorrow in Lagos, and a UTC count would show a number the couple would
+ * read as a day stale. On the eve of the wedding that mattered most — 23:30
+ * UTC on the 25th is the wedding day in Lagos, and the email would still have
+ * said "One Day to Go".
+ *
+ * Nothing here is hard-coded: `now` defaults to the moment of rendering, so
+ * the number is correct for the day the email is actually sent.
+ */
 export function daysUntil(weddingDate, now = new Date()) {
   const day = 24 * 60 * 60 * 1000;
-  const target = Date.UTC(weddingDate.getUTCFullYear(), weddingDate.getUTCMonth(), weddingDate.getUTCDate());
-  const today  = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const target = calendarDayIn(WEDDING_TZ, weddingDate);
+  const today  = calendarDayIn(WEDDING_TZ, now);
   return Math.max(0, Math.round((target - today) / day));
 }
 

@@ -15,7 +15,7 @@ import { renderConfirmationPack } from './template.mjs';
 import { eventsForGuest, eventsForPlusOne, plusOneBeyondMain, plusOneState, daysUntil, normaliseTier, parseTiers, TIER_EVENTS } from './events.mjs';
 import { sendWithRetry, SendError } from './resend.mjs';
 import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
-import { STATUS, SUBJECT, WEDDING, assetUrls, ASSET_FILES, REGISTRY_URL, PALETTE, BACKDROP } from './config.mjs';
+import { STATUS, SUBJECT, WEDDING, UPDATE, assetUrls, ASSET_FILES, REGISTRY_URL, PALETTE, BACKDROP } from './config.mjs';
 
 let passed = 0;
 const failures = [];
@@ -241,6 +241,25 @@ check('the countdown counts whole days',
   && daysUntil(WEDDING.date, new Date(Date.UTC(2026, 8, 26))) === 0);
 check('the countdown never goes negative',
   daysUntil(WEDDING.date, new Date(Date.UTC(2026, 9, 1))) === 0);
+
+// Counted in the wedding's own timezone, not the sender's. Lagos is UTC+1, so
+// for one hour every night the two disagree — and a UTC count would show a
+// number a day stale to anyone reading it in Lagos.
+check('the countdown is computed, never a fixed number',
+  daysUntil(WEDDING.date, new Date('2026-08-17T09:00:00Z')) === 40
+  && daysUntil(WEDDING.date, new Date('2026-07-17T09:00:00Z')) === 71);
+check('23:30 UTC is already tomorrow in Lagos, and counts as such',
+  daysUntil(WEDDING.date, new Date('2026-08-17T23:30:00Z')) === 39
+  && daysUntil(WEDDING.date, new Date('2026-08-18T00:30:00Z')) === 39);
+check('the wedding eve does not say "one day to go" once Lagos is past midnight',
+  daysUntil(WEDDING.date, new Date('2026-09-25T23:30:00Z')) === 0);
+check('the day itself reads as the day, at any hour',
+  daysUntil(WEDDING.date, new Date('2026-09-26T00:30:00Z')) === 0
+  && daysUntil(WEDDING.date, new Date('2026-09-26T22:00:00Z')) === 0);
+check('the headline wording follows the count',
+  UPDATE.headline(40) === '40 Days to Go'
+  && UPDATE.headline(1) === 'One Day to Go'
+  && UPDATE.headline(0) === 'Today&rsquo;s the Day');
 
 // ── Template ────────────────────────────────────────────────────────────────
 section('TEMPLATE');
