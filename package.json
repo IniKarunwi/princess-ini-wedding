@@ -19,6 +19,7 @@
     "email:optimize": "node scripts/email/optimize-artwork.mjs",
     "email:doctor": "node scripts/email/doctor.mjs",
     "email:audit": "node --env-file-if-exists=.env scripts/email/audit.mjs",
+    "email:custom": "node --env-file-if-exists=.env scripts/email/send-custom.mjs",
     "test:email": "node scripts/email/selftest.mjs"
   },
   "dependencies": {
