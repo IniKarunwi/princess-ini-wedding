@@ -42,6 +42,17 @@ export const WEDDING = {
 /** Where guests are sent to give, if they would like to. */
 export const REGISTRY_URL = 'https://ouish.co/princess-and-ini-wedding';
 
+/**
+ * Direct transfer, offered as the secondary option under the registry.
+ *
+ * Shown to every guest, so it carries no personal detail beyond the account
+ * names the couple chose to publish.
+ */
+export const BANK_ACCOUNTS = [
+  { name: 'Karunwi IniOluwa Joel', bank: 'UBA',         number: '2060477082' },
+  { name: 'Princess Victor Sado',  bank: 'Zenith Bank', number: '2218670750' },
+];
+
 /** Google Maps search for the venue, linked from the location card. */
 export const MAP_URL =
   'https://www.google.com/maps/search/?api=1&query=' +

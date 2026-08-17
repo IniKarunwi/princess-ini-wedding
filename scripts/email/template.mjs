@@ -27,7 +27,7 @@
  * is built from that guest's own event list, never from the full set.
  */
 
-import { WEDDING, REGISTRY_URL, MAP_URL, PALETTE as P, TYPE, UPDATE, BACKDROP } from './config.mjs';
+import { WEDDING, REGISTRY_URL, BANK_ACCOUNTS, MAP_URL, PALETTE as P, TYPE, UPDATE, BACKDROP } from './config.mjs';
 import { eventsForGuest, eventsForPlusOne, heroFor, daysUntil, plusOneState } from './events.mjs';
 import { firstName } from './recipients.mjs';
 
@@ -355,6 +355,18 @@ function plainText({ name, events, days, state, plusOneName, plusOneEvents = [] 
     '  begin this new chapter together:',
     `  ${REGISTRY_URL}`,
     '',
+    'IF YOU\'D LIKE TO BLESS US',
+    '  We\'d be so grateful for any gift as we begin this new chapter together.',
+    '  You can contribute through our wedding registry:',
+    `  ${REGISTRY_URL}`,
+    '',
+    '  If you\'d prefer to make a direct transfer, you can also use:',
+    ...BANK_ACCOUNTS.flatMap(a => [
+      `    ${a.name}`,
+      `    ${a.bank}`,
+      `    ${a.number}`,
+      '',
+    ]),
     'Thank you for being part of one of the most important days of our lives.',
     '',
     'We truly can\'t wait to celebrate with you in Abuja.',
@@ -631,6 +643,49 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
                 ouish.co/princess-and-ini-wedding
               </p>
             </td></tr>
+          </table>
+        </td></tr>
+
+        <!-- ── IF YOU'D LIKE TO BLESS US ─────────────────────────────────────
+             The registry stays the primary action: it keeps the filled green
+             button. Transfer details are the quieter alternative underneath,
+             set on the plain card ground with no button of their own so the
+             two never compete. -->
+        <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
+          ${eyebrow('If you’d like to bless us')}
+          <p style="margin:14px 0 0;font:400 16px/1.8 ${SANS};color:${P.ink};">
+            We&rsquo;d be so grateful for any gift as we begin this new chapter
+            together. You can contribute through our wedding registry:
+          </p>
+        </td></tr>
+
+        <tr><td class="pad" style="padding:20px 56px 0;text-align:center;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+            <tr><td style="background:${P.greenMid};border-radius:4px;">
+              <a href="${esc(REGISTRY_URL)}"
+                 style="display:inline-block;padding:16px 40px;font:600 14px/1 ${SANS};
+                        letter-spacing:2px;text-transform:uppercase;color:${P.card};text-decoration:none;">
+                View Our Registry
+              </a>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <tr><td class="pad" style="padding:26px 56px 0;text-align:center;">
+          <p style="margin:0;font:400 15px/1.7 ${SANS};color:${P.muted};">
+            If you&rsquo;d prefer to make a direct transfer, you can also use:
+          </p>
+        </td></tr>
+
+        <tr><td class="pad-sm" style="padding:16px 40px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                 style="border:1px solid ${P.rule};border-radius:12px;background:${P.card};">
+            ${BANK_ACCOUNTS.map((a, i) => `
+            <tr><td style="padding:20px 26px;${i ? `border-top:1px solid ${P.rule};` : ''}text-align:center;">
+              <div style="font:700 16px/1.4 ${SERIF};color:${P.green};">${esc(a.name)}</div>
+              <div style="margin-top:4px;font:400 13px/1.6 ${SANS};letter-spacing:1px;color:${P.muted};">${esc(a.bank)}</div>
+              <div style="margin-top:6px;font:600 18px/1.4 ${SANS};letter-spacing:2px;color:${P.ink};">${esc(a.number)}</div>
+            </td></tr>`).join('')}
           </table>
         </td></tr>
 
