@@ -181,13 +181,14 @@ export const UPDATE = {
 /**
  * The subject line.
  *
- * Numbered to match the masthead, so the series is visible in the inbox
- * before it is opened. Deliberately not "You're invited" — these guests have
- * already RSVP'd, and being re-invited to something you have already accepted
- * reads as a mistake.
+ * Deliberately not "You're invited" — these guests have already RSVP'd, and
+ * being re-invited to something you have already accepted reads as a mistake.
+ *
+ * The update number lives in the masthead but no longer in the subject: short
+ * and warm survives an inbox better than a numbered series, and most clients
+ * truncate somewhere around 45 characters on a phone.
  */
-export const SUBJECT =
-  `Wedding Update #${UPDATE.number} — ${UPDATE.title} · ${WEDDING.couple}`;
+export const SUBJECT = `Your Invitation is Confirmed! 💍 · ${WEDDING.couple}`;
 
 /**
  * Pacing.

@@ -443,8 +443,14 @@ check('the countdown appears once in the body, not twice',
   (visible.match(/31/g) || []).length === 1);
 check('the preheader still carries the countdown for the inbox',
   /31 days to go/i.test(joining.html));
-check('the subject is numbered, so the series shows in the inbox',
-  /Wedding Update #1/.test(SUBJECT));
+// The number stayed in the masthead but left the subject — short and warm
+// survives an inbox better than a numbered series.
+check('the subject leads with the confirmation',
+  SUBJECT.startsWith('Your Invitation is Confirmed!'));
+check('the subject stays short enough to survive a phone inbox',
+  SUBJECT.length <= 60, `${SUBJECT.length} chars`);
+check('the subject carries no line breaks, which some clients reject',
+  !/[\r\n]/.test(SUBJECT));
 
 // ── The page backdrop ───────────────────────────────────────────────────────
 // The doodles must stay on the page and never appear behind content. That is
