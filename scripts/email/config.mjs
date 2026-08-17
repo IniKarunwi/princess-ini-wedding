@@ -73,20 +73,51 @@ export const MAP_URL =
  * nothing at all rather than as a broken box, and fails silently.
  *
  * ── A note on weight ───────────────────────────────────────────────────────
- * The five are ~8.8 MB as uploaded, and a guest invited to the whole day
- * loads the hero, the venue and the dress guide — about 5.4 MB onto a phone.
- * They are watercolours, so PNG stores every brush-texture pixel losslessly;
- * re-encoding them as JPEG at the size they are displayed gets the same five
- * to 1.2 MB with no visible loss. That is a rename, so it is not done here.
- * See scripts/email/optimize-artwork.mjs if it is ever wanted.
+ * The five arrived as ~8.6 MB of PNG. A guest invited to the whole day loads
+ * the hero, the venue and the dress guide, so that was ~5.4 MB onto a phone —
+ * heavy enough that clients sat on their own placeholder or gave up, which is
+ * what the black "•••" boxes in the received mail were.
+ *
+ * These are watercolours: continuous tone, no transparency, no flat regions.
+ * PNG is lossless and so stores every brush-texture pixel exactly, with a hard
+ * floor around 0.8 MB an image. JPEG is simply the right format for this
+ * content and reaches ~0.3 MB at the size it is displayed. Lossy PNG
+ * quantisation was measured and is a dead end here — it INFLATES the joining
+ * and reception art, because a palette cannot represent a watercolour wash.
+ *
+ * So the artwork is served as .jpg. The PNGs remain deployed for ever — see
+ * SENT_ASSET_FILES below.
  */
 export const ASSET_FILES = {
+  joining:      'joining.jpg',
+  reception:    'reception.jpg',
+  'after-party':'after-party.jpg',
+  'dress-guide':'dress-guide.jpg',
+  venue:        'venue.jpg',      // watercolour of Signature by Wells Carlton
+  backdrop:     'backdrop.png',   // generated — npm run email:backdrop
+};
+
+/**
+ * What ALREADY-DELIVERED email points at. Do not change these, ever.
+ *
+ * 136 confirmation packs are in inboxes with `/email/venue.png` and friends
+ * written into their markup. An email fetches its images when it is OPENED,
+ * not when it was sent — someone may reopen theirs next year. If these files
+ * stop resolving, every one of those emails loses its artwork retroactively.
+ *
+ * So the PNGs are permanent deployment artifacts, not build leftovers. They
+ * have been re-encoded in place (npm run email:shrink) so that the delivered
+ * mail loads lighter too, but their NAMES are frozen.
+ *
+ * backdrop is absent deliberately: it is the same file in both, and it is the
+ * one asset that should stay a PNG.
+ */
+export const SENT_ASSET_FILES = {
   joining:      'joining.png',
   reception:    'reception.png',
   'after-party':'after-party.png',
   'dress-guide':'dress-guide.png',
-  venue:        'venue.png',      // watercolour of Signature by Wells Carlton
-  backdrop:     'backdrop.png',   // generated — npm run email:backdrop
+  venue:        'venue.png',
 };
 
 /**

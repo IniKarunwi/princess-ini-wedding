@@ -25,15 +25,20 @@
  * the only one carrying text, and JPEG artefacts show up first on hard edges.
  */
 
-import { readFileSync, writeFileSync, existsSync, statSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { ASSET_FILES } from './config.mjs';
+import { ASSET_FILES, SENT_ASSET_FILES, LAYOUT } from './config.mjs';
 
 const DIR = join(process.cwd(), 'public', 'email');
 
-/** Displayed at 600 CSS px, so 1200 covers a 2x screen and nothing beyond. */
-const WIDTH = 1200;
+/**
+ * The card is LAYOUT.card CSS px wide, so 2x covers a retina screen and
+ * nothing beyond. This was 1200 from when the card was 600. The heroes are
+ * only ~1030px to begin with, and `withoutEnlargement` leaves those at native
+ * size rather than upscaling them into a bigger file for no extra detail.
+ */
+const WIDTH = LAYOUT.card * 2;
 
 /** Text needs the extra quality; the watercolours do not. */
 const QUALITY = { 'dress-guide': 88, default: 84 };
@@ -61,7 +66,10 @@ const converted = [];
 for (const [key, file] of Object.entries(ASSET_FILES)) {
   if (SKIP.has(key)) continue;
 
-  const src = join(DIR, file);
+  // Always read from the PNG, whatever ASSET_FILES currently points at, so
+  // re-running this after the switch to .jpg re-encodes the original rather
+  // than an already-lossy JPEG.
+  const src = join(DIR, SENT_ASSET_FILES[key] ?? file);
   if (!existsSync(src)) {
     console.log(`  ${file.padEnd(16)} ${c.amber('missing')}`);
     continue;
@@ -81,14 +89,17 @@ for (const [key, file] of Object.entries(ASSET_FILES)) {
   const out = file.replace(/\.(png|jpe?g|webp)$/i, '.jpg');
   const pct = Math.round((1 - buf.length / srcBytes) * 100);
 
+
   console.log(`  ${out.padEnd(16)} ${kb(srcBytes)} ${kb(buf.length)}  ${String(pct + '%').padStart(5)}` +
               (quality !== QUALITY.default ? c.dim(`   q${quality}, text`) : ''));
 
   if (write) {
     writeFileSync(join(DIR, out), buf);
-    // Remove the source only when the name actually changed, so a re-run on
-    // already-optimised files cannot delete its own output.
-    if (out !== file) unlinkSync(src);
+    // The source PNG is deliberately NOT deleted. 136 confirmation emails are
+    // already delivered with /email/<name>.png baked into them, and an email
+    // fetches its images when it is opened — possibly years from now. Those
+    // URLs have to keep resolving, so the PNGs stay for good. See
+    // SENT_ASSET_FILES in config.mjs.
     converted.push([key, out]);
   }
 }
@@ -100,7 +111,8 @@ if (!write) {
   console.log(`\n${c.dim('  Report only. Add --write to convert.')}\n`);
 } else {
   console.log(c.green('\n  Written.'));
-  console.log('  Update ASSET_FILES in scripts/email/config.mjs to the .jpg names:');
-  for (const [key, out] of converted) console.log(`    ${key.padEnd(14)} '${out}',`);
-  console.log(c.dim('\n  The original PNGs stay in git history if you need them back.\n'));
+  console.log(c.dim('  ASSET_FILES already points at these names:'));
+  for (const [key, out] of converted) console.log(c.dim(`    ${key.padEnd(14)} '${out}'`));
+  console.log(`\n  ${c.bold('The source PNGs are still there, and must stay deployed.')}`);
+  console.log(c.dim('  136 delivered emails fetch them by name every time one is opened.\n'));
 }

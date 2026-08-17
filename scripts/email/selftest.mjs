@@ -399,9 +399,11 @@ check('the card renders at the configured width, fluid below it',
   && /width:100%;max-width:/.test(joining.html));
 check('no width is left hard-coded at the old 600',
   !/width="600"|max-width:600px/.test(joining.html));
+// Named from ASSET_FILES rather than hard-coded, so changing the artwork
+// format does not quietly turn this into a check of nothing.
 check('full-bleed artwork tracks the card width',
-  new RegExp(`joining\\.png"[^>]*width="${LAYOUT.card}"`).test(joining.html)
-  && new RegExp(`dress-guide\\.png"[^>]*width="${LAYOUT.card}"`).test(joining.html));
+  new RegExp(`${ASSET_FILES.joining.replace('.', '\\.')}"[^>]*width="${LAYOUT.card}"`).test(joining.html)
+  && new RegExp(`${ASSET_FILES['dress-guide'].replace('.', '\\.')}"[^>]*width="${LAYOUT.card}"`).test(joining.html));
 check('the mobile breakpoint clears the card',
   new RegExp(`max-width:${LAYOUT.mobile}px`).test(joining.html)
   && LAYOUT.mobile > LAYOUT.card);
@@ -748,13 +750,39 @@ check('a run where everything fails writes nothing',
 // matches the images on disk, so pin the two together: a re-export or a
 // re-encode that changes an aspect ratio must update the table or fail here.
 {
-  const { ASSET_SIZE, ASSET_FILES, scaledHeight, LAYOUT } = await import('./config.mjs');
+  const { ASSET_SIZE, ASSET_FILES, SENT_ASSET_FILES, scaledHeight, LAYOUT } = await import('./config.mjs');
   const sharp = (await import('sharp')).default;
-  const { existsSync } = await import('node:fs');
+  const { existsSync, statSync } = await import('node:fs');
   const { join } = await import('node:path');
+  const art = (f) => join(process.cwd(), 'public', 'email', f);
+
+  // The PNGs named in already-delivered email must never stop resolving. An
+  // email fetches its images when it is opened, so deleting one of these
+  // silently strips the artwork out of 136 mails that are already in inboxes.
+  for (const [key, file] of Object.entries(SENT_ASSET_FILES)) {
+    check(`${key}: the .png delivered email points at still exists`,
+      existsSync(art(file)) && statSync(art(file)).size > 1024, file);
+  }
+
+  // Nothing may reference an asset that is not on disk — the failure mode is
+  // silent, because a missing image URL renders as nothing rather than as an
+  // error, and it is only visible once it is in a guest's inbox.
+  for (const [key, file] of Object.entries(ASSET_FILES)) {
+    check(`${key}: the file ASSET_FILES points at exists (${file})`,
+      existsSync(art(file)) && statSync(art(file)).size > 1024, file);
+  }
+
+  // No artwork a guest downloads may exceed 0.5 MB. Above that, clients start
+  // showing their own placeholder instead of the image while they wait.
+  for (const [key, file] of Object.entries(ASSET_FILES)) {
+    if (key === 'backdrop') continue;
+    const bytes = existsSync(art(file)) ? statSync(art(file)).size : Infinity;
+    check(`${key}: under 0.5 MB, so a client will not placeholder it`,
+      bytes <= 512 * 1024, `${(bytes / 1048576).toFixed(2)} MB`);
+  }
 
   for (const [key, declared] of Object.entries(ASSET_SIZE)) {
-    const path = join(process.cwd(), 'public', 'email', ASSET_FILES[key]);
+    const path = art(ASSET_FILES[key]);
     if (!existsSync(path)) { check(`${key}: artwork present`, false, path); continue; }
     const real = await sharp(path).metadata();
     // Compare the ratio, not the pixel count: shrinking an image is fine,
