@@ -416,6 +416,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
+<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
 <title>${esc(WEDDING.couple)} &middot; ${esc(WEDDING.dateLong)}</title>
@@ -437,6 +438,20 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
     /* On a phone there is no room either side of the card for flourishes, so
        the quiet margin shrinks rather than squeezing the content. */
     .page     { padding:24px 12px !important; }
+  }
+  /* iOS turns any 10-digit run into a tap-to-call link. Suppressed above by
+     format-detection; this undoes the styling for clients that linkify it
+     anyway, so an account number never looks or behaves like a phone number. */
+  a[x-apple-data-detectors] {
+    color: inherit !important; text-decoration: none !important;
+    font-size: inherit !important; font-family: inherit !important;
+    font-weight: inherit !important; line-height: inherit !important;
+  }
+  /* One tap selects the whole account number rather than dragging for it.
+     Honoured by Apple Mail, iOS Mail and Gmail in a browser; ignored
+     elsewhere, where the number is still ordinary selectable text. */
+  .acct {
+    -webkit-user-select: all; -moz-user-select: all; -ms-user-select: all; user-select: all;
   }
 </style>
 </head>
@@ -684,7 +699,14 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
             <tr><td style="padding:20px 26px;${i ? `border-top:1px solid ${P.rule};` : ''}text-align:center;">
               <div style="font:700 16px/1.4 ${SERIF};color:${P.green};">${esc(a.name)}</div>
               <div style="margin-top:4px;font:400 13px/1.6 ${SANS};letter-spacing:1px;color:${P.muted};">${esc(a.bank)}</div>
-              <div style="margin-top:6px;font:600 18px/1.4 ${SANS};letter-spacing:2px;color:${P.ink};">${esc(a.number)}</div>
+              <!-- Digits unbroken and unspaced: whatever is copied has to
+                   paste straight into a banking app. The letter-spacing is
+                   presentational and does not travel with the copy. -->
+              <div class="acct" style="margin-top:6px;font:600 18px/1.4 ${SANS};letter-spacing:2px;color:${P.ink};
+                          -webkit-user-select:all;-moz-user-select:all;-ms-user-select:all;user-select:all;">${esc(a.number)}</div>
+              <div style="margin-top:5px;font:400 11px/1.5 ${SANS};letter-spacing:1px;text-transform:uppercase;color:${P.faint};">
+                Tap and hold to copy
+              </div>
             </td></tr>`).join('')}
           </table>
         </td></tr>
