@@ -122,7 +122,7 @@ async function main() {
     console.log(`      ${c.dim('invited to')}  ${theirs.join('  ·  ')}`);
     console.log(`      ${c.dim('their guest')} ${c.green('approved')}${
       guest.length ? c.dim(`  ·  ${guest.join(', ')}`) : c.amber('  no tier')}` +
-      c.dim(`  ·  shown as "your guest", unnamed`));
+      c.dim('  ·  referred to as "Guest", no real name used'));
   });
 
   console.log(c.dim(`\n  From:     ${from}`));
@@ -140,13 +140,21 @@ async function main() {
   // Render every one now, so a template failure surfaces here rather than
   // halfway through a live send.
   const packs = rows.map(row => ({ row, pack: renderConfirmationPack(row, { assets, rsvpUrl: site }) }));
-  const wrong = packs.filter(({ pack }) => pack.events.length !== 3 || pack.plusOne !== 'approved');
+  const wrong = packs.filter(({ pack }) =>
+    pack.events.length !== 3
+    || pack.plusOne !== 'approved'
+    // The guest is approved for the reception only — not the whole day.
+    || pack.plusOneEvents.length !== 1
+    || pack.plusOneEvents[0].key !== 'RECEPTION'
+    // The additional attendee must be "Guest" and never a borrowed name.
+    || !/reserved a seat for <strong>Guest<\/strong>/.test(pack.html.replace(/\s+/g, ' ')));
   if (wrong.length) {
     console.error(c.red(`\n${wrong.length} pack(s) did not render the expected itinerary.\n`));
     process.exitCode = 1;
     return;
   }
-  console.log(c.green(`\n  All ${packs.length} packs render: 3 events each, guest approved.`));
+  console.log(c.green(`\n  All ${packs.length} packs render: 3 events each, ` +
+                      'guest approved for the reception only.'));
 
   if (!args.send) {
     console.log(`\n${c.bold('DRY RUN')} — nothing sent, nothing written.`);

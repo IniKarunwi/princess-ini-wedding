@@ -9,8 +9,11 @@
  * the template, and are discarded when the process exits.
  */
 
-/** Everyone on this list gets the whole day, and a guest. */
+/** Everyone on this list gets the whole day themselves… */
 const WHOLE_DAY = 'JOINING';
+
+/** …but their guest is approved for the reception only. */
+const GUEST_TIER = 'RECEPTION';
 
 export const CUSTOM_RECIPIENTS = [
   { name: 'Olakunle', email: 'kunlekarunwi6@gmail.com' },
@@ -30,8 +33,10 @@ export const CUSTOM_RECIPIENTS = [
  * touches the table, and `id` is deliberately not a uuid so it could not be
  * mistaken for one if it ever leaked into a query.
  *
- * `plus_one_name` is null on purpose: the template then reads "your guest"
- * rather than naming anyone, which is what was asked for.
+ * `plus_one_name` is the literal word "Guest" rather than a real name. The
+ * template then reads "we've reserved a seat for Guest" and labels the
+ * itinerary "Guest is invited to", which is what was asked for — and it needs
+ * no template change, since the name is just data.
  */
 export function toRow({ name, email }) {
   return {
@@ -39,15 +44,16 @@ export function toRow({ name, email }) {
     full_name: name,
     email,
 
-    // Whole day, for the guest and for their plus one. Set independently, as
-    // the two are separate columns everywhere else in this codebase.
+    // The recipient gets the whole day; their plus one gets the reception
+    // only. Set independently, as the two are separate columns everywhere
+    // else in this codebase — the plus one does not inherit the main tier.
     main_invite_status:    'APPROVED',
     approved_for:          WHOLE_DAY,
     attending:             true,
     plus_one_requested:    true,
     plus_one_status:       'APPROVED',
-    plus_one_approved_for: WHOLE_DAY,
-    plus_one_name:         null,
+    plus_one_approved_for: GUEST_TIER,
+    plus_one_name:         'Guest',
 
     // Present so nothing reads `undefined`, and so it is obvious at a glance
     // that this row carries no delivery history of its own.
