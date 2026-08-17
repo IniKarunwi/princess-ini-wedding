@@ -32,7 +32,7 @@ const CFG = {
   // Tile size in CSS pixels. Wide enough that the card (600px) sits inside the
   // clean channel on a desktop screen, tall enough that vertical repetition is
   // not obvious in a long email.
-  width:  1400,
+  width:  1600,
   height: 1000,
   scale:  2,               // rendered at 2x for retina
 
@@ -46,7 +46,9 @@ const CFG = {
 
   // The quiet middle. No doodle is drawn within this band, so the text column
   // sits on flat colour however wide the viewport is.
-  channel: 700,
+  // Must stay wider than LAYOUT.card in config.mjs, or the doodles run under
+  // the content. 840 leaves 70px of clear ground either side of the 700px card.
+  channel: 840,
 
   stroke: 2.6,
   margin: 60,              // clear border, so horizontal tiling never collides

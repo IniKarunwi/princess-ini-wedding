@@ -66,7 +66,21 @@ async function loadRows() {
 
   const { loadSource } = await import('../sync/sources/index.mjs');
   const { planSync }   = await import('../sync/engine.mjs');
-  const source = await loadSource({ file: './data/rsvps.xlsx' });
+  const { statSync }   = await import('node:fs');
+
+  // The local export is a snapshot, and a snapshot goes stale the moment the
+  // sheet or the table moves on. Say how old it is rather than let it be read
+  // as "the latest data" — the send itself always queries Supabase live.
+  const file = './data/rsvps.xlsx';
+  const ageDays = Math.floor((Date.now() - statSync(file).mtimeMs) / 86400000);
+  if (ageDays >= 1) {
+    console.log(`\n  \x1b[33mThe local export is ${ageDays} day(s) old.\x1b[0m ` +
+                '\x1b[2mIt will not contain anything synced since.\x1b[0m');
+    console.log('  \x1b[2mFor the list that would actually be emailed: ' +
+                'npm run email:audit -- --live\x1b[0m');
+  }
+
+  const source = await loadSource({ file });
   const plan   = planSync(source, []);
 
   // planSync against an empty table yields one insert per sheet row, each

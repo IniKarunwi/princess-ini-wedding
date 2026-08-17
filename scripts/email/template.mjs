@@ -27,7 +27,7 @@
  * is built from that guest's own event list, never from the full set.
  */
 
-import { WEDDING, REGISTRY_URL, BANK_ACCOUNTS, MAP_URL, PALETTE as P, TYPE, UPDATE, BACKDROP } from './config.mjs';
+import { WEDDING, REGISTRY_URL, BANK_ACCOUNTS, MAP_URL, PALETTE as P, TYPE, UPDATE, BACKDROP, LAYOUT } from './config.mjs';
 import { eventsForGuest, eventsForPlusOne, heroFor, daysUntil, plusOneState } from './events.mjs';
 import { firstName } from './recipients.mjs';
 
@@ -59,7 +59,7 @@ const divider = () => `
   </td></tr>`;
 
 /** A full-bleed artwork. The width attribute is there for Outlook. */
-const artwork = (src, alt, width = 600) => `
+const artwork = (src, alt, width = LAYOUT.card) => `
   <img src="${esc(src)}" alt="${esc(alt)}" width="${width}"
        style="display:block;width:100%;max-width:${width}px;height:auto;border:0;outline:none;text-decoration:none;">`;
 
@@ -423,7 +423,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
 <![endif]-->
 <style>
   /* Phones only. Gmail's app honours this; the layout is fluid regardless. */
-  @media only screen and (max-width:620px) {
+  @media only screen and (max-width:${LAYOUT.mobile}px) {
     .pad      { padding-left:24px !important; padding-right:24px !important; }
     .pad-sm   { padding-left:20px !important; padding-right:20px !important; }
     .h1       { font-size:26px !important; }
@@ -483,8 +483,8 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
                 background-position:center top;background-size:${BACKDROP.tileWidth}px auto;` : ''}">
     <tr><td class="page" align="center" style="padding:56px 28px;">
 
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
-             style="width:100%;max-width:600px;background:${P.card};border-radius:4px;overflow:hidden;
+      <table role="presentation" width="${LAYOUT.card}" cellpadding="0" cellspacing="0" border="0"
+             style="width:100%;max-width:${LAYOUT.card}px;background:${P.card};border-radius:4px;overflow:hidden;
                     box-shadow:0 8px 48px rgba(45,30,10,0.12);">
 
         <!-- ── MASTHEAD ──────────────────────────────────────────────────── -->
@@ -522,7 +522,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
              instead of as the card's own face. -->
         ${heroSrc ? `
         <tr><td style="padding:0;font-size:0;line-height:0;">
-          ${artwork(heroSrc, heroAlt, 600)}
+          ${artwork(heroSrc, heroAlt)}
         </td></tr>` : ''}
 
         <!-- ── GREETING ──────────────────────────────────────────────────── -->
@@ -582,7 +582,7 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
           </p>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
                  style="border:1px solid ${P.rule};border-radius:12px;overflow:hidden;background:${P.card};">
-            ${assets.venue ? `<tr><td style="font-size:0;line-height:0;">${artwork(assets.venue, `${WEDDING.venueName} — watercolour illustration`, 542)}</td></tr>` : ''}
+            ${assets.venue ? `<tr><td style="font-size:0;line-height:0;">${artwork(assets.venue, `${WEDDING.venueName} — watercolour illustration`, LAYOUT.card - 58)}</td></tr>` : ''}
             <tr><td style="padding:24px 32px;border-top:1px solid ${P.rule};text-align:center;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
                 <tr><td style="border:1px solid ${P.greenMid};border-radius:4px;">
@@ -719,8 +719,8 @@ export function renderConfirmationPack(row, { assets, rsvpUrl, now = new Date() 
         </td></tr>
       </table>
 
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
-             style="width:100%;max-width:600px;">
+      <table role="presentation" width="${LAYOUT.card}" cellpadding="0" cellspacing="0" border="0"
+             style="width:100%;max-width:${LAYOUT.card}px;">
         <tr><td style="padding:20px 24px 0;text-align:center;">
           <p style="margin:0;font:400 12px/1.7 ${SANS};color:${P.muted};">
             Need to change anything? Simply reply to this email &mdash; it reaches us directly.

@@ -97,7 +97,24 @@ export const ASSET_FILES = {
  * ignores background-size shows the tile at 2800px, which only widens the
  * clean centre channel — the safe direction to fail in.
  */
-export const BACKDROP = { tileWidth: 1400, channel: 700 };
+export const BACKDROP = { tileWidth: 1600, channel: 840 };
+
+/**
+ * The content column.
+ *
+ * 600px is the traditional email width, chosen for Outlook 2003 at 1024×768.
+ * On a modern screen it reads as a narrow strip floating in empty space, so
+ * this is 700 — wider, but still inside the ~65-character measure that keeps
+ * 16px body copy comfortable (700 less 2×56 padding gives a 588px column).
+ *
+ * Below `mobile`, the card is fluid and the side padding shrinks; above it,
+ * the card is fixed and centred. The backdrop's clean channel is kept wider
+ * than the card so the doodles never run underneath it.
+ */
+export const LAYOUT = {
+  card:   700,
+  mobile: 760,   // breakpoint: card + outer padding + a little air
+};
 
 /**
  * Resolves artwork to absolute URLs.

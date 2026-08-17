@@ -15,7 +15,7 @@ import { renderConfirmationPack } from './template.mjs';
 import { eventsForGuest, eventsForPlusOne, plusOneBeyondMain, plusOneState, daysUntil, normaliseTier, parseTiers, TIER_EVENTS } from './events.mjs';
 import { sendWithRetry, SendError } from './resend.mjs';
 import { MODE, resolveMode, findGuest, confirmationPhrase, matchesPhrase } from './guards.mjs';
-import { STATUS, SUBJECT, WEDDING, UPDATE, assetUrls, ASSET_FILES, REGISTRY_URL, PALETTE, BACKDROP } from './config.mjs';
+import { STATUS, SUBJECT, WEDDING, UPDATE, assetUrls, ASSET_FILES, REGISTRY_URL, PALETTE, BACKDROP, LAYOUT } from './config.mjs';
 
 let passed = 0;
 const failures = [];
@@ -389,6 +389,26 @@ check('the timeline shows one stop per invited event',
   timelineStops(reception) === 1 && timelineStops(afterParty) === 1
   && timelineStops(joining) === 3);
 
+// The card and the backdrop's clean channel are set independently; if the
+// card ever grows past the channel, the doodles run under the text.
+check('the clean channel stays wider than the card',
+  BACKDROP.channel > LAYOUT.card);
+check('the card renders at the configured width, fluid below it',
+  new RegExp(`width="${LAYOUT.card}"`).test(joining.html)
+  && new RegExp(`max-width:${LAYOUT.card}px`).test(joining.html)
+  && /width:100%;max-width:/.test(joining.html));
+check('no width is left hard-coded at the old 600',
+  !/width="600"|max-width:600px/.test(joining.html));
+check('full-bleed artwork tracks the card width',
+  new RegExp(`joining\\.png"[^>]*width="${LAYOUT.card}"`).test(joining.html)
+  && new RegExp(`dress-guide\\.png"[^>]*width="${LAYOUT.card}"`).test(joining.html));
+check('the mobile breakpoint clears the card',
+  new RegExp(`max-width:${LAYOUT.mobile}px`).test(joining.html)
+  && LAYOUT.mobile > LAYOUT.card);
+check('every image stays fluid, so nothing overflows a phone',
+  (joining.html.match(/<img /g) || []).length
+    === (joining.html.match(/<img [^>]*style="[^"]*width:100%/g) || []).length);
+
 check('the design palette is applied, not the old one',
   joining.html.includes('#1a3410') && joining.html.includes('#b8860b')
   && joining.html.includes('#e8e0d0') && !joining.html.includes('#1b3b2a'));
@@ -499,11 +519,11 @@ const imgWidth = (html, key) => {
   return m ? Number(m[1]) : null;
 };
 check('the hero is full bleed at the card width',
-  imgWidth(joining.html, 'joining') === 600);
+  imgWidth(joining.html, 'joining') === LAYOUT.card);
 check('the dress guide is full bleed',
-  imgWidth(joining.html, 'dress-guide') === 600);
-check('the venue illustration fills its card',
-  imgWidth(joining.html, 'venue') === 542);
+  imgWidth(joining.html, 'dress-guide') === LAYOUT.card);
+check('the venue illustration fills its card, inside its section padding',
+  imgWidth(joining.html, 'venue') === LAYOUT.card - 58);
 check('images scale down on a phone rather than overflowing',
   (joining.html.match(/<img /g) || []).length
     === (joining.html.match(/<img [^>]*style="[^"]*width:100%/g) || []).length);
