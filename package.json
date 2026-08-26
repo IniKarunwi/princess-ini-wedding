@@ -25,7 +25,8 @@
     "pdf:guides": "node scripts/pdf/build.mjs",
     "pdf:qr": "python3 scripts/pdf/make-qr.py",
     "pdf:verify": "node scripts/pdf/verify.mjs",
-    "email:reconcile": "node --env-file-if-exists=.env scripts/email/reconcile.mjs"
+    "email:reconcile": "node --env-file-if-exists=.env scripts/email/reconcile.mjs",
+    "pdf:retouch": "python3 scripts/pdf/retouch-moodboards.py"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
