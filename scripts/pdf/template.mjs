@@ -24,7 +24,7 @@
  * available as a font file.
  */
 
-import { WEDDING, REGISTRY_URL, BANK_ACCOUNTS } from '../email/config.mjs';
+import { WEDDING, REGISTRY_URL, BANK_ACCOUNTS, STAY } from '../email/config.mjs';
 import { eventsForGuest } from '../email/events.mjs';
 
 /** Taken from the printed guide, not from the email — this is a print piece. */
@@ -224,6 +224,53 @@ const itinerary = (events, assets) => {
   </div>
 </section>`;
 };
+
+/**
+ * Where to stay.
+ *
+ * Set in the guide's own language — gold eyebrow labels and a serif heading —
+ * rather than with the 🏨 💎 💰 emoji the list was drafted with. Nothing else
+ * in this document uses emoji, and a printed formal invitation is the one
+ * place they would look like a mistake rather than a flourish. The price
+ * bands still read as bands; they are just labelled instead of pictured.
+ *
+ * Worded as suggestions throughout: nothing here is booked, held or
+ * rate-negotiated, and a guest must not infer that it is.
+ */
+const stay = () => `
+<section class="page cream">
+  <div style="text-align:center;">
+    ${eyebrow('For guests travelling in')}
+    <h2 class="display center">Where to Stay</h2>
+    <p class="caption wide" style="margin-top:2pt;">${esc(STAY.intro)}</p>
+  </div>
+
+  ${ornament()}
+
+  ${STAY.bands.map(band => `
+  <div class="band">
+    <p class="band-label">${esc(band.label)}</p>
+    <table class="hotels">
+      ${band.hotels.map(([name, area]) => `
+      <tr>
+        <td class="hotel-name">${esc(name)}</td>
+        <td class="hotel-area">${esc(area)}</td>
+      </tr>`).join('')}
+    </table>
+  </div>`).join('')}
+
+  <div class="farther">
+    <p class="farther-label">If you do not mind a longer drive</p>
+    <p class="farther-name">${esc(STAY.farther.name)} &middot;
+      <span class="farther-area">${esc(STAY.farther.area)}</span></p>
+    <p class="farther-note">${esc(STAY.farther.note)}</p>
+  </div>
+
+  <p class="caption" style="margin-top:10pt;">
+    These are suggestions to help you plan &mdash; no rooms are held on your
+    behalf, so do book directly and early.
+  </p>
+</section>`;
 
 const dressGuide = (assets) => `
 <section class="page cream">
@@ -472,6 +519,29 @@ export function renderGuide({ tier, assets }) {
   .map-note { margin:0; font-size:7.4pt; font-style:italic; line-height:1.5; color:${P.muted}; }
   .map-note strong { color:${P.green}; font-style:normal; }
 
+  /* ── Where to stay ──────────────────────────────────────────────────── */
+  .band { margin-bottom:9pt; }
+  .band-label { margin:0 0 3pt; font-family:${SANS}; font-size:6.5pt; font-weight:700;
+                letter-spacing:2.4px; text-transform:uppercase; color:${P.gold};
+                border-bottom:0.6pt solid ${P.rule}; padding-bottom:2.5pt; }
+  .hotels { width:100%; border-collapse:collapse; }
+  .hotels td { padding:3.2pt 0; vertical-align:baseline; }
+  .hotel-name { font-size:9.5pt; color:${P.green}; }
+  /* The area is the useful half — it is how a guest judges the drive — so it
+     is set as a label rather than as an afterthought in brackets. */
+  .hotel-area { text-align:right; font-family:${SANS}; font-size:6.4pt;
+                letter-spacing:1.6px; text-transform:uppercase; color:${P.muted};
+                white-space:nowrap; }
+
+  .farther { border:0.8pt solid ${P.rule}; border-radius:4pt; padding:8pt 10pt;
+             background:#fdfaf2; margin-top:4pt; }
+  .farther-label { margin:0 0 3pt; font-family:${SANS}; font-size:5.8pt;
+                   letter-spacing:2.2px; text-transform:uppercase; color:${P.gold}; }
+  .farther-name { margin:0 0 2pt; font-size:9.5pt; color:${P.green}; }
+  .farther-area { font-family:${SANS}; font-size:6.4pt; letter-spacing:1.6px;
+                  text-transform:uppercase; color:${P.muted}; }
+  .farther-note { margin:0; font-size:7.6pt; line-height:1.45; color:${P.muted}; }
+
   /* ── Dress guide ────────────────────────────────────────────────────── */
   .dress-title { margin:0; font-size:19pt; letter-spacing:3px; font-weight:700; color:${P.green}; }
   .dress-sub { margin:1pt 0 0; font-size:17pt; font-style:italic; color:${P.gold}; }
@@ -537,6 +607,7 @@ export function renderGuide({ tier, assets }) {
   ${cover(assets)}
   ${welcome(assets)}
   ${itinerary(events, assets)}
+  ${stay()}
   ${dressGuide(assets)}
   ${moodboard(assets, 'moodboard-ladies', 'Ladies', 'Bold glamour, graceful silhouettes, unforgettable style')}
   ${moodboard(assets, 'moodboard-gentlemen', 'Gentlemen', 'Clean lines, bold presence, unforgettable style')}

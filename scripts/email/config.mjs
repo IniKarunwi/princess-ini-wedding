@@ -53,6 +53,64 @@ export const BANK_ACCOUNTS = [
   { name: 'Princess Victor Sado',  bank: 'Zenith Bank', number: '2218670750' },
 ];
 
+/**
+ * Where to stay, for guests travelling in.
+ *
+ * Suggestions only — nothing is booked or held, and no rate is negotiated, so
+ * the copy must never imply a block booking exists.
+ *
+ * Ordered by price band and, within a band, by how close the area is to the
+ * venue. Asokoro is the venue's own district; Garki, Maitama and the Central
+ * Area are the neighbouring ones.
+ *
+ * Lives here rather than in the PDF template because the next email update
+ * will want the same list, and two copies of a hotel list is two lists that
+ * disagree by the time anyone notices.
+ */
+export const STAY = {
+  intro:
+    `The wedding will be held at ${WEDDING.venueName} in ${WEDDING.venueArea}, ` +
+    'so staying in Asokoro will be the most convenient option. Garki, Maitama ' +
+    'and the Central Area are also nearby alternatives.',
+
+  bands: [
+    {
+      label: 'Premium',
+      hotels: [
+        ['The Wells Carlton', 'Asokoro'],
+        ['Abuja Marriott', 'Asokoro'],
+        ['Transcorp Hilton', 'Maitama'],
+      ],
+    },
+    {
+      label: 'Mid-range',
+      hotels: [
+        ['Fraser Suites', 'Asokoro'],
+        ['Hilton Garden Inn', 'Maitama'],
+        ['Westwood Hotel', 'Maitama'],
+        ['The Domus Hotel', 'Central Area'],
+      ],
+    },
+    {
+      label: 'More affordable',
+      hotels: [
+        ['Sweetroof', 'Asokoro'],
+        ['Musada Luxury Suites', 'Maitama'],
+        ['Hotel Rosebud', 'Garki'],
+        ['Top Rank Hotels', 'Garki'],
+      ],
+    },
+  ],
+
+  /** Further out, and honest about the trade-off. */
+  farther: {
+    name: "D'Crown Place — Hotel & Suites",
+    area: 'Idu',
+    note: 'Another option if you do not mind staying farther from the venue '
+        + 'and having a longer drive to Asokoro.',
+  },
+};
+
 /** Google Maps search for the venue, linked from the location card. */
 export const MAP_URL =
   'https://www.google.com/maps/search/?api=1&query=' +

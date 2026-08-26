@@ -22,11 +22,11 @@
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { WEDDING, REGISTRY_URL, BANK_ACCOUNTS } from '../email/config.mjs';
+import { WEDDING, REGISTRY_URL, BANK_ACCOUNTS, STAY } from '../email/config.mjs';
 import { EVENTS, TIER_EVENTS } from '../email/events.mjs';
 
 const OUT = join(process.cwd(), 'dist', 'guides');
-const PAGES = 7;
+const PAGES = 8;
 
 const c = {
   dim:   s => `\x1b[2m${s}\x1b[0m`,
@@ -120,7 +120,14 @@ for (const { tier, file } of VARIANTS) {
   // five of the seven pages, so both matched even with the closing page
   // catastrophically overflowing. Verified by mutation.
   const page = (i) => (pages[i] ?? '').replace(/\s+/g, '');
-  const DRESS = 3, CLOSING = 6;
+  // Band labels and area names are uppercased by CSS, so the text layer holds
+  // "PREMIUM" where the config says "Premium". Compare case-insensitively.
+  const pageHas = (i, needle) =>
+    page(i).toLowerCase().includes(String(needle).replace(/\s+/g, '').toLowerCase());
+  // Page order: cover, welcome, itinerary, WHERE TO STAY, dress guide,
+  // ladies, gentlemen, closing. These indices move whenever a page is added
+  // — which is how the "where to stay" page was caught shifting them.
+  const STAY_PAGE = 3, DRESS = 4, CLOSING = 7;
 
   check('the dress guide reaches its sign-off',
     page(DRESS).includes(WEDDING.couple.replace(/\s+/g, '')),
@@ -133,6 +140,22 @@ for (const { tier, file } of VARIANTS) {
     'the closing page is overflowing — the colophon is clipped');
 
   // ── Facts ────────────────────────────────────────────────────────────────
+  // ── Where to stay ────────────────────────────────────────────────────────
+  // Every hotel must actually appear: a list that silently loses its last two
+  // entries to an overflowing page is worse than no list, because the guest
+  // cannot tell anything is missing.
+  for (const band of STAY.bands) {
+    check(`stay: "${band.label}" band is present`, pageHas(STAY_PAGE, band.label));
+    for (const [name] of band.hotels) {
+      check(`stay: lists ${name}`, pageHas(STAY_PAGE, name),
+        'missing — the page may be overflowing');
+    }
+  }
+  check('stay: lists the farther-out option, and its area',
+    pageHas(STAY_PAGE, "D'Crown Place") && pageHas(STAY_PAGE, STAY.farther.area));
+  check('stay: does not promise rooms are held', /noroomsareheld/i.test(page(STAY_PAGE)),
+    'the copy must not imply a block booking exists');
+
   check('names the venue the email uses', all.includes(WEDDING.venueName),
     `expected "${WEDDING.venueName}"`);
   check('does not use the original guide\'s wrong venue',
