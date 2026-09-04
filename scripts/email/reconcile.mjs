@@ -37,7 +37,7 @@
 
 import { TABLE, STATUS } from './config.mjs';
 import { classify, isSendableEmail, isUnsent } from './recipients.mjs';
-import { eventsForGuest } from './events.mjs';
+import { eventsForGuest, eventsForPlusOne } from './events.mjs';
 import { CUSTOM_RECIPIENTS } from './custom-recipients.mjs';
 
 const c = {
@@ -268,7 +268,67 @@ async function main() {
   out(`${c.bold('4. INVALID OR MISSING EMAIL')}`);
   table(badEmail);
 
-  out(c.bold('Totals'));
+  // ── Who is coming to what ─────────────────────────────────────────────────
+  //
+  // Two different questions, and conflating them is how a caterer gets the
+  // wrong number:
+  //
+  //   BY TIER   how many guests hold each approved_for value. Three buckets,
+  //             and they sum to the cohort.
+  //   BY EVENT  how many guests are actually in the room for each part of the
+  //             day. A JOINING guest is in ALL THREE, so these buckets overlap
+  //             and deliberately do NOT sum to the cohort.
+  //
+  // Plus ones are counted separately again: they are not recipients and have
+  // no row, but they occupy a seat, and their tier is independent of the
+  // guest's — someone approved for the whole day may be bringing a plus one
+  // who is only approved for the reception.
+  const cohort = [...sentOk, ...discrepancy.filter(d => d.inResend === true)];
+  const rowsById = new Map(rows.map(r => [r.id, r]));
+
+  const byTier = new Map();
+  const byEvent = new Map();
+  const plusByEvent = new Map();
+  let withPlusOne = 0;
+
+  for (const entry of cohort) {
+    const row = rowsById.get(entry.id);
+    if (!row) continue;
+
+    const tier = String(row.approved_for ?? '—').trim().toUpperCase();
+    byTier.set(tier, (byTier.get(tier) ?? 0) + 1);
+
+    for (const ev of eventsForGuest(row)) {
+      byEvent.set(ev.name, (byEvent.get(ev.name) ?? 0) + 1);
+    }
+
+    const plus = eventsForPlusOne(row);
+    if (plus.length) {
+      withPlusOne++;
+      for (const ev of plus) plusByEvent.set(ev.name, (plusByEvent.get(ev.name) ?? 0) + 1);
+    }
+  }
+
+  const ORDER = ['Wedding Service', 'Wedding Reception', 'After Party'];
+  out(`\n${c.bold('Who has been emailed, by tier')}  ${c.dim(`${cohort.length} guests actually emailed`)}`);
+  for (const [tier, n] of [...byTier].sort((a, b) => b[1] - a[1])) {
+    out(`  ${String(n).padStart(4)}  ${tier}`);
+  }
+  out(c.dim('        these sum to the cohort — one tier per guest'));
+
+  out(`\n${c.bold('Who is in the room, by event')}`);
+  out(c.dim('        JOINING guests appear in all three, so these OVERLAP'));
+  for (const name of ORDER) {
+    const guests = byEvent.get(name) ?? 0;
+    const plus = plusByEvent.get(name) ?? 0;
+    out(`  ${String(guests).padStart(4)}  ${name.padEnd(18)}` +
+        c.dim(` + ${plus} plus one${plus === 1 ? '' : 's'}  =  ${guests + plus} seats`));
+  }
+  out(c.dim(`\n        ${withPlusOne} of the ${cohort.length} emailed are bringing an approved plus one.`));
+  out(c.dim('        Plus ones are not recipients — they have no row and no address —'));
+  out(c.dim('        but they take a seat, and their tier is independent of the guest\'s.'));
+
+  out(`\n${c.bold('Totals')}`);
   out(`  ${c.red('genuine misses')}          ${String(missed.length).padStart(4)}   ${c.dim('<- people with a valid address who should have been emailed and were not')}`);
   out(`  ${c.amber('discrepancies')}           ${String(discrepancy.length).padStart(4)}`);
   out(`  ${c.cyan('intentionally not sent')}  ${String(intentional.length).padStart(4)}`);
