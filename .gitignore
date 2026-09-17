@@ -31,3 +31,6 @@ secrets/
 data/
 scripts/sync/logs/
 scratch/
+
+# Raw pass tokens. Credentials — see scripts/wedding-day/passes.mjs.
+data/passes.jsonl

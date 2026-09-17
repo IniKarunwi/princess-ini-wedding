@@ -21,7 +21,10 @@
     "email:doctor": "node scripts/email/doctor.mjs",
     "email:audit": "node --env-file-if-exists=.env scripts/email/audit.mjs",
     "email:custom": "node --env-file-if-exists=.env scripts/email/send-custom.mjs",
-    "test:email": "node scripts/email/selftest.mjs"
+    "test:email": "node scripts/email/selftest.mjs",
+    "pass:generate": "node --env-file-if-exists=.env scripts/wedding-day/passes.mjs",
+    "pass:revoke": "node --env-file-if-exists=.env scripts/wedding-day/passes.mjs --revoke",
+    "test:weddingday": "node scripts/wedding-day/selftest.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
