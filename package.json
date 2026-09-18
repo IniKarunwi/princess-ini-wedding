@@ -24,7 +24,10 @@
     "test:email": "node scripts/email/selftest.mjs",
     "pass:generate": "node --env-file-if-exists=.env scripts/wedding-day/passes.mjs",
     "pass:revoke": "node --env-file-if-exists=.env scripts/wedding-day/passes.mjs --revoke",
-    "test:weddingday": "node scripts/wedding-day/selftest.mjs"
+    "test:weddingday": "node scripts/wedding-day/selftest.mjs",
+    "party:report": "node --env-file-if-exists=.env scripts/wedding-day/party-size.mjs",
+    "party:set": "node --env-file-if-exists=.env scripts/wedding-day/party-size.mjs",
+    "verify:production": "node --env-file-if-exists=.env scripts/wedding-day/verify-production.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

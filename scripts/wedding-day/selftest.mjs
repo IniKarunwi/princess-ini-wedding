@@ -16,6 +16,7 @@
 
 import { getGuestPermissions, permittedEvents, isApproved, shouldHavePass, partySize, EVENT_LABEL } from './permissions.mjs';
 import { planPasses, newToken, hashToken, passUrl } from './passes.mjs';
+import { proposePartySize, parsePlusN } from './party-size.mjs';
 import { eventsForGuest } from '../email/events.mjs';
 
 let passed = 0;
@@ -144,6 +145,47 @@ check('a trailing slash on the site URL does not double up',
 const sameGuest = G({ id: 'fixed', full_name: 'Ada Obi' });
 check('two tokens for the same guest differ — the token encodes nothing',
   newToken() !== newToken() && sameGuest.id === 'fixed');
+
+section('PARTY SIZE PROPOSALS');
+
+// Only a TRAILING +N is a seat count. A "+" inside a name is not.
+check('reads a trailing +N', parsePlusN('Olakunle +5').n === 5);
+check('tolerates spacing', parsePlusN('Olori  +  8').n === 8);
+check('ignores a + inside a name', parsePlusN('Jean+Luc Picard').n === null);
+check('ignores a bare +', parsePlusN('Ada +').n === null);
+check('reports what it matched', parsePlusN('Olakunle +5').matched === '+5');
+
+const P = (o) => proposePartySize(G({ guest_count: 1, ...o }));
+
+check('a plain guest is 1', P({ full_name: 'Ada Obi' }).proposed === 1);
+check('an approved plus one is 2',
+  P({ full_name: 'Ada Obi', plus_one_status: 'APPROVED', guest_count: 2 }).proposed === 2);
+check('"Olakunle +5" proposes 6', P({ full_name: 'Olakunle +5' }).proposed === 6);
+check('"Olori +8" proposes 9', P({ full_name: 'Olori +8' }).proposed === 9);
+check('a rejected guest is 0',
+  P({ full_name: 'Nope +3', main_invite_status: 'REJECTED' }).proposed === 0);
+
+// The flags are the point of the tool. A wrong number that is FLAGGED costs a
+// phone call; a wrong number that is silent costs a seat on the day.
+check('+N alongside an approved plus one is flagged, not guessed',
+  P({ full_name: 'Olakunle +5', plus_one_status: 'APPROVED', guest_count: 2 }).review === true);
+check('a large party is flagged', P({ full_name: 'Olori +8' }).review === true);
+check('two +N in one name is flagged', P({ full_name: 'A +2 and B +3' }).review === true);
+check('a name implying a couple with no +N is flagged',
+  P({ full_name: 'Mr & Mrs Bello' }).review === true);
+check('shrinking an already-set party is flagged',
+  P({ full_name: 'Ada +1', party_size: 7 }).review === true);
+check('an ordinary guest is NOT flagged', P({ full_name: 'Ada Obi' }).review === false);
+check('an ordinary +N is NOT flagged', P({ full_name: 'Olakunle +5' }).review === false);
+
+check('every proposal explains itself',
+  ['Ada Obi', 'Olakunle +5', 'Mr & Mrs Bello', 'Olori +8']
+    .every(n => typeof P({ full_name: n }).reason === 'string' && P({ full_name: n }).reason.length > 10));
+
+// guest_count is capped at 2 by its trigger, so 2 beside a +5 is expected.
+// Calling that a conflict would flag most large parties for no reason.
+check('guest_count 2 beside a +5 is explained, not treated as a conflict',
+  /caps there/.test(P({ full_name: 'Olakunle +5', guest_count: 2 }).reason));
 
 section('LABELS');
 check('event labels are the guest-facing names',
