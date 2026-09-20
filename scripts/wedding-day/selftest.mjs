@@ -18,6 +18,10 @@ import { getGuestPermissions, permittedEvents, isApproved, shouldHavePass, party
 import { planPasses, newToken, hashToken, passUrl } from './passes.mjs';
 import { proposePartySize, parsePlusN } from './party-size.mjs';
 import { eventsForGuest } from '../email/events.mjs';
+import { execFileSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let passed = 0;
 const failures = [];
@@ -33,6 +37,42 @@ const G = (o = {}) => ({
   main_invite_status: 'APPROVED', approved_for: 'JOINING',
   attending: true, party_size: 1, ...o,
 });
+
+/* ── Does every file even parse? ──────────────────────────────────────────── */
+//
+// This section exists because a shipped file did not.
+//
+// verify-production.mjs had a syntax error — an over-escaped quote and a
+// backtick inside a template literal — and nothing caught it. The suite
+// imports permissions.mjs, passes.mjs and party-size.mjs, so those are parsed
+// as a side effect of being imported. verify-production.mjs is a credential
+// gated CLI that no test imports, so it was never parsed by anything until
+// someone ran it against a real database and it died before its first request.
+//
+// `node --check` parses without executing, so it works on files that would
+// otherwise refuse to run without secrets. Cheap, and it makes "it is only a
+// CLI" stop being a hole in the coverage.
+section('EVERY SCRIPT PARSES');
+
+{
+  const here = dirname(fileURLToPath(import.meta.url));
+  const dirs = [here, join(here, '..', 'email'), join(here, '..', 'sync')];
+  let files = [];
+  for (const d of dirs) {
+    try { files.push(...readdirSync(d).filter(f => f.endsWith('.mjs')).map(f => join(d, f))); }
+    catch { /* a directory that is not there is not a failure */ }
+  }
+  let broken = 0;
+  for (const f of files) {
+    try { execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' }); }
+    catch (e) {
+      broken++;
+      check(`parses: ${f.split('/').slice(-2).join('/')}`, false,
+        String(e.stderr || e.message).split('\n').slice(0, 3).join(' ').slice(0, 160));
+    }
+  }
+  check(`all ${files.length} scripts parse`, broken === 0, `${broken} broken`);
+}
 
 /* ── The brief's cases A–E ─────────────────────────────────────────────────── */
 section('ACCESS HIERARCHY  (cases A–E)');

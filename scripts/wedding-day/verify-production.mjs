@@ -84,9 +84,13 @@ async function main() {
 
   // The brief described a column called `main`. Confirm against the live DB.
   const mainCol = await probe(db, TABLE, 'main');
-  console.log(mainCol === 'present'
-    ? `  ${c.amber('check')} a column named "main" DOES exist — the code reads main_invite_status/approved_for instead`
-    : `  ${c.green('ok')}    no "main" column, as expected ${c.dim('(the sheet\\'s `main` is split into main_invite_status + approved_for)')}`);
+  if (mainCol === 'present') {
+    warn('a column named "main" DOES exist',
+         'the code reads main_invite_status / approved_for instead');
+  } else {
+    ok('no "main" column, as expected',
+       'the sheet column "main" is split into main_invite_status + approved_for');
+  }
 
   /* ── 2. Which migrations have actually run ─────────────────────────────── */
   console.log(`\n${c.bold('2. migration state')}`);
