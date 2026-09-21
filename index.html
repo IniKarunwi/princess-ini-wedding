@@ -22,12 +22,28 @@
     <meta name="msapplication-TileColor" content="#2e5e40" />
     <meta name="msapplication-TileImage" content="/android-chrome-192x192.png" />
 
-    <!-- ============ SOCIAL PREVIEW (og-image.jpg — 1200×630) ============
+    <!-- ========== SOCIAL PREVIEW (og-image-v2.jpg — 1200×630) ==========
          Platforms covered: WhatsApp, iMessage, Facebook, LinkedIn,
          X (Twitter), Discord, Slack.
 
-         Requires: public/og-image.jpg  (1200×630 px, < 5 MB, JPEG)
-         WhatsApp : needs absolute URL — works once deployed to a real domain.
+         The card is the engagement portrait — the couple against the
+         projected heart — cropped from the 1333×2000 original to the
+         1200×630 the platforms expect. The crop keeps headroom above the
+         crown and both faces near the centre, because several surfaces
+         crop this further towards square and a face pushed to an edge is
+         the first thing they cut.
+
+         ── Two things that decide whether any of this is seen ───────────
+         ABSOLUTE URLs. These were "/og-image.jpg". Open Graph requires a
+         fully-qualified URL, and WhatsApp, Facebook and LinkedIn simply
+         do not resolve a relative one — so the preview fell back to no
+         image at all, no matter what the file contained.
+
+         A NEW FILENAME. Platforms cache the preview against the image
+         URL, for days. Replacing the bytes behind "og-image.jpg" would
+         have left everyone who has already shared the link seeing the
+         old card. A different path is a guaranteed cache miss.
+
          Twitter  : summary_large_image renders the wide card format.
          Discord  : reads og:image directly; 1200×630 renders banner-style.
          Slack    : reads og:image; title+description appear below.
@@ -35,20 +51,21 @@
 
     <!-- Open Graph (Facebook, LinkedIn, WhatsApp, iMessage, Discord, Slack) -->
     <meta property="og:type"         content="website" />
+    <meta property="og:url"          content="https://princessandini.com/" />
     <meta property="og:title"        content="Princess &amp; IniOluwa — Wedding Invitation" />
     <meta property="og:description"  content="You're invited! Join us on September 26, 2026 in Asokoro, Abuja." />
-    <meta property="og:image"        content="/og-image.jpg" />
+    <meta property="og:image"        content="https://princessandini.com/og-image-v2.jpg" />
     <meta property="og:image:type"   content="image/jpeg" />
     <meta property="og:image:width"  content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt"    content="Princess &amp; IniOluwa — Wedding Invitation, September 26, 2026" />
+    <meta property="og:image:alt"    content="Princess and IniOluwa embracing, lit by a heart projected on the wall behind them" />
 
     <!-- X / Twitter -->
     <meta name="twitter:card"        content="summary_large_image" />
     <meta name="twitter:title"       content="Princess &amp; IniOluwa — Wedding Invitation" />
     <meta name="twitter:description" content="You're invited! Join us on September 26, 2026 in Asokoro, Abuja." />
-    <meta name="twitter:image"       content="/og-image.jpg" />
-    <meta name="twitter:image:alt"   content="Princess &amp; IniOluwa — Wedding Invitation, September 26, 2026" />
+    <meta name="twitter:image"       content="https://princessandini.com/og-image-v2.jpg" />
+    <meta name="twitter:image:alt"   content="Princess and IniOluwa embracing, lit by a heart projected on the wall behind them" />
 
     <!-- ========================= FONTS =========================
          Self-hosted; the @font-face rules live in src/index.css.
