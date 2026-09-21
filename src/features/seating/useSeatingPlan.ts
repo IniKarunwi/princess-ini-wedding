@@ -143,11 +143,15 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
         setPublished(pub.layout);
 
         if (viewerIsAdmin) {
-          const d = await seatingService.loadDraft();
+          const { draft: d, published: full } = await seatingService.loadDraft();
           if (!live) return;
           setDraft(d.layout);
           setDraftVersion(d.version);
           setDraftBy(d.updatedBy);
+          // The planner's copy of the published layout, with guest names. The
+          // public one above has them stripped, and comparing against that
+          // would mark every table as changed forever.
+          if (full) setPublished(full.layout);
         }
         setLoadError(null);
       } catch {
@@ -355,10 +359,11 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
   const reloadDraft = useCallback(async () => {
     setSaving(true);
     try {
-      const d = await seatingService.loadDraft();
+      const { draft: d, published: full } = await seatingService.loadDraft();
       setDraft(d.layout);
       setDraftVersion(d.version);
       setDraftBy(d.updatedBy);
+      if (full) setPublished(full.layout);
       setConflict(null);
       resetHistory();
       bumpHistory((n) => n + 1);

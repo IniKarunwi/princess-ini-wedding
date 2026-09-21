@@ -62,6 +62,42 @@ export function checkLayout(raw: unknown): Check {
   };
 }
 
+/**
+ * The public map's view of a layout: the room, with nobody's name in it.
+ *
+ * ── Why this is done here and not in CSS ────────────────────────────────────
+ * Hiding names in the browser would still send all 219 of them to every phone
+ * that opens the page — one devtools panel away from the whole guest list,
+ * and cached in every proxy on the way. The only way a name is private is if
+ * it never leaves the server, so the stripping happens before the response is
+ * written and there is no code path by which the public endpoint could return
+ * an entry.
+ *
+ * What the map genuinely needs is geometry: where each table is, how big it
+ * is, and what number it shows. `seated` is kept because the map draws
+ * occupied seats differently — it is a count, not a person, and a guest can
+ * see the same thing by looking at the room.
+ */
+export function publicView(payload: unknown) {
+  const l = payload as any;
+  return {
+    ...l,
+    tables: (l?.tables ?? []).map((t: any) => ({
+      id: t.id,
+      side: t.side,
+      kind: t.kind,
+      number: t.number,
+      capacity: t.capacity,
+      x: t.x,
+      y: t.y,
+      movable: false,
+      // A count of filled seats, so the map still reads correctly.
+      seated: (t.entries ?? []).reduce((n: number, e: any) => n + (e.seats ?? 0), 0),
+      entries: [],
+    })),
+  };
+}
+
 /** Assembles the API's view of a row: the payload plus its authoritative columns. */
 export const rowToLayout = (row: {
   status: string; version: number; payload: unknown;

@@ -22,7 +22,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Layout, SeatingTable } from '../types';
-import { seatsUsed, tableLabel } from '../types';
+import { occupied, tableLabel } from '../types';
 import { HALL, ROUND_R, ZONES, placementCheck } from '../hall';
 import { C, F, MAP } from '../theme';
 
@@ -472,7 +472,7 @@ function TableShape({
   onHover(on: boolean): void;
   onDropGuest(): void;
 }) {
-  const used = seatsUsed(table);
+  const used = occupied(table);
   const full = used >= table.capacity;
   const x = dragPos ? dragPos.x : table.x;
   const y = dragPos ? dragPos.y : table.y;

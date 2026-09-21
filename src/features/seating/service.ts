@@ -50,11 +50,31 @@ export type PublishResult =
   | { ok: false; kind: 'auth' }
   | { ok: false; kind: 'error'; reason: string };
 
+/** A guest's own result. Deliberately one person, never a table manifest. */
+export type SeatLookup =
+  | { kind: 'found'; name: string; table: number; tableId: string; vip: boolean }
+  | { kind: 'choices'; choices: Array<{ id: string; name: string }> }
+  | { kind: 'none' }
+  | { kind: 'too-many' }
+  | { kind: 'too-short'; min: number }
+  | { kind: 'error'; reason: string };
+
 export interface SeatingService {
-  /** What guests see. Public; no session needed. */
+  /**
+   * What guests see: the room, table numbers and geometry, and NO guest
+   * names — the public endpoint strips them server-side.
+   */
   loadPublished(): Promise<Loaded>;
-  /** The shared planner draft. Requires a planner session. */
-  loadDraft(): Promise<Loaded>;
+  /**
+   * The shared planner draft, and the full published layout alongside it.
+   *
+   * Both come from the authenticated endpoint. The planner needs the
+   * published layout WITH its names, or comparing draft to published would
+   * report the whole room as changed.
+   */
+  loadDraft(): Promise<{ draft: Loaded; published: Loaded | null }>;
+  /** Looks up one guest's own seat. Public. */
+  lookup(query: { q?: string; id?: string }): Promise<SeatLookup>;
   saveDraft(layout: Layout, version: number): Promise<SaveResult>;
   publish(version: number): Promise<PublishResult>;
   /** True when this store genuinely persists across devices. */
@@ -104,11 +124,33 @@ export class ApiSeatingService implements SeatingService {
     return toLoaded(body.published, 'published');
   }
 
-  async loadDraft(): Promise<Loaded> {
+  async loadDraft(): Promise<{ draft: Loaded; published: Loaded | null }> {
     const res = await call('/api/planner/draft');
     if (!res.ok) throw new SeatingUnavailable(`draft: ${res.status}`);
     const body = await res.json();
-    return toLoaded(body.draft, 'draft');
+    return {
+      draft: toLoaded(body.draft, 'draft'),
+      published: body.published ? toLoaded(body.published, 'published') : null,
+    };
+  }
+
+  async lookup(query: { q?: string; id?: string }): Promise<SeatLookup> {
+    let res: Response;
+    try {
+      res = await call('/api/seating/lookup', { method: 'POST', body: JSON.stringify(query) });
+    } catch {
+      return { kind: 'error', reason: 'No connection. Try again in a moment.' };
+    }
+    if (!res.ok) return { kind: 'error', reason: 'The seating list could not be reached.' };
+
+    const b = await res.json().catch(() => ({} as any));
+    if (b?.found) {
+      return { kind: 'found', name: b.name, table: b.table, tableId: b.tableId, vip: !!b.vip };
+    }
+    if (Array.isArray(b?.choices)) return { kind: 'choices', choices: b.choices };
+    if (b?.tooMany) return { kind: 'too-many' };
+    if (b?.tooShort) return { kind: 'too-short', min: b.min ?? 3 };
+    return { kind: 'none' };
   }
 
   async saveDraft(layout: Layout, version: number): Promise<SaveResult> {

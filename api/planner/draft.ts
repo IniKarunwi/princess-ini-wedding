@@ -29,7 +29,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
       const row = await getLayout(auth.env, 'draft');
       if (!row) return json(res, 404, { error: 'no_draft', detail: 'Run migration 0009.' });
-      return json(res, 200, { draft: rowToLayout(row) });
+      // The published layout comes back too, WITH its guest names. The public
+      // endpoint strips them, and comparing a full draft against a stripped
+      // published layout would report every table as changed — a planner
+      // would never see "Published", only a permanent "unpublished changes".
+      const pub = await getLayout(auth.env, 'published');
+      return json(res, 200, {
+        draft: rowToLayout(row),
+        published: pub ? rowToLayout(pub) : null,
+      });
     }
 
     const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) ?? {};

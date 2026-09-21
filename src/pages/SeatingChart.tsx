@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import HallMap, { type MapHandle } from '@/features/seating/components/HallMap';
 import FindYourSeat from '@/features/seating/components/FindYourSeat';
+import PublicFindYourSeat from '@/features/seating/components/PublicFindYourSeat';
 import TableDetails from '@/features/seating/components/TableDetails';
 import { AdminBar, AdminUnlock } from '@/features/seating/components/AdminPanel';
 import RecoveryNotice from '@/features/seating/components/RecoveryNotice';
@@ -98,17 +99,35 @@ export default function SeatingChart() {
   const panel = (
     <>
       <div style={{ background: C.paper, border: `1px solid ${C.rule}`, padding: '1.2rem' }}>
-        <FindYourSeat
-          layout={layout}
-          onPick={(table, entryId) => {
-            setSelectedId(table.id);
-            setHighlightEntry(entryId);
-            mapRef.current?.flyTo(table.id, 620);
-          }}
-        />
+        {/* Two different searches, deliberately.
+
+            A planner searches the layout they are holding, which has every
+            name in it. A guest's browser holds no names at all — the public
+            endpoint strips them — so their search asks the server about one
+            person and gets back one answer. Rendering the planner's panel to
+            a guest would not merely show too much; it would require sending
+            the guest list to do it. */}
+        {admin.canEdit ? (
+          <FindYourSeat
+            layout={layout}
+            onPick={(table, entryId) => {
+              setSelectedId(table.id);
+              setHighlightEntry(entryId);
+              mapRef.current?.flyTo(table.id, 620);
+            }}
+          />
+        ) : (
+          <PublicFindYourSeat
+            onFound={(tableId) => {
+              setSelectedId(tableId);
+              setHighlightEntry(null);
+              mapRef.current?.flyTo(tableId, 620);
+            }}
+          />
+        )}
       </div>
 
-      {selected && wide && (
+      {selected && wide && admin.canEdit && (
         <div style={{ marginTop: '1rem' }}>
           <TableDetails
             table={selected}
@@ -271,7 +290,10 @@ export default function SeatingChart() {
       </div>
 
       {/* ── Mobile bottom sheet ────────────────────────────────────────── */}
-      {selected && !wide && (
+      {/* The table sheet lists who is sitting where, so it is for planners
+          only. A guest tapping a table highlights it and learns nothing it
+          did not already show. */}
+      {selected && !wide && admin.canEdit && (
         <div
           role="dialog"
           aria-label={`Table details`}

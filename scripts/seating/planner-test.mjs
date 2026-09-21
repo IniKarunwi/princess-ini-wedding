@@ -128,6 +128,7 @@ const ROUTES = {
   '/api/planner/draft': 'api/planner/draft.ts',
   '/api/planner/publish': 'api/planner/publish.ts',
   '/api/seating/published': 'api/seating/published.ts',
+  '/api/seating/lookup': 'api/seating/lookup.ts',
 };
 
 const outdir = mkdtempSync(join(tmpdir(), 'planner-api-'));
@@ -283,6 +284,162 @@ console.log('\nThe public chart');
   const draft = await guest.call('/api/planner/draft');
   eq('a guest asking for the draft gets 401', draft.status, 401);
   ok('and no part of the draft leaks in the body', !JSON.stringify(draft.json).includes('tables'));
+}
+
+console.log('\nThe built bundle carries no guest names');
+{
+  /**
+   * The seating document is a TypeScript module in src/, so it is one stray
+   * import away from being compiled into the public bundle — the app only
+   * stops shipping 219 names because buildInitialLayout() is now unreachable
+   * from it and the bundler drops the data. That is a real guarantee but an
+   * incidental one, so it is pinned here: anything that imports the source
+   * tables back into the app fails this test rather than quietly publishing
+   * the guest list.
+   */
+  const bundle = readFileSync(join(ROOT, 'dist/index.html'), 'utf8')
+    .match(/assets\/[^"]+\.js/g)
+    .map((f) => readFileSync(join(DIST, f), 'utf8')).join('');
+
+  const names = seed.tables.flatMap((t) => t.entries.map((e) => e.name));
+  const leaked = names.filter((n) => n.length > 5 && bundle.includes(n));
+  ok('no guest name is compiled into the JavaScript', leaked.length === 0,
+     `${leaked.length} leaked, e.g. ${leaked[0]}`);
+  ok('and neither is the seating dataset', !bundle.includes('SOURCE_TABLES'));
+}
+
+console.log('\nThe public chart carries no guest names');
+{
+  resetDb();
+  const guest = device();
+
+  const res = await guest.call('/api/seating/published');
+  const everyName = seed.tables.flatMap((t) => t.entries.map((e) => e.name));
+  const leaked = everyName.filter((n) => res.text.includes(n));
+  ok('not one of the guest names is in the response', leaked.length === 0,
+     `${leaked.length} leaked, e.g. ${leaked[0]}`);
+  ok('no table carries any entries at all',
+     res.json.published.tables.every((t) => Array.isArray(t.entries) && t.entries.length === 0));
+  ok('but the geometry is all there',
+     res.json.published.tables.every((t) =>
+       Number.isFinite(t.x) && Number.isFinite(t.y) && Number.isFinite(t.number)
+       && Number.isFinite(t.capacity)));
+  ok('including a seated count, so the map still draws correctly',
+     res.json.published.tables.every((t) => Number.isFinite(t.seated)));
+
+  // Titles and group names can identify a family as surely as a name.
+  ok('no table titles or group labels either',
+     res.json.published.tables.every((t) => t.title === undefined && t.group === undefined));
+}
+
+console.log('\nLooking up your own seat');
+{
+  resetDb();
+  const guest = device();
+
+  const target = seed.tables.find((t) => t.kind === 'round' && t.entries.length);
+  const person = target.entries[0];
+  const others = target.entries.slice(1).map((e) => e.name);
+
+  const hit = await guest.call('/api/seating/lookup', { method: 'POST', body: { q: person.name } });
+  eq('a full name is found', hit.json.found, true);
+  eq('and answered with the published table number', hit.json.table, target.number);
+  eq('and the table id, since both sides number from 01', hit.json.tableId, target.id);
+
+  // The heart of it.
+  const alsoThere = others.filter((n) => hit.text.includes(n));
+  ok('nobody else at that table is named', alsoThere.length === 0,
+     `leaked ${alsoThere[0]}`);
+  ok('and no list of tables comes back', !('tables' in hit.json));
+
+  const cased = await guest.call('/api/seating/lookup', {
+    method: 'POST', body: { q: `   ${person.name.toUpperCase()}   ` },
+  });
+  eq('case and stray spaces do not matter', cased.json.table, target.number);
+
+  const word = person.name.split(/\s+/).filter((w) => w.length > 3).pop();
+  if (word) {
+    const partial = await guest.call('/api/seating/lookup', { method: 'POST', body: { q: word } });
+    ok('a surname on its own is enough to get somewhere',
+       partial.json.found === true || Array.isArray(partial.json.choices)
+       || partial.json.tooMany === true,
+       JSON.stringify(partial.json).slice(0, 120));
+  }
+
+  const nope = await guest.call('/api/seating/lookup', {
+    method: 'POST', body: { q: 'Somebody Who Was Not Invited' },
+  });
+  eq('an unknown name finds nothing', nope.json.none, true);
+
+  const short = await guest.call('/api/seating/lookup', { method: 'POST', body: { q: 'a' } });
+  eq('a single letter is refused rather than answered', short.json.tooShort, true);
+  ok('and returns no names', !('choices' in short.json));
+
+  // The enumeration case: something that matches a lot of people.
+  const vague = await guest.call('/api/seating/lookup', { method: 'POST', body: { q: 'mrs' } });
+  ok('a very common fragment does not return the room',
+     vague.json.tooMany === true || vague.json.none === true
+     || (vague.json.choices?.length ?? 0) <= 6,
+     JSON.stringify(vague.json).slice(0, 120));
+
+  if (Array.isArray(vague.json.choices)) {
+    ok('and an ambiguous answer never includes table numbers',
+       vague.json.choices.every((c) => !('table' in c)));
+  } else {
+    ok('and an ambiguous answer never includes table numbers', true);
+  }
+
+  const badMethod = await guest.call('/api/seating/lookup');
+  eq('GET is refused', badMethod.status, 405);
+}
+
+console.log('\nA renumber reaches the public lookup only after publishing');
+{
+  resetDb();
+  const planner = device();
+  await planner.call('/api/planner/login', { method: 'POST', body: { pin: '2530', name: 'Princess' }, headers: { 'x-forwarded-for': '198.51.100.21' } });
+
+  const { draft } = (await planner.call('/api/planner/draft')).json;
+  const target = draft.tables.find((t) => t.kind === 'round' && t.entries.length);
+  const person = target.entries[0];
+  const wasNumber = target.number;
+  const newNumber = 61;
+
+  const edited = structuredClone(draft);
+  edited.tables.find((t) => t.id === target.id).number = newNumber;
+  const saved = await planner.call('/api/planner/draft', {
+    method: 'PUT', body: { version: draft.version, payload: edited },
+  });
+  eq('the renumber saves to the shared draft', saved.status, 200);
+
+  const beforePublish = await device().call('/api/seating/lookup', { method: 'POST', body: { q: person.name } });
+  eq('the public lookup still gives the OLD number', beforePublish.json.table, wasNumber);
+
+  const pub = await planner.call('/api/planner/publish', { method: 'POST', body: { version: saved.json.draft.version } });
+  eq('publishing succeeds', pub.status, 200);
+
+  const after = await device().call('/api/seating/lookup', { method: 'POST', body: { q: person.name } });
+  eq('and now the guest is told the new number', after.json.table, newNumber);
+
+  const map = await device().call('/api/seating/published');
+  eq('the public map shows it too',
+     map.json.published.tables.find((t) => t.id === target.id).number, newNumber);
+}
+
+console.log('\nPlanners still see everything');
+{
+  resetDb();
+  const planner = device();
+  await planner.call('/api/planner/login', { method: 'POST', body: { pin: '2530', name: 'Ini' }, headers: { 'x-forwarded-for': '198.51.100.22' } });
+
+  const res = await planner.call('/api/planner/draft');
+  const seated = res.json.draft.tables.reduce((n, t) => n + t.entries.length, 0);
+  const expected = seed.tables.reduce((n, t) => n + t.entries.length, 0);
+  eq('the planner draft has every entry', seated, expected);
+  ok('with names', res.json.draft.tables.some((t) => t.entries.some((e) => e.name)));
+  ok('and the published layout comes back with its names too, for the dirty check',
+     res.json.published !== null
+     && res.json.published.tables.reduce((n, t) => n + t.entries.length, 0) === expected);
 }
 
 console.log('\nSigning in');
@@ -516,7 +673,12 @@ console.log('\nTable numbers survive the whole round trip');
   const guest = (await device().call('/api/seating/published')).json.published;
   eq('the guest chart shows the swapped numbers (a)', tableOf(guest, one.id).number, nB);
   eq('the guest chart shows the swapped numbers (b)', tableOf(guest, two.id).number, nA);
-  eq('with guests still where they were', tableOf(guest, one.id).entries.map((e) => e.id).join(','), originalSeats);
+  // The public chart carries no entries by design, so who is seated where is
+  // checked on the planner's side — which is where it is visible at all.
+  ok('and the public chart still names nobody', tableOf(guest, one.id).entries.length === 0);
+  const plannerView = (await phone.call('/api/planner/draft')).json.draft;
+  eq('with guests still where they were',
+     tableOf(plannerView, one.id).entries.map((e) => e.id).join(','), originalSeats);
 }
 
 console.log('\nThe server refuses nonsense');

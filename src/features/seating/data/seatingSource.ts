@@ -412,7 +412,7 @@ export const SOURCE_TABLES: SourceTable[] = [
       { id: 'groom-09-00', name: 'Andikan Umoh', seats: 1, provenance: 'single', raw: 'Andikan Umoh' },
       { id: 'groom-09-01', name: 'Chibuzor Nzei', seats: 1, provenance: 'single', raw: 'Chibuzor Nzei' },
       { id: 'groom-09-02', name: 'Nissi Rajan', seats: 1, provenance: 'single', raw: 'Nissi Rajan' },
-      { id: 'groom-09-03', name: 'Iheoma Nzekwe', seats: 1, provenance: 'single', raw: 'Iheoma Nzekwe' },
+      { id: 'groom-09-07', name: 'Iheoma Nzekwe', seats: 1, provenance: 'single', raw: 'Iheoma Nzekwe' },
       { id: 'groom-09-04', name: 'Choolwe Jane Nsanzya', seats: 1, provenance: 'single', raw: 'Choolwe Jane Nsanzya' },
       { id: 'groom-09-05', name: 'Wandoo Atsaka', seats: 1, provenance: 'single', raw: 'Wandoo Atsaka' },
       { id: 'groom-09-06', name: 'Nwamaka Ezeanya', seats: 1, provenance: 'single', raw: 'Nwamaka Ezeanya' },
@@ -430,7 +430,7 @@ export const SOURCE_TABLES: SourceTable[] = [
       { id: 'groom-10-02', name: 'Richard Monday + Precious James', seats: 2, provenance: 'stated', raw: 'Richard Monday + Precious James - 2 seats' },
       { id: 'groom-10-03', name: 'Chichebem Memuduaghan + Ayeoritse Memuduaghan', seats: 2, provenance: 'inferred', raw: 'Chichebem Memuduaghan + Ayeoritse Memuduaghan' },
       { id: 'groom-10-04', name: 'Henry Orakwue', seats: 1, provenance: 'single', raw: 'Henry Orakwue' },
-      { id: 'groom-10-05', name: 'Zino Clinton Mena', seats: 1, provenance: 'single', raw: 'Zino Clinton Mena' },
+      { id: 'groom-10-03', name: 'Zino Clinton Mena', seats: 1, provenance: 'single', raw: 'Zino Clinton Mena' },
     ],
   },
   {
@@ -454,9 +454,9 @@ export const SOURCE_TABLES: SourceTable[] = [
  */
 export const SOURCE_FLAGS: string[] = [
   'groom Table 04: seats total 9 but heading declares 10 — left as-is, NOT redistributed',
-  'groom Table 09: inferred 1 extra seat(s) from unmarked multi-person row(s) [\'Tony Nwagba and Chioma Nwagba\'] — arithmetic closes exactly to 10',
-  'groom Table 10: inferred 1 extra seat(s) from unmarked multi-person row(s) [\'Chichebem Memuduaghan + Ayeoritse Memuduaghan\'] — arithmetic closes exactly to 10',
-  'bride Table 11: "Ayang Philippa + Hope Johnson" names 2 people but the table already balances at 1 seat — NOT split, needs a human ruling',
+  'groom Table 09: inferred 1 extra seat(s) from unmarked multi-person row(s) [\'groom-09-07\'] — arithmetic closes exactly to 10',
+  'groom Table 10: inferred 1 extra seat(s) from unmarked multi-person row(s) [\'groom-10-03\'] — arithmetic closes exactly to 10',
+  'bride Table 11: row bride-11-05 names 2 people but the table already balances at 1 seat — NOT split, needs a human ruling',
   'bride table 9: blank bullet row in source, dropped',
 ];
 

@@ -32,6 +32,7 @@ const ROUTES = {
   '/api/planner/draft': 'api/planner/draft.ts',
   '/api/planner/publish': 'api/planner/publish.ts',
   '/api/seating/published': 'api/seating/published.ts',
+  '/api/seating/lookup': 'api/seating/lookup.ts',
 };
 
 async function compile() {

@@ -77,6 +77,89 @@ const roundTableId = (p) => p.evaluate(() =>
     .map((el) => el.getAttribute('data-table-id'))
     .find((id) => !id.includes('vip')) ?? null);
 
+/* ── 0 · The public chart, before anyone signs in ────────────────────────── */
+
+console.log('\nThe public seating chart');
+{
+  const visitor = await device();
+  const p = await visitor.newPage();
+
+  // Watch everything the page fetches. The claim is not "no names are shown"
+  // but "no names are sent", and only the network can say that.
+  const bodies = [];
+  p.on('response', async (r) => {
+    if (!r.url().includes('/api/')) return;
+    try { bodies.push(await r.text()); } catch { /* redirect or no body */ }
+  });
+
+  await p.goto(B + '/seating-chart', { waitUntil: 'domcontentloaded' });
+  await settle(p);
+
+  // A real name from the seeded plan, read through the planner API in another
+  // context so this one never touches it.
+  const admin = await device();
+  const ap = await open(admin);
+  await signIn(ap, 'Princess');
+  await ap.waitForTimeout(700);
+  const known = await ap.evaluate(async () => {
+    const res = await fetch('/api/planner/draft', { credentials: 'same-origin' });
+    const { draft } = await res.json();
+    const t = draft.tables.find((x) => x.kind === 'round' && x.entries.length > 1);
+    return { name: t.entries[0].name, others: t.entries.slice(1).map((e) => e.name), number: t.number };
+  });
+  await ap.close();
+
+  const pageText = await p.locator('body').innerText();
+  ck('no guest name appears on the public page', !pageText.includes(known.name));
+  ck('and table numbers do', /table\s*\d/i.test(pageText));
+  ck('the hall structure is still labelled', /bride\s*&?\s*groom|dance/i.test(pageText));
+  ck('the tables are drawn', await tableCount(p) > 0);
+
+  const sentNames = bodies.filter((b) => b.includes(known.name));
+  ck('no API response sent a guest name to this browser', sentNames.length === 0);
+
+  // Tapping a table must not open a manifest.
+  await p.locator(`[data-table-id="${await roundTableId(p)}"]`).click();
+  await p.waitForTimeout(500);
+  ck('tapping a table opens no guest list',
+    await p.getByRole('dialog').count() === 0
+    && !(await p.locator('body').innerText()).includes(known.name));
+
+  /* ── The public acceptance test ─────────────────────────────────── */
+  ck('the search asks for a name', await p.getByLabel(/enter your name/i).count() === 1);
+
+  await p.getByLabel(/enter your name/i).fill(known.name);
+  await p.getByRole('button', { name: /find my seat/i }).click();
+  await p.waitForTimeout(900);
+
+  const after = await p.locator('body').innerText();
+  ck('the seat is confirmed in the promised words',
+    /thanks for honouring our invite, your seat is confirmed/i.test(after), after.slice(0, 200));
+  ck('with the published table number',
+    new RegExp(`you're on table ${known.number}\\b`, 'i').test(after), after.slice(0, 300));
+  ck('and the instruction for the door', /give your name at the door/i.test(after));
+
+  const stillPrivate = known.others.filter((n) => after.includes(n));
+  ck('nobody else at that table is revealed', stillPrivate.length === 0, stillPrivate[0]);
+
+  const highlighted = await p.evaluate(() =>
+    [...document.querySelectorAll('[data-table-id] circle')]
+      .some((c) => c.getAttribute('stroke-width') === '4'));
+  ck('the table is highlighted on the schematic', highlighted);
+
+  // A name nobody has.
+  await p.getByRole('button', { name: /search another name/i }).click();
+  await p.waitForTimeout(300);
+  await p.getByLabel(/enter your name/i).fill('Nobody Invited Here');
+  await p.getByRole('button', { name: /find my seat/i }).click();
+  await p.waitForTimeout(800);
+  ck("an unknown name gets the polite refusal",
+    /couldn't find that name/i.test(await p.locator('body').innerText()));
+  ck('and can search again', await p.getByLabel(/enter your name/i).count() === 1);
+
+  await p.close();
+}
+
 /* ── 1 · Signing in asks for a name ──────────────────────────────────────── */
 
 console.log('\nSigning in');
