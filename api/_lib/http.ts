@@ -27,15 +27,51 @@ export function methodIs(req: VercelRequest, res: VercelResponse, ...allowed: st
 /** Turns thrown configuration and store errors into honest status codes. */
 export function fail(res: VercelResponse, err: unknown) {
   if (err instanceof ConfigError) {
+    // Names the variable that is missing. There is no way to guess this from
+    // outside, and the name of an unset variable is not a secret.
+    console.error('[seating] not configured:', err.message);
     return json(res, 503, {
       error: 'not_configured',
-      detail: 'The planner backend is not configured on this deployment.',
+      detail: err.message,
     });
   }
+
   if (err instanceof StoreError) {
-    return json(res, err.status, { error: 'upstream', detail: 'The seating store did not answer.' });
+    /*
+     * Say what the store actually said.
+     *
+     * This used to return a flat "The seating store did not answer.", which
+     * is indistinguishable between a missing table, a rejected key, a paused
+     * project and a malformed URL — and production sat on exactly that
+     * message with no way to tell which. The upstream status and PostgREST's
+     * own error code describe our schema and our request; the service-role
+     * key travels in a header and is never echoed in an error body, so none
+     * of this can leak it.
+     */
+    console.error('[seating] store error:', {
+      where: err.where,
+      upstreamStatus: err.upstreamStatus,
+      code: err.code,
+      message: err.message,
+      hint: err.hint,
+      body: err.body,
+    });
+    return json(res, err.status, {
+      error: 'upstream',
+      detail: 'The seating store did not answer.',
+      upstreamStatus: err.upstreamStatus,
+      where: err.where,
+      code: err.code,
+      message: err.message,
+      hint: err.hint,
+    });
   }
-  return json(res, 500, { error: 'server_error' });
+
+  console.error('[seating] unhandled:', err);
+  return json(res, 500, {
+    error: 'server_error',
+    message: err instanceof Error ? err.message.slice(0, 200) : undefined,
+  });
 }
 
 export interface Authed {

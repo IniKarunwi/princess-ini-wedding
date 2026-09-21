@@ -286,6 +286,103 @@ console.log('\nThe public chart');
   ok('and no part of the draft leaks in the body', !JSON.stringify(draft.json).includes('tables'));
 }
 
+console.log('\nWhen the store refuses, the reason survives');
+{
+  /**
+   * Production spent a deploy cycle on "The seating store did not answer."
+   * with nothing else — a message that reads the same whether the table is
+   * missing, the key is rejected, the project is paused or the URL is wrong.
+   * These check that the upstream status and PostgREST's own error code reach
+   * the caller, and that the service-role key never does.
+   */
+  const KEY = 'service-role-test-key';
+  const cases = [
+    { name: 'a missing table (42P01)', status: 404,
+      body: { code: '42P01', message: 'relation "public.seating_layouts" does not exist' },
+      expectCode: '42P01' },
+    { name: 'a rejected key', status: 401,
+      body: { message: 'Invalid authentication credentials' }, expectCode: undefined },
+    { name: 'a paused project', status: 503, body: 'upstream connect error', expectCode: undefined },
+  ];
+
+  for (const c of cases) {
+    resetDb();
+    const previous = globalThis.fetch;
+    globalThis.fetch = async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (!url.startsWith(FAKE_SUPABASE)) return realFetch(input, init);
+      return new Response(
+        typeof c.body === 'string' ? c.body : JSON.stringify(c.body),
+        { status: c.status, headers: { 'content-type': 'application/json' } });
+    };
+
+    const res = await device().call('/api/seating/published');
+    globalThis.fetch = previous;
+
+    eq(`${c.name} — the response reports the upstream status`,
+       res.json?.upstreamStatus, c.status);
+    ok(`${c.name} — and says which request failed`,
+       typeof res.json?.where === 'string' && res.json.where.includes('/rest/v1/'),
+       res.json?.where);
+    if (c.expectCode) {
+      eq(`${c.name} — and carries PostgREST's code`, res.json?.code, c.expectCode);
+    }
+    ok(`${c.name} — the message is not swallowed`,
+       typeof res.json?.message === 'string' && res.json.message.length > 0,
+       JSON.stringify(res.json));
+    ok(`${c.name} — and the service-role key never appears`,
+       !res.text.includes(KEY), 'KEY LEAKED');
+  }
+
+  // A URL that cannot be reached at all must not look like a store refusal.
+  {
+    resetDb();
+    const previous = globalThis.fetch;
+    globalThis.fetch = async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (!url.startsWith(FAKE_SUPABASE)) return realFetch(input, init);
+      throw new TypeError('fetch failed');
+    };
+    const res = await device().call('/api/seating/published');
+    globalThis.fetch = previous;
+    eq('a network failure is reported as status 0, not a made-up HTTP code',
+       res.json?.upstreamStatus, 0);
+    ok('and says the fetch itself failed', /fetch failed/i.test(res.json?.message ?? ''),
+       res.json?.message);
+  }
+}
+
+console.log('\nSUPABASE_URL is normalised, not trusted');
+{
+  const { normaliseSupabaseUrl } = await import(`file://${await (async () => {
+    const o = join(outdir, 'env.mjs');
+    await build({ entryPoints: [join(ROOT, 'api/_lib/env.ts')], bundle: true,
+                  format: 'esm', platform: 'node', outfile: o, logLevel: 'warning' });
+    return o;
+  })()}`);
+
+  const want = 'https://abc.supabase.co';
+  eq('a bare origin is kept', normaliseSupabaseUrl('https://abc.supabase.co'), want);
+  eq('a trailing slash is dropped', normaliseSupabaseUrl('https://abc.supabase.co/'), want);
+  eq('a pasted REST base is corrected',
+     normaliseSupabaseUrl('https://abc.supabase.co/rest/v1'), want);
+  eq('and with its slash too',
+     normaliseSupabaseUrl('https://abc.supabase.co/rest/v1/'), want);
+  eq('surrounding whitespace is trimmed',
+     normaliseSupabaseUrl('  https://abc.supabase.co  '), want);
+
+  let threw = false;
+  try { normaliseSupabaseUrl('abc.supabase.co'); } catch { threw = true; }
+  ok('a URL with no scheme is rejected by name', threw);
+
+  // The paste this really guards against: the Postgres connection string
+  // instead of the project URL.
+  let pg = false;
+  try { normaliseSupabaseUrl('postgresql://postgres:pw@db.abc.supabase.co:5432/postgres'); }
+  catch { pg = true; }
+  ok('a postgres:// connection string is rejected, not fetched', pg);
+}
+
 console.log('\nThe built bundle carries no guest names');
 {
   /**
