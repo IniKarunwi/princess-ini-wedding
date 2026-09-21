@@ -20,7 +20,19 @@ import { C, F, GUTTER, label as labelStyle } from '@/lib/design';
 import { WEDDING, ROUTES } from '@/lib/wedding';
 import { usePrefersReducedMotion } from './primitives';
 
-const ITEMS: Array<{ to: string; label: string; note?: string }> = [
+/**
+ * `to` is omitted for an item that is listed but deliberately not reachable.
+ *
+ * RSVP is the one case. It stays in the menu because its absence would read
+ * as an oversight — a guest who has not replied will go looking for it — and
+ * it is shown closed so they stop looking rather than hunting the site for a
+ * link that is no longer advertised.
+ *
+ * This removes NOTHING. The RSVP page, its route and its backend are
+ * untouched; anyone holding the URL still reaches it exactly as before. The
+ * menu simply stops offering it.
+ */
+const ITEMS: Array<{ to?: string; label: string; state?: string }> = [
   { to: ROUTES.home,      label: 'Home' },
   { to: ROUTES.programme, label: 'Wedding Service Programme' },
   { to: ROUTES.menu,      label: 'Food Menu' },
@@ -28,6 +40,7 @@ const ITEMS: Array<{ to: string; label: string; note?: string }> = [
   { to: ROUTES.seating,   label: 'Find Your Seat' },
   { to: '/#venue',        label: 'Venue & Directions' },
   { to: '/#stay',         label: 'Where to Stay' },
+  { label: 'RSVP',        state: 'Closed' },
 ];
 
 export default function Nav({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
@@ -128,22 +141,38 @@ export default function Nav({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
         <nav style={{ marginTop: 'clamp(2.5rem, 10vw, 5rem)', flex: 1 }}>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {ITEMS.map((item, i) => {
-              const isHash = item.to.startsWith('/#');
+              const closed = !item.to;
+              const isHash = !!item.to?.startsWith('/#');
               const inner = (
                 <>
                   <span style={{
                     fontFamily: F.sans, fontSize: '0.6rem', letterSpacing: '0.24em',
                     color: C.onDarkDim, minWidth: '2.2em', paddingTop: '0.75em',
+                    opacity: closed ? 0.45 : 1,
                   }}>
                     {String(i + 1).padStart(2, '0')}
                   </span>
                   <span style={{
                     fontFamily: F.serif, fontWeight: 300,
                     fontSize: 'clamp(1.75rem, 7.5vw, 2.75rem)',
-                    color: C.onDark, lineHeight: 1.25,
+                    // Greyed out. The dim ivory at 55% is well below the live
+                    // items without disappearing into the green — it has to
+                    // stay readable, since the word RSVP is the thing the
+                    // guest came to the menu looking for.
+                    color: closed ? 'rgba(239,230,207,0.55)' : C.onDark,
+                    lineHeight: 1.25,
                   }}>
                     {item.label}
                   </span>
+                  {item.state && (
+                    <span style={{
+                      fontFamily: F.sans, fontSize: '0.58rem', letterSpacing: '0.24em',
+                      textTransform: 'uppercase', color: C.onDarkDim,
+                      opacity: 0.75, whiteSpace: 'nowrap',
+                    }}>
+                      — {item.state}
+                    </span>
+                  )}
                 </>
               );
               const rowStyle = {
@@ -153,9 +182,24 @@ export default function Nav({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
               } as const;
               return (
                 <li key={item.label} style={{ borderBottom: '1px solid rgba(239,230,207,0.14)' }}>
-                  {isHash
-                    ? <a href={item.to} style={rowStyle} onClick={() => setOpen(false)}>{inner}</a>
-                    : <Link to={item.to} style={rowStyle}>{inner}</Link>}
+                  {closed
+                    // A span, not a styled-down <a> or a disabled <button>.
+                    // There is no href to neutralise, nothing to preventDefault
+                    // on, and nothing focusable to tab into — it cannot
+                    // navigate because there is no control here to activate.
+                    // aria-disabled tells a screen reader what the grey tells
+                    // everyone else, and the default cursor stops it inviting
+                    // a tap it will not answer.
+                    ? <span
+                        role="link"
+                        aria-disabled="true"
+                        style={{ ...rowStyle, cursor: 'default' }}
+                      >
+                        {inner}
+                      </span>
+                    : isHash
+                      ? <a href={item.to} style={rowStyle} onClick={() => setOpen(false)}>{inner}</a>
+                      : <Link to={item.to!} style={rowStyle}>{inner}</Link>}
                 </li>
               );
             })}
