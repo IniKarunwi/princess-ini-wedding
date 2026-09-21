@@ -20,7 +20,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Layout } from './types';
-import { hasUnpublishedChanges, moveEntry, moveTable, renameEntry } from './model';
+import { hasUnpublishedChanges, moveEntry, moveTable, renameEntry,
+         renumberTable, swapTableNumbers } from './model';
 import { seatingService } from './service';
 
 const HISTORY_LIMIT = 60;
@@ -45,6 +46,19 @@ export interface SeatingPlan {
   moveGuestTo(entryId: string, tableId: string): void;
   renameGuest(entryId: string, name: string): void;
 
+  /** Changes a round table's displayed number. Never moves anyone. */
+  renumber(tableId: string, next: number): void;
+  /** Trades two tables' numbers. Positions and guests stay put. */
+  swapNumbers(aId: string, bId: string): void;
+  /**
+   * Set when a renumber was refused because the number is taken on that
+   * side. Carries the other table's id so the UI can offer a swap.
+   */
+  numberConflict: { tableId: string; next: number; conflictId: string } | null;
+  clearNumberConflict(): void;
+  /** Non-blocking note from the last renumber, e.g. a cross-side duplicate. */
+  notice: string | null;
+
   undo(): void;
   redo(): void;
   saveDraft(): Promise<void>;
@@ -59,6 +73,17 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
   const [saving, setSaving] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Set when a renumber was refused because that number is already taken on
+   * the same side. Carries the other table's id so the panel can offer a
+   * swap rather than leaving the planner stuck.
+   */
+  const [numberConflict, setNumberConflict] =
+    useState<{ tableId: string; next: number; conflictId: string } | null>(null);
+
+  /** Non-blocking remark from the last renumber, e.g. a cross-side duplicate. */
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Snapshots either side of the current draft.
   const past = useRef<Layout[]>([]);
@@ -125,6 +150,51 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     setError(null);
     commit(draft ? renameEntry(draft, entryId, name) : null);
   }, [draft, commit]);
+
+  const renumber = useCallback((tableId: string, next: number) => {
+    setDraft((cur) => {
+      if (!cur) return cur;
+      const res = renumberTable(cur, tableId, next);
+      if (!res.ok) {
+        setError(res.reason);
+        setNotice(null);
+        setNumberConflict(res.conflictId && res.canSwap
+          ? { tableId, next, conflictId: res.conflictId }
+          : null);
+        return cur;
+      }
+      setError(null);
+      setNumberConflict(null);
+      setNotice(res.note ?? null);
+      if (res.layout === cur) return cur;          // no-op renumber
+      past.current = [...past.current, cur].slice(-HISTORY_LIMIT);
+      future.current = [];
+      bumpHistory((n) => n + 1);
+      return res.layout;
+    });
+    setLastAction(null);
+  }, []);
+
+  const swapNumbers = useCallback((aId: string, bId: string) => {
+    setDraft((cur) => {
+      if (!cur) return cur;
+      const res = swapTableNumbers(cur, aId, bId);
+      if (!res.ok) { setError(res.reason); return cur; }
+      setError(null);
+      setNumberConflict(null);
+      setNotice(null);
+      past.current = [...past.current, cur].slice(-HISTORY_LIMIT);
+      future.current = [];
+      bumpHistory((n) => n + 1);
+      return res.layout;
+    });
+    setLastAction(null);
+  }, []);
+
+  const clearNumberConflict = useCallback(() => {
+    setNumberConflict(null);
+    setError(null);
+  }, []);
 
   const undo = useCallback(() => {
     setDraft((cur) => {
@@ -200,6 +270,7 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     visible: viewerIsAdmin ? draft : published,
     dirty, canUndo, canRedo, saving, lastAction, error,
     moveTableTo, moveGuestTo, renameGuest,
+    renumber, swapNumbers, numberConflict, clearNumberConflict, notice,
     undo, redo, saveDraft, publish, discardDraft,
   };
 }

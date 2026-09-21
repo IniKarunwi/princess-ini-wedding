@@ -90,6 +90,12 @@ export default function SeatingChart() {
             onGuestDragStart={setDraggingEntry}
             onGuestDragEnd={() => setDraggingEntry(null)}
             error={plan.error}
+            onRenumber={plan.renumber}
+            onSwapNumbers={plan.swapNumbers}
+            numberConflict={plan.numberConflict}
+            onClearConflict={plan.clearNumberConflict}
+            notice={plan.notice}
+            durable={seatingService.isDurable}
           />
         </div>
       )}
@@ -235,6 +241,12 @@ export default function SeatingChart() {
             onGuestDragStart={setDraggingEntry}
             onGuestDragEnd={() => setDraggingEntry(null)}
             error={plan.error}
+            onRenumber={plan.renumber}
+            onSwapNumbers={plan.swapNumbers}
+            numberConflict={plan.numberConflict}
+            onClearConflict={plan.clearNumberConflict}
+            notice={plan.notice}
+            durable={seatingService.isDurable}
           />
         </div>
       )}

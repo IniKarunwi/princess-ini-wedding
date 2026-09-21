@@ -111,14 +111,121 @@ export function moveEntry(l: Layout, entryId: string, toTableId: string): MoveRe
 const tableName = (t: SeatingTable) =>
   t.kind === 'vip' ? `The ${t.side} VIP table` : `Table ${String(t.number).padStart(2, '0')}`;
 
+/* ── Renumbering ────────────────────────────────────────────────────────── */
+
+/**
+ * Changing a table's DISPLAYED number.
+ *
+ * ── number is a label, id is the table ─────────────────────────────────────
+ * `id` ("bride-07") is assigned once, at import, and never changes. Every
+ * mutation in this file addresses tables by it: moveTable, moveEntry, the
+ * draft/published fingerprint, the map's selection. `number` is only ever
+ * read for display. So renumbering is genuinely just relabelling — guests,
+ * position, capacity and identity are untouched, and there is no path by
+ * which changing a number could move a person.
+ *
+ * One consequence worth knowing: after a renumber, the table whose id is
+ * "bride-07" may display as Table 12. That is correct and intended — the id
+ * is an opaque handle, not a claim about the number. It is only visible in
+ * exported data, never to a planner or a guest.
+ *
+ * ── Why uniqueness is per SIDE, not global ─────────────────────────────────
+ * The seating document numbers each side from 01 independently, so all
+ * eleven numbers are already in use twice — once on the bride's side and
+ * once on the groom's. A global rule would report all 22 tables as
+ * conflicting the moment the page loaded. Within a side the numbers are
+ * unique, and that is the rule enforced here. A collision with the OTHER
+ * side is reported as a note rather than a block, because it is the existing
+ * and intended state of the room.
+ */
+export type RenumberResult =
+  | { ok: true; layout: Layout; note?: string }
+  | { ok: false; reason: string; conflictId?: string; canSwap?: boolean };
+
+export function renumberTable(l: Layout, tableId: string, next: number): RenumberResult {
+  const table = l.tables.find((t) => t.id === tableId);
+  if (!table) return { ok: false, reason: 'No such table' };
+
+  // VIP slabs, the sweetheart table, the dance floor and the doors are not
+  // numbered tables and must not start behaving like them.
+  if (table.kind !== 'round') {
+    return { ok: false, reason: 'Only the round tables are numbered.' };
+  }
+
+  if (!Number.isInteger(next) || next < 1 || next > 99) {
+    return { ok: false, reason: 'Use a whole number between 1 and 99.' };
+  }
+  if (next === table.number) return { ok: true, layout: l };
+
+  const clash = l.tables.find(
+    (t) => t.kind === 'round' && t.side === table.side && t.id !== table.id && t.number === next,
+  );
+  if (clash) {
+    return {
+      ok: false,
+      reason: `Table ${String(next).padStart(2, '0')} already exists on this side.`,
+      conflictId: clash.id,
+      canSwap: true,
+    };
+  }
+
+  const otherSide = l.tables.find(
+    (t) => t.kind === 'round' && t.side !== table.side && t.number === next,
+  );
+
+  return {
+    ok: true,
+    layout: touch(l, l.tables.map((t) => (t.id === tableId ? { ...t, number: next } : t))),
+    note: otherSide
+      ? `The ${otherSide.side === 'bride' ? "bride's" : "groom's"} side also has a Table `
+        + `${String(next).padStart(2, '0')}. That was already true of every number here.`
+      : undefined,
+  };
+}
+
+/**
+ * Exchanges two tables' displayed numbers and nothing else.
+ *
+ * Explicitly NOT a swap of the tables themselves. Positions, guests,
+ * capacities and ids all stay exactly where they are; only the two labels
+ * trade places. That is the whole point — a planner who has physically moved
+ * a table wants the numbering to follow the room, not the room to follow the
+ * numbering.
+ */
+export function swapTableNumbers(l: Layout, aId: string, bId: string): RenumberResult {
+  const a = l.tables.find((t) => t.id === aId);
+  const b = l.tables.find((t) => t.id === bId);
+  if (!a || !b) return { ok: false, reason: 'No such table' };
+  if (a.kind !== 'round' || b.kind !== 'round') {
+    return { ok: false, reason: 'Only the round tables are numbered.' };
+  }
+
+  return {
+    ok: true,
+    layout: touch(l, l.tables.map((t) => {
+      if (t.id === a.id) return { ...t, number: b.number };
+      if (t.id === b.id) return { ...t, number: a.number };
+      return t;
+    })),
+  };
+}
+
 /* ── Comparing draft to published ───────────────────────────────────────── */
 
-/** A stable fingerprint of everything a guest would notice. */
+/**
+ * A stable fingerprint of everything a guest would notice.
+ *
+ * `number` is in here deliberately. It was missing, and that was a real bug:
+ * a renumber-only edit left the draft looking identical to the published
+ * layout, so "Draft — unpublished changes" never appeared, Publish stayed
+ * disabled, and the new numbering could not be sent to guests at all.
+ * A guest absolutely notices a table number.
+ */
 function fingerprint(l: Layout): string {
   return JSON.stringify(
     [...l.tables]
       .sort((a, b) => a.id.localeCompare(b.id))
-      .map((t) => [t.id, t.x, t.y, t.entries.map((e) => [e.id, e.name, e.seats])]),
+      .map((t) => [t.id, t.number, t.x, t.y, t.entries.map((e) => [e.id, e.name, e.seats])]),
   );
 }
 
