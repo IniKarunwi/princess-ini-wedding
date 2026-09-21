@@ -27,8 +27,53 @@ export interface LayoutRow {
   updated_by: string | null;
 }
 
+/**
+ * A failed call to the seating store.
+ *
+ * Carries what PostgREST actually said. The first production deploy answered
+ * every request with "The seating store did not answer." and nothing else,
+ * because the upstream body was read into an Error message and then dropped
+ * on the floor — which is a diagnosis of "something went wrong somewhere",
+ * i.e. no diagnosis at all.
+ *
+ * `upstreamStatus` and `code`/`hint` describe OUR schema and OUR request.
+ * They contain no credential: the key travels in a request header and is
+ * never echoed in a PostgREST error body. `where` is the request path with
+ * the query string kept — it is a table name and a filter, not a secret.
+ */
 export class StoreError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
+  readonly upstreamStatus: number;
+  readonly where: string;
+  /** PostgREST's error code, e.g. 42P01 for "relation does not exist". */
+  readonly code?: string;
+  readonly hint?: string;
+  /** The upstream body, capped. */
+  readonly body: string;
+
+  constructor(opts: {
+    where: string; upstreamStatus: number; body: string; status?: number;
+  }) {
+    let code: string | undefined;
+    let hint: string | undefined;
+    let message = opts.body;
+    try {
+      const parsed = JSON.parse(opts.body);
+      code = parsed?.code;
+      hint = parsed?.hint ?? parsed?.details ?? undefined;
+      message = parsed?.message ?? opts.body;
+    } catch { /* not JSON — an HTML error page from a proxy, most likely */ }
+
+    super(message.slice(0, 300));
+    this.upstreamStatus = opts.upstreamStatus;
+    this.where = opts.where;
+    this.code = code;
+    this.hint = typeof hint === 'string' ? hint.slice(0, 200) : undefined;
+    this.body = opts.body.slice(0, 500);
+    // 502 unless told otherwise: we reached the store and it refused.
+    this.status = opts.status ?? 502;
+  }
+
+  status: number;
 }
 
 const headers = (env: PlannerEnv, extra: Record<string, string> = {}) => ({
@@ -38,18 +83,46 @@ const headers = (env: PlannerEnv, extra: Record<string, string> = {}) => ({
   ...extra,
 });
 
+/**
+ * One request to PostgREST.
+ *
+ * The URL is built as `<SUPABASE_URL>/rest/v1/<path>`. readEnv() strips
+ * trailing slashes from SUPABASE_URL, so a pasted "https://x.supabase.co/"
+ * is fine — but a pasted "https://x.supabase.co/rest/v1" would produce
+ * ".../rest/v1/rest/v1/..." and a 404. The thrown error now reports the
+ * resolved path so that is visible rather than inferred.
+ */
 async function rest(env: PlannerEnv, path: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(`${env.supabaseUrl}/rest/v1/${path}`, init);
-  return res;
+  const url = `${env.supabaseUrl}/rest/v1/${path}`;
+  try {
+    return await fetch(url, init);
+  } catch (cause) {
+    // A network-level failure never reached PostgREST, so it is not a 502
+    // from the store — it is us being unable to get there at all.
+    throw new StoreError({
+      where: `${init.method ?? 'GET'} /rest/v1/${path}`,
+      upstreamStatus: 0,
+      body: `fetch failed: ${(cause as Error)?.message ?? String(cause)}`,
+      status: 502,
+    });
+  }
 }
+
+/** Reads a response's body once, for an error path. */
+const fault = async (res: Response, method: string, path: string) =>
+  new StoreError({
+    where: `${method} /rest/v1/${path}`,
+    upstreamStatus: res.status,
+    body: await res.text().catch(() => ''),
+  });
 
 export async function getLayout(
   env: PlannerEnv, status: 'draft' | 'published',
 ): Promise<LayoutRow | null> {
-  const res = await rest(env,
-    `seating_layouts?status=eq.${status}&select=status,version,payload,updated_at,updated_by`,
-    { headers: headers(env) });
-  if (!res.ok) throw new StoreError(await res.text(), 502);
+  const path =
+    `seating_layouts?status=eq.${status}&select=status,version,payload,updated_at,updated_by`;
+  const res = await rest(env, path, { headers: headers(env) });
+  if (!res.ok) throw await fault(res, 'GET', path);
   const rows = (await res.json()) as LayoutRow[];
   return rows[0] ?? null;
 }
@@ -73,7 +146,7 @@ export async function saveDraft(
         updated_by: actor,
       }),
     });
-  if (!res.ok) throw new StoreError(await res.text(), 502);
+  if (!res.ok) throw await fault(res, 'PATCH', 'seating_layouts');
   const rows = (await res.json()) as LayoutRow[];
   if (rows.length === 0) {
     return { ok: false, conflict: true, current: await getLayout(env, 'draft') };
@@ -99,7 +172,11 @@ export async function publish(
   if (text.includes('40001') || /caller held/.test(text)) {
     return { ok: false, conflict: true, current: await getLayout(env, 'draft') };
   }
-  throw new StoreError(text, 502);
+  throw new StoreError({
+    where: 'POST /rest/v1/rpc/publish_seating',
+    upstreamStatus: res.status,
+    body: text,
+  });
 }
 
 /**
@@ -108,10 +185,15 @@ export async function publish(
  * check that fails open is not a revocation check.
  */
 export async function sessionEpoch(env: PlannerEnv): Promise<number> {
-  const res = await rest(env, 'planner_settings?id=eq.true&select=session_epoch',
-    { headers: headers(env) });
-  if (!res.ok) throw new StoreError(await res.text(), 502);
+  const path = 'planner_settings?id=eq.true&select=session_epoch';
+  const res = await rest(env, path, { headers: headers(env) });
+  if (!res.ok) throw await fault(res, 'GET', path);
   const rows = (await res.json()) as Array<{ session_epoch: number }>;
-  if (!rows[0]) throw new StoreError('planner_settings row is missing', 502);
+  if (!rows[0]) {
+    throw new StoreError({
+      where: `GET /rest/v1/${path}`, upstreamStatus: 200,
+      body: 'planner_settings has no row — migration 0009 seeds one',
+    });
+  }
   return rows[0].session_epoch;
 }
