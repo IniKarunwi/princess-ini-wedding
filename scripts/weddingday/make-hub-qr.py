@@ -79,11 +79,11 @@ def main() -> None:
     version, modules = qr.version, qr.symbol_size(border=0)[0]
 
     # Vector, for the printer.
-    svg = OUT / "wedding-table-qr.svg"
+    svg = OUT / "wedding-hub-qr.svg"
     qr.save(svg, scale=10, border=4, dark="#1a3410", light="#ffffff")
 
     # Raster, 2000px square — ample for a table card at any sane size.
-    png = OUT / "wedding-table-qr.png"
+    png = OUT / "wedding-hub-qr.png"
     qr.save(png, scale=2000 // (modules + 8), border=4,
             dark="#1a3410", light="#ffffff")
 

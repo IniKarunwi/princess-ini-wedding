@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
 import Coming from "./pages/Coming";
 import Wedding from "./pages/Wedding";
@@ -9,6 +9,7 @@ import WeddingHub from "./pages/WeddingHub";
 import MenuPage from "./pages/MenuPage";
 import ThroughYourEyes from "./pages/ThroughYourEyes";
 import { FOOD_MENU, DRINKS_MENU, MENU_TITLE } from "./features/weddingday/menu";
+import { CAMERA_ENABLED } from "./features/weddingday/phase";
 
 export default function App() {
   return (
@@ -60,7 +61,16 @@ export default function App() {
             permanent and easy to encode, and the only URL printed on the
             cards — everything else is reached from it. */}
         <Route path="/wedding" element={<WeddingHub />} />
-        <Route path="/wedding/camera" element={<ThroughYourEyes />} />
+        {/* Phase 2. The capture flow is built and tested, but photographs
+            have nowhere to go until 0008_guest_photos.sql is applied, so the
+            route is closed rather than left open for someone to find by
+            typing it — taking ten photos and then being told they cannot be
+            sent is worse than never being offered the camera. The hub shows
+            the card as Coming Soon so the concept still reads whole. */}
+        <Route
+          path="/wedding/camera"
+          element={CAMERA_ENABLED ? <ThroughYourEyes /> : <Navigate to="/wedding" replace />}
+        />
 
         {/* The real reception hall map, from the seating-chart workstream.
             This is the one line of the merge that mattered. The homepage
