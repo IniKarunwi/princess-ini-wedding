@@ -1,10 +1,15 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
 import Coming from "./pages/Coming";
 import Wedding from "./pages/Wedding";
 import SeatingChart from "./pages/SeatingChart";
 import NotFound from "./pages/NotFound";
 import Music from "./components/site/Music";
+import WeddingHub from "./pages/WeddingHub";
+import MenuPage from "./pages/MenuPage";
+import ThroughYourEyes from "./pages/ThroughYourEyes";
+import { FOOD_MENU, DRINKS_MENU, MENU_TITLE } from "./features/weddingday/menu";
+import { CAMERA_ENABLED } from "./features/weddingday/phase";
 
 export default function App() {
   return (
@@ -32,19 +37,40 @@ export default function App() {
           />
         } />
         <Route path="/menu" element={
-          <Coming
+          <MenuPage
             eyebrow="At the Reception"
             title="Food Menu"
-            note="Our menu is still being finalised with the kitchen. It will appear here in good time — and on your table on the day."
+            subtitle={MENU_TITLE}
+            sections={FOOD_MENU}
           />
         } />
+        {/* Structure and styling are done; DRINKS_MENU is deliberately
+            empty until the real list is supplied. Filling that one array
+            is the whole remaining job. */}
         <Route path="/drinks" element={
-          <Coming
+          <MenuPage
             eyebrow="At the Reception"
             title="Drinks"
-            note="The drinks list is still being finalised. It will appear here before the day."
+            sections={DRINKS_MENU}
+            emptyNote="The drinks list is still being finalised. It will appear here before the day — and there will be plenty of it on the night."
           />
         } />
+
+        {/* ── The table QR lands here ──────────────────────────────────
+            One code on every reception table resolves to /wedding. Short,
+            permanent and easy to encode, and the only URL printed on the
+            cards — everything else is reached from it. */}
+        <Route path="/wedding" element={<WeddingHub />} />
+        {/* Phase 2. The capture flow is built and tested, but photographs
+            have nowhere to go until 0008_guest_photos.sql is applied, so the
+            route is closed rather than left open for someone to find by
+            typing it — taking ten photos and then being told they cannot be
+            sent is worse than never being offered the camera. The hub shows
+            the card as Coming Soon so the concept still reads whole. */}
+        <Route
+          path="/wedding/camera"
+          element={CAMERA_ENABLED ? <ThroughYourEyes /> : <Navigate to="/wedding" replace />}
+        />
 
         {/* The real reception hall map, from the seating-chart workstream.
             This is the one line of the merge that mattered. The homepage
