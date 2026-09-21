@@ -803,6 +803,90 @@ check('a run where everything fails writes nothing',
     Object.keys(ASSET_SIZE).every(k => scaledHeight(k, LAYOUT.card) > 0));
 }
 
+// ── Update #2: the thirty-day note ──────────────────────────────────────────
+{
+  const { renderThirtyDayUpdate } = await import('./template-update.mjs');
+  const { selectForUpdate, classifyForUpdate } = await import('./update-recipients.mjs');
+  const { SUBJECT_THIRTY, STAY, REGISTRY_URL, assetUrls: au } = await import('./config.mjs');
+  const A = au({ siteUrl: 'https://princessandini.com' });
+  const R = (o) => ({ id: 'u1', full_name: 'Adaeze Okonkwo', email: 'a@e.com',
+    main_invite_status: 'APPROVED', approved_for: 'RECEPTION', attending: true, ...o });
+  const render = (o) => renderThirtyDayUpdate(R(o), { assets: A, siteUrl: 'https://princessandini.com' });
+  const u = render({});
+
+  // firstName() takes the ROW, not the name. Passing the string returns
+  // "Friend" for absolutely everyone, and the first render of this email did.
+  check('update: greets the guest by their own first name', /Dear Adaeze,/.test(u.html),
+    (/Dear ([^,<]*),/.exec(u.html) || [])[1]);
+  check('update: falls back to Friend only when there is no name',
+    /Dear Friend,/.test(render({ full_name: null }).html));
+
+  // heading()/eyebrow() escape their argument, so an entity passed in is
+  // printed literally — "If You&rsquo;d Like to Bless Us" shipped once.
+  const decoded = u.html.replace(/&(amp|lt|gt|quot|nbsp|middot|rsquo|lsquo|mdash|ndash|hellip|rarr|#\d+|#x[0-9a-f]+);/gi, '');
+  check('update: no HTML entity printed literally', !/&[a-z]{2,10};/i.test(decoded),
+    (decoded.match(/&[a-z]{2,10};/i) || [])[0]);
+
+  check('update: subject is the agreed line', SUBJECT_THIRTY === '30 Days to Go! 💍 · Hotel & Registry Information');
+  check('update: asks for no RSVP', !/\bRSVP\b/i.test(u.html));
+  check('update: stays under Gmail\'s 102KB clip', Buffer.byteLength(u.html) < 102 * 1024,
+    `${(Buffer.byteLength(u.html) / 1024).toFixed(1)}KB`);
+
+  // Every hotel, linked — and linked to Maps, never to an invented booking URL.
+  const allHotels = STAY.bands.flatMap(b => b.hotels);
+  for (const [name, area] of allHotels) {
+    check(`update: links ${name}`, u.html.includes(name) && u.html.includes(STAY.mapUrl(name, area)));
+  }
+  // Compared against the ESCAPED name: the apostrophe and ampersand in
+  // "D'Crown Place — Hotel & Suites" become entities in the markup, so the raw
+  // string is never present and a naive includes() fails on correct output.
+  // The URL needs no such treatment — mapUrl percent-encodes the apostrophe
+  // precisely so the href and the function agree byte for byte.
+  const escaped = STAY.farther.name
+    .replace(/&/g, '&amp;').replace(/'/g, '&#39;');
+  check('update: links the farther-out option',
+    u.html.includes(escaped) && u.html.includes(STAY.mapUrl(STAY.farther.name, STAY.farther.area)),
+    escaped);
+  const hrefs = [...u.html.matchAll(/href="([^"]+)"/g)].map(m => m[1]);
+  check('update: invents no URLs — every link is Maps, the registry or the site',
+    hrefs.every(h => /^https:\/\/(maps\.google\.com|ouish\.co|princessandini\.com|fonts\.googleapis\.com)/.test(h)),
+    hrefs.find(h => !/^https:\/\/(maps\.google\.com|ouish\.co|princessandini\.com|fonts\.googleapis\.com)/.test(h)));
+  check('update: registry CTA points at the configured registry', u.html.includes(REGISTRY_URL));
+  check('update: does not promise rooms are held', /no rooms are held/i.test(u.html));
+
+  // ── The recipient rule ────────────────────────────────────────────────────
+  // Included regardless of RSVP or of having had the confirmation pack.
+  for (const [label, row] of [
+    ['already emailed', { email_status: 'Sent', last_email_sent: '2026-08-01T00:00:00Z' }],
+    ['never RSVPd',     { attending: null }],
+    ['RSVPd no',        { attending: false }],
+    ['plus one undecided', { plus_one_requested: true, plus_one_status: null }],
+  ]) {
+    check(`update rule: includes a guest who ${label}`, classifyForUpdate(R(row)).send === true,
+      classifyForUpdate(R(row)).reason);
+  }
+  // Excluded.
+  for (const [label, row, bucket] of [
+    ['pending',        { main_invite_status: null },        'not-approved'],
+    ['rejected',       { main_invite_status: 'REJECTED' },  'not-approved'],
+    ['no tier',        { approved_for: null },              'no-tier'],
+    ['unknown tier',   { approved_for: 'VIP LOUNGE' },      'no-tier'],
+    ['no address',     { email: null },                     'no-email'],
+    ['broken address', { email: 'not-an-email' },           'no-email'],
+  ]) {
+    const v = classifyForUpdate(R(row));
+    check(`update rule: excludes ${label} (${bucket})`, v.send === false && v.bucket === bucket, v.reason);
+  }
+  // Two rows, one inbox.
+  const dup = selectForUpdate([R({ id: 'a', email: 'same@e.com' }), R({ id: 'b', email: 'SAME@e.com' })]);
+  check('update rule: one address is emailed once', dup.recipients.length === 1 && dup.duplicates.length === 1);
+  // Nothing may be lost.
+  const mixed = [R({ id: '1' }), R({ id: '2', main_invite_status: null }), R({ id: '3', email: null })];
+  const sel = selectForUpdate(mixed);
+  check('update rule: every row lands in exactly one bucket',
+    sel.recipients.length + sel.excluded.length + sel.duplicates.length === mixed.length);
+}
+
 check('the subject names the couple', SUBJECT.includes('Princess & IniOluwa'));
 check('the subject does not re-invite people who already accepted',
   !/invited/i.test(SUBJECT));

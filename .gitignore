@@ -39,3 +39,11 @@ secrets/
 /data/
 scripts/sync/logs/
 scratch/
+
+# Built guest guides — regenerate with `npm run pdf:guides`
+dist/guides/
+
+# Licensed audio. The recording is under copyright and is NOT committed —
+# it is supplied at deploy time. See public/audio/README.md.
+public/audio/*
+!public/audio/README.md

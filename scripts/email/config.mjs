@@ -53,6 +53,87 @@ export const BANK_ACCOUNTS = [
   { name: 'Princess Victor Sado',  bank: 'Zenith Bank', number: '2218670750' },
 ];
 
+/**
+ * Where to stay, for guests travelling in.
+ *
+ * Suggestions only — nothing is booked or held, and no rate is negotiated, so
+ * the copy must never imply a block booking exists.
+ *
+ * Ordered by price band and, within a band, by how close the area is to the
+ * venue. Asokoro is the venue's own district; Garki, Maitama and the Central
+ * Area are the neighbouring ones.
+ *
+ * Lives here rather than in the PDF template because the next email update
+ * will want the same list, and two copies of a hotel list is two lists that
+ * disagree by the time anyone notices.
+ */
+export const STAY = {
+  intro:
+    `The wedding will be held at ${WEDDING.venueName} in ${WEDDING.venueArea}, ` +
+    'so staying in Asokoro will be the most convenient option. Garki, Maitama ' +
+    'and the Central Area are also nearby alternatives.',
+
+  bands: [
+    {
+      label: 'Premium',
+      hotels: [
+        ['The Wells Carlton', 'Asokoro'],
+        ['Abuja Marriott', 'Asokoro'],
+        ['Transcorp Hilton', 'Maitama'],
+      ],
+    },
+    {
+      label: 'Mid-range',
+      hotels: [
+        ['Fraser Suites', 'Asokoro'],
+        ['Hilton Garden Inn', 'Maitama'],
+        ['Westwood Hotel', 'Maitama'],
+        ['The Domus Hotel', 'Central Area'],
+      ],
+    },
+    {
+      label: 'More affordable',
+      hotels: [
+        ['Sweetroof', 'Asokoro'],
+        ['Musada Luxury Suites', 'Maitama'],
+        ['Hotel Rosebud', 'Garki'],
+        ['Rita Lori Hotels', 'Garki'],
+        ['Elomaz Hotels', 'Garki Area 11'],
+      ],
+    },
+  ],
+
+  /**
+   * A Google Maps search for one hotel.
+   *
+   * The brief was explicit: do not invent booking URLs. We have no affiliate
+   * links, no reservation system and no rates, so a link that looked like a
+   * booking link would be a lie. A Maps search is the one destination we can
+   * point at truthfully — it is what a guest would type themselves, and it
+   * answers the question they actually have, which is where this is and how
+   * far it is from Asokoro.
+   *
+   * Same mechanism as MAP_URL above, which is already in the sent email.
+   */
+  mapUrl(name, area) {
+    // encodeURIComponent leaves an apostrophe alone, which is legal in a URL
+    // but then has to be HTML-escaped in the href — so the markup carries
+    // "D&#39;Crown" and the raw URL never appears in the document. It still
+    // works, but it makes the link impossible to check for by string. Encoding
+    // it here keeps the href byte-identical to what this function returns.
+    return 'https://maps.google.com/?q='
+      + encodeURIComponent(`${name}, ${area}, Abuja, Nigeria`).replace(/'/g, '%27');
+  },
+
+  /** Further out, and honest about the trade-off. */
+  farther: {
+    name: "D'Crown Place — Hotel & Suites",
+    area: 'Idu',
+    note: 'Another option if you do not mind staying farther from the venue '
+        + 'and having a longer drive to Asokoro.',
+  },
+};
+
 /** Google Maps search for the venue, linked from the location card. */
 export const MAP_URL =
   'https://www.google.com/maps/search/?api=1&query=' +
@@ -239,6 +320,32 @@ export const UPDATE = {
   /** "WEDDING UPDATE #1" */
   label() { return `Wedding Update #${this.number}`; },
 };
+
+/**
+ * Update #2 — the thirty-day note.
+ *
+ * A short informational email: where to stay, and the registry. It is not an
+ * invitation and not a confirmation, so it asks for nothing back.
+ *
+ * Separate from UPDATE above rather than replacing it. UPDATE describes the
+ * confirmation pack, which has already been delivered to 136 inboxes; editing
+ * it in place would rewrite the masthead of an email that is already sent the
+ * next time anything re-renders it.
+ */
+export const UPDATE_THIRTY = {
+  number: 2,
+  title:  'Hotel & Registry Information',
+  label() { return `Wedding Update #${this.number}`; },
+
+  /** Falls back gracefully if the send slips a day either side of thirty. */
+  headline(days) {
+    if (days > 1)   return `${days} Days to Go`;
+    if (days === 1) return 'One Day to Go';
+    return 'Today&rsquo;s the Day';
+  },
+};
+
+export const SUBJECT_THIRTY = '30 Days to Go! 💍 · Hotel & Registry Information';
 
 /**
  * The subject line.
