@@ -47,6 +47,15 @@ export interface SeatingTable {
   /** VIP tables, like every fixed element, cannot be dragged. */
   movable: boolean;
   entries: SeatEntry[];
+  /**
+   * Filled seats, when the entries themselves are not present.
+   *
+   * The public endpoint sends the room with no guest names at all, so a
+   * public table arrives with `entries: []` and this count instead. Use
+   * occupied() rather than seatsUsed() anywhere the same code draws both the
+   * public and the planner view.
+   */
+  seated?: number;
 }
 
 /** A rectangle tables may not occupy: dance floor, aisle, doorway clearance. */
@@ -77,7 +86,17 @@ export const seatsUsed = (t: SeatingTable): number =>
   t.entries.reduce((n, e) => n + e.seats, 0);
 
 export const seatsFree = (t: SeatingTable): number =>
-  Math.max(0, t.capacity - seatsUsed(t));
+  Math.max(0, t.capacity - occupied(t));
+
+/**
+ * Seats taken, whether or not this layout carries the people in them.
+ *
+ * A planner's layout has entries and seatsUsed() counts them. A guest's
+ * layout has none — the names never leave the server — and carries `seated`
+ * instead. The map draws the same circles either way.
+ */
+export const occupied = (t: SeatingTable): number =>
+  t.entries.length ? seatsUsed(t) : (t.seated ?? 0);
 
 /**
  * Short label, for the map and a panel heading where the side is already on

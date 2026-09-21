@@ -1,143 +1,217 @@
 /**
  * The persistence boundary.
  *
- * ══ READ THIS BEFORE CALLING ANY OF THIS PRODUCTION-READY ═════════════════
+ * ── The store is the server now ─────────────────────────────────────────────
+ * This used to be localStorage, and the file said so at length: one browser,
+ * no sharing, drafts invisible to the planner standing next to you. Every one
+ * of those limits is gone. Both layouts live in Postgres (migration 0009) and
+ * are reached through same-origin functions under /api, so:
  *
- * The implementation that ships today is LocalSeatingService: browser
- * localStorage, one device, no sharing, no auth. It is a prototype backing
- * store and nothing more. Specifically, it does NOT satisfy the brief's
- * persistence requirements:
+ *   • two planners on two devices edit ONE draft;
+ *   • a publish reaches every guest's phone;
+ *   • the draft is private because no RLS policy lets the anon key read it,
+ *     not because it happens to be in someone's browser;
+ *   • clearing a browser loses nothing.
  *
- *   ✗ admins editing from one device and seeing it on another
- *   ✗ a publish by a planner being visible to guests
- *   ✗ drafts staying private from guests — localStorage is per-browser, so
- *     the draft is invisible to everyone INCLUDING other admins, which is
- *     not privacy, it is isolation
- *   ✗ surviving a cleared browser
+ * ── Versions are not decoration ─────────────────────────────────────────────
+ * Every load carries the draft's version and every save sends it back. The
+ * server refuses a save whose version has moved on and answers 409 with the
+ * current draft. That is the whole multi-device safety story, and it is why
+ * saveDraft returns a result instead of void: the caller has to be able to
+ * tell a planner "someone else changed this" rather than pretending.
  *
- * What IS real today: the draft/published SEPARATION, the publish gesture,
- * undo/redo, and every capacity and placement rule. Those are domain logic
- * and they do not change when the store behind this interface changes.
+ * Nothing merges automatically. Two people rearranging a room have intentions
+ * the server cannot infer.
  *
- * ── What the backend has to provide ───────────────────────────────────────
- * Nothing in this repository stores a hall layout. The existing migrations
- * (0001–0006) cover the RSVP sync layer; 0003_seat_allocation is about
- * plus-one labelling on `rsvps` and is unrelated to the hall. The
- * feature/wedding-day-backend branch owns migration 0007 and staff auth, and
- * this branch deliberately does not touch either.
- *
- * To make this real, one table is needed — sketched here, NOT created by this
- * branch, so it does not collide with 0007:
- *
- *     seating_layouts
- *       id           uuid primary key default gen_random_uuid()
- *       status       text not null check (status in ('draft','published'))
- *       version      integer not null
- *       payload      jsonb not null      -- Layout, exactly as typed here
- *       updated_at   timestamptz not null default now()
- *       updated_by   text                -- staff identity, once auth exists
- *       -- exactly one row per status:
- *       unique (status)
- *
- * Access rules, which matter as much as the table:
- *   • anon may SELECT the row WHERE status = 'published' and nothing else.
- *     RLS with no policy for 'draft' means a guest cannot read the draft even
- *     by guessing — deny-all is the default once RLS is on.
- *   • writing either row requires an authenticated staff identity. Not the
- *     PIN in this branch: see auth.ts.
- *   • publish is a single transaction that copies draft → published and
- *     bumps version, so guests never observe a half-published room.
- *
- * Swapping LocalSeatingService for a SupabaseSeatingService means implementing
- * the four methods below against that table. No component changes.
+ * ── The old localStorage draft ──────────────────────────────────────────────
+ * Drafts made before this change still sit in `pi.seating.draft.v1` on
+ * whichever laptop made them. They are NOT read as a live store any more, and
+ * they are NOT deleted. legacy.ts finds them and offers to upload them.
  */
 
 import type { Layout } from './types';
-import { buildInitialLayout } from './model';
+
+/** A layout as it came from the server, with the version to send back. */
+export interface Loaded {
+  layout: Layout;
+  version: number;
+  updatedBy: string | null;
+}
+
+export type SaveResult =
+  | { ok: true; version: number; updatedBy: string | null }
+  | { ok: false; kind: 'conflict'; current: Loaded | null }
+  | { ok: false; kind: 'auth' }
+  | { ok: false; kind: 'error'; reason: string };
+
+export type PublishResult =
+  | { ok: true; published: Loaded; draft: Loaded | null }
+  | { ok: false; kind: 'conflict'; current: Loaded | null }
+  | { ok: false; kind: 'auth' }
+  | { ok: false; kind: 'error'; reason: string };
+
+/** A guest's own result. Deliberately one person, never a table manifest. */
+export type SeatLookup =
+  | { kind: 'found'; name: string; table: number; tableId: string; vip: boolean }
+  | { kind: 'choices'; choices: Array<{ id: string; name: string }> }
+  | { kind: 'none' }
+  | { kind: 'too-many' }
+  | { kind: 'too-short'; min: number }
+  | { kind: 'error'; reason: string };
 
 export interface SeatingService {
-  /** What guests see. */
-  loadPublished(): Promise<Layout>;
-  /** What admins edit. Falls back to a copy of published when none exists. */
-  loadDraft(): Promise<Layout>;
-  /** Saves the draft. Must NOT affect what guests see. */
-  saveDraft(layout: Layout): Promise<void>;
-  /** Promotes the draft to published and bumps the version. */
-  publish(layout: Layout): Promise<Layout>;
   /**
-   * True when this implementation genuinely persists across devices.
-   * The UI reads this to decide whether to tell the user the truth about
-   * what their "Save draft" actually did.
+   * What guests see: the room, table numbers and geometry, and NO guest
+   * names — the public endpoint strips them server-side.
    */
+  loadPublished(): Promise<Loaded>;
+  /**
+   * The shared planner draft, and the full published layout alongside it.
+   *
+   * Both come from the authenticated endpoint. The planner needs the
+   * published layout WITH its names, or comparing draft to published would
+   * report the whole room as changed.
+   */
+  loadDraft(): Promise<{ draft: Loaded; published: Loaded | null }>;
+  /** Looks up one guest's own seat. Public. */
+  lookup(query: { q?: string; id?: string }): Promise<SeatLookup>;
+  saveDraft(layout: Layout, version: number): Promise<SaveResult>;
+  publish(version: number): Promise<PublishResult>;
+  /** True when this store genuinely persists across devices. */
   readonly isDurable: boolean;
   readonly describe: string;
 }
 
-const KEY_PUB = 'pi.seating.published.v1';
-const KEY_DRAFT = 'pi.seating.draft.v1';
+export class SeatingUnavailable extends Error {}
 
-const read = (key: string): Layout | null => {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as Layout) : null;
-  } catch {
-    return null;   // private mode, disabled storage, or corrupt JSON
-  }
-};
-
-const write = (key: string, l: Layout) => {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(l));
-  } catch {
-    /* Storage full or blocked. The in-memory layout is still correct. */
-  }
-};
+/* ── Wire format ─────────────────────────────────────────────────────────── */
 
 /**
- * Prototype store. One browser, one device, no sharing. See the file header.
+ * The server keeps version and status in the row's columns and the rest in
+ * the payload; it flattens them together on the way out. Rebuilding a Layout
+ * here rather than trusting the shape keeps one definition of what a layout
+ * is — the types in types.ts — on both sides of the network.
  */
-export class LocalSeatingService implements SeatingService {
-  readonly isDurable = false;
-  readonly describe = 'This browser only — not shared, not a real backend';
+function toLoaded(raw: any, status: 'draft' | 'published'): Loaded {
+  const layout: Layout = {
+    version: Number(raw?.version ?? 1),
+    status,
+    tables: Array.isArray(raw?.tables) ? raw.tables : [],
+    updatedAt: typeof raw?.updatedAt === 'string' ? raw.updatedAt : new Date().toISOString(),
+    label: typeof raw?.label === 'string' ? raw.label : undefined,
+  };
+  return { layout, version: layout.version, updatedBy: raw?.updatedBy ?? null };
+}
 
-  async loadPublished(): Promise<Layout> {
-    const stored = read(KEY_PUB);
-    if (stored) return stored;
-    const fresh = { ...buildInitialLayout(), status: 'published' as const };
-    write(KEY_PUB, fresh);
-    return fresh;
+const call = (path: string, init: RequestInit = {}) =>
+  fetch(path, {
+    ...init,
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json', ...(init.headers ?? {}) },
+  });
+
+/**
+ * The seating plan on the server. The only implementation that ships.
+ */
+export class ApiSeatingService implements SeatingService {
+  readonly isDurable = true;
+  readonly describe = 'Shared across every planner and every device';
+
+  async loadPublished(): Promise<Loaded> {
+    const res = await call('/api/seating/published');
+    if (!res.ok) throw new SeatingUnavailable(`published: ${res.status}`);
+    const body = await res.json();
+    return toLoaded(body.published, 'published');
   }
 
-  async loadDraft(): Promise<Layout> {
-    const stored = read(KEY_DRAFT);
-    if (stored) return stored;
-    const pub = await this.loadPublished();
-    return { ...structuredClone(pub), status: 'draft' };
-  }
-
-  async saveDraft(layout: Layout): Promise<void> {
-    write(KEY_DRAFT, { ...layout, status: 'draft' });
-  }
-
-  async publish(layout: Layout): Promise<Layout> {
-    const published: Layout = {
-      ...structuredClone(layout),
-      status: 'published',
-      version: layout.version + 1,
-      updatedAt: new Date().toISOString(),
+  async loadDraft(): Promise<{ draft: Loaded; published: Loaded | null }> {
+    const res = await call('/api/planner/draft');
+    if (!res.ok) throw new SeatingUnavailable(`draft: ${res.status}`);
+    const body = await res.json();
+    return {
+      draft: toLoaded(body.draft, 'draft'),
+      published: body.published ? toLoaded(body.published, 'published') : null,
     };
-    write(KEY_PUB, published);
-    write(KEY_DRAFT, { ...structuredClone(published), status: 'draft' });
-    return published;
   }
 
-  /** Development aid — drops both stores and re-imports the document. */
-  async reset(): Promise<void> {
+  async lookup(query: { q?: string; id?: string }): Promise<SeatLookup> {
+    let res: Response;
     try {
-      window.localStorage.removeItem(KEY_PUB);
-      window.localStorage.removeItem(KEY_DRAFT);
-    } catch { /* nothing to clear */ }
+      res = await call('/api/seating/lookup', { method: 'POST', body: JSON.stringify(query) });
+    } catch {
+      return { kind: 'error', reason: 'No connection. Try again in a moment.' };
+    }
+    if (!res.ok) return { kind: 'error', reason: 'The seating list could not be reached.' };
+
+    const b = await res.json().catch(() => ({} as any));
+    if (b?.found) {
+      return { kind: 'found', name: b.name, table: b.table, tableId: b.tableId, vip: !!b.vip };
+    }
+    if (Array.isArray(b?.choices)) return { kind: 'choices', choices: b.choices };
+    if (b?.tooMany) return { kind: 'too-many' };
+    if (b?.tooShort) return { kind: 'too-short', min: b.min ?? 3 };
+    return { kind: 'none' };
+  }
+
+  async saveDraft(layout: Layout, version: number): Promise<SaveResult> {
+    let res: Response;
+    try {
+      res = await call('/api/planner/draft', {
+        method: 'PUT',
+        body: JSON.stringify({
+          version,
+          // version and status are the server's to decide; sending them would
+          // only create a second opinion about what version this is.
+          payload: { tables: layout.tables, updatedAt: layout.updatedAt, label: layout.label },
+        }),
+      });
+    } catch {
+      return { ok: false, kind: 'error', reason: 'No connection — nothing was saved.' };
+    }
+
+    if (res.status === 409) {
+      const body = await res.json().catch(() => ({} as any));
+      return { ok: false, kind: 'conflict', current: body?.current ? toLoaded(body.current, 'draft') : null };
+    }
+    if (res.status === 401) return { ok: false, kind: 'auth' };
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({} as any));
+      return { ok: false, kind: 'error', reason: body?.detail ?? 'The draft could not be saved.' };
+    }
+
+    const body = await res.json();
+    const loaded = toLoaded(body.draft, 'draft');
+    return { ok: true, version: loaded.version, updatedBy: loaded.updatedBy };
+  }
+
+  async publish(version: number): Promise<PublishResult> {
+    let res: Response;
+    try {
+      res = await call('/api/planner/publish', {
+        method: 'POST',
+        body: JSON.stringify({ version }),
+      });
+    } catch {
+      return { ok: false, kind: 'error', reason: 'No connection — nothing was published.' };
+    }
+
+    if (res.status === 409) {
+      const body = await res.json().catch(() => ({} as any));
+      return { ok: false, kind: 'conflict', current: body?.current ? toLoaded(body.current, 'draft') : null };
+    }
+    if (res.status === 401) return { ok: false, kind: 'auth' };
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({} as any));
+      return { ok: false, kind: 'error', reason: body?.detail ?? 'Publishing failed.' };
+    }
+
+    const body = await res.json();
+    return {
+      ok: true,
+      published: toLoaded(body.published, 'published'),
+      draft: body.draft ? toLoaded(body.draft, 'draft') : null,
+    };
   }
 }
 
-export const seatingService: SeatingService = new LocalSeatingService();
+export const seatingService: SeatingService = new ApiSeatingService();

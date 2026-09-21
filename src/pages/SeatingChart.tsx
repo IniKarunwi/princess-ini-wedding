@@ -13,11 +13,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import HallMap, { type MapHandle } from '@/features/seating/components/HallMap';
 import FindYourSeat from '@/features/seating/components/FindYourSeat';
+import PublicFindYourSeat from '@/features/seating/components/PublicFindYourSeat';
 import TableDetails from '@/features/seating/components/TableDetails';
 import { AdminBar, AdminUnlock } from '@/features/seating/components/AdminPanel';
+import RecoveryNotice from '@/features/seating/components/RecoveryNotice';
 import { useAdminSession } from '@/features/seating/auth';
 import { useSeatingPlan } from '@/features/seating/useSeatingPlan';
 import { seatingService } from '@/features/seating/service';
+import { dismissLegacy, legacyDiffers, legacyDismissed, readLegacyDraft,
+         type LegacyDraft } from '@/features/seating/legacy';
 import { assertLayoutLegal, HALL } from '@/features/seating/hall';
 import { C, F, label } from '@/features/seating/theme';
 import { SOURCE_TOTALS } from '@/features/seating/data/seatingSource';
@@ -32,6 +36,19 @@ export default function SeatingChart() {
   const [highlightEntry, setHighlightEntry] = useState<string | null>(null);
   const [draggingEntry, setDraggingEntry] = useState<string | null>(null);
   const mapRef = useRef<MapHandle | null>(null);
+
+  /**
+   * A draft this browser saved before the plan moved to the server.
+   *
+   * Only looked for once a planner is signed in — a guest has no use for it,
+   * and reading it at all on a guest's device would be pointless.
+   */
+  const [legacy, setLegacy] = useState<LegacyDraft | null>(null);
+  const [legacyHidden, setLegacyHidden] = useState(false);
+  useEffect(() => {
+    if (!admin.canEdit || legacyDismissed()) return;
+    setLegacy(readLegacyDraft());
+  }, [admin.canEdit]);
 
   useEffect(() => {
     const on = () => setWide(window.innerWidth >= WIDE);
@@ -53,6 +70,22 @@ export default function SeatingChart() {
     if (problems.length) console.warn('[seating] illegal table placements:', problems);
   }, [layout]);
 
+  // The room comes from the server now, so "cannot load" is a real state and
+  // has to say something a guest can act on rather than sitting on "Setting
+  // the room…" forever.
+  if (plan.loadError && !layout) {
+    return (
+      <main style={shellFor(wide)}>
+        <div style={{ padding: '3rem 1.25rem', textAlign: 'center', maxWidth: 420, margin: '0 auto' }}>
+          <p style={label(C.gold, '0.58rem')}>Seating chart</p>
+          <p style={{ fontFamily: F.sans, fontSize: '0.85rem', lineHeight: 1.7, color: C.ink }}>
+            {plan.loadError}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   if (plan.loading || !layout) {
     return (
       <main style={shellFor(wide)}>
@@ -66,17 +99,35 @@ export default function SeatingChart() {
   const panel = (
     <>
       <div style={{ background: C.paper, border: `1px solid ${C.rule}`, padding: '1.2rem' }}>
-        <FindYourSeat
-          layout={layout}
-          onPick={(table, entryId) => {
-            setSelectedId(table.id);
-            setHighlightEntry(entryId);
-            mapRef.current?.flyTo(table.id, 620);
-          }}
-        />
+        {/* Two different searches, deliberately.
+
+            A planner searches the layout they are holding, which has every
+            name in it. A guest's browser holds no names at all — the public
+            endpoint strips them — so their search asks the server about one
+            person and gets back one answer. Rendering the planner's panel to
+            a guest would not merely show too much; it would require sending
+            the guest list to do it. */}
+        {admin.canEdit ? (
+          <FindYourSeat
+            layout={layout}
+            onPick={(table, entryId) => {
+              setSelectedId(table.id);
+              setHighlightEntry(entryId);
+              mapRef.current?.flyTo(table.id, 620);
+            }}
+          />
+        ) : (
+          <PublicFindYourSeat
+            onFound={(tableId) => {
+              setSelectedId(tableId);
+              setHighlightEntry(null);
+              mapRef.current?.flyTo(tableId, 620);
+            }}
+          />
+        )}
       </div>
 
-      {selected && wide && (
+      {selected && wide && admin.canEdit && (
         <div style={{ marginTop: '1rem' }}>
           <TableDetails
             table={selected}
@@ -90,6 +141,12 @@ export default function SeatingChart() {
             onGuestDragStart={setDraggingEntry}
             onGuestDragEnd={() => setDraggingEntry(null)}
             error={plan.error}
+            onRenumber={plan.renumber}
+            onSwapNumbers={plan.swapNumbers}
+            numberConflict={plan.numberConflict}
+            onClearConflict={plan.clearNumberConflict}
+            notice={plan.notice}
+            durable={seatingService.isDurable}
           />
         </div>
       )}
@@ -128,22 +185,41 @@ export default function SeatingChart() {
 
       {/* ── Admin ──────────────────────────────────────────────────────── */}
       {admin.canEdit ? (
-        <AdminBar
-          dirty={plan.dirty}
-          canUndo={plan.canUndo}
-          canRedo={plan.canRedo}
-          saving={plan.saving}
-          lastAction={plan.lastAction}
-          version={plan.published?.version ?? 1}
-          durable={seatingService.isDurable}
-          realAuth={admin.isRealAuth}
-          onUndo={plan.undo}
-          onRedo={plan.redo}
-          onSave={plan.saveDraft}
-          onPublish={plan.publish}
-          onDiscard={plan.discardDraft}
-          onLock={() => { admin.lock(); setDraggingEntry(null); }}
-        />
+        <>
+          <AdminBar
+            dirty={plan.dirty}
+            canUndo={plan.canUndo}
+            canRedo={plan.canRedo}
+            saving={plan.saving}
+            lastAction={plan.lastAction}
+            version={plan.published?.version ?? 1}
+            draftVersion={plan.draftVersion}
+            draftBy={plan.draftBy}
+            updatedAt={plan.draft?.updatedAt}
+            who={admin.name}
+            conflict={plan.conflict}
+            onUndo={plan.undo}
+            onRedo={plan.redo}
+            onSave={plan.saveDraft}
+            onPublish={plan.publish}
+            onDiscard={plan.discardDraft}
+            onReload={plan.reloadDraft}
+            onLock={() => { admin.lock(); setDraggingEntry(null); }}
+          />
+          {legacy && !legacyHidden && plan.draft
+            && legacyDiffers(legacy.layout, plan.draft) && (
+            <RecoveryNotice
+              local={legacy.layout}
+              shared={plan.draft}
+              savedAt={legacy.savedAt}
+              busy={plan.saving}
+              onUpload={() => { void plan.adoptLayout(legacy.layout); setLegacyHidden(true); }}
+              // Hides the notice and nothing else. The local copy stays put —
+              // see legacy.ts.
+              onUseShared={() => { dismissLegacy(); setLegacyHidden(true); }}
+            />
+          )}
+        </>
       ) : (
         <div style={{
           borderBottom: `1px solid ${C.rule}`, background: C.ivory,
@@ -214,7 +290,10 @@ export default function SeatingChart() {
       </div>
 
       {/* ── Mobile bottom sheet ────────────────────────────────────────── */}
-      {selected && !wide && (
+      {/* The table sheet lists who is sitting where, so it is for planners
+          only. A guest tapping a table highlights it and learns nothing it
+          did not already show. */}
+      {selected && !wide && admin.canEdit && (
         <div
           role="dialog"
           aria-label={`Table details`}
@@ -235,6 +314,12 @@ export default function SeatingChart() {
             onGuestDragStart={setDraggingEntry}
             onGuestDragEnd={() => setDraggingEntry(null)}
             error={plan.error}
+            onRenumber={plan.renumber}
+            onSwapNumbers={plan.swapNumbers}
+            numberConflict={plan.numberConflict}
+            onClearConflict={plan.clearNumberConflict}
+            notice={plan.notice}
+            durable={seatingService.isDurable}
           />
         </div>
       )}

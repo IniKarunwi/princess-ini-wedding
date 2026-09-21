@@ -22,7 +22,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Layout, SeatingTable } from '../types';
-import { seatsUsed, tableLabel } from '../types';
+import { occupied, tableLabel } from '../types';
 import { HALL, ROUND_R, ZONES, placementCheck } from '../hall';
 import { C, F, MAP } from '../theme';
 
@@ -472,7 +472,7 @@ function TableShape({
   onHover(on: boolean): void;
   onDropGuest(): void;
 }) {
-  const used = seatsUsed(table);
+  const used = occupied(table);
   const full = used >= table.capacity;
   const x = dragPos ? dragPos.x : table.x;
   const y = dragPos ? dragPos.y : table.y;
@@ -488,7 +488,8 @@ function TableShape({
     const left = x - w / 2, top = y - h / 2;
     const per = Math.ceil(table.capacity / 2);
     return (
-      <g onPointerUp={dropTarget ? onDropGuest : undefined}
+      <g data-table-id={table.id}
+         onPointerUp={dropTarget ? onDropGuest : undefined}
          onPointerEnter={() => onHover(true)} onPointerLeave={() => onHover(false)}
          onClick={onSelect} style={{ cursor: 'pointer' }}>
         {Array.from({ length: per }).map((_, i) => {
@@ -523,6 +524,9 @@ function TableShape({
   const seatCount = table.capacity;
   return (
     <g
+      // The permanent id, not the displayed number: tests and any future
+      // deep link must survive a renumber, which is the whole distinction.
+      data-table-id={table.id}
       onPointerDown={editing && table.movable ? onGrab : undefined}
       onPointerUp={dropTarget ? onDropGuest : undefined}
       onPointerEnter={() => onHover(true)}

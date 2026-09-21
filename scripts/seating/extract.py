@@ -111,8 +111,14 @@ for side in sides:
                 for e in cands:
                     e['seats'] = joins(e['name'])
                     e['inferred'] = True
+                # The row is identified by its id, never by the name printed
+                # in it. These flags are rendered in the planner bar, and
+                # AdminPanel is imported unconditionally — so a name quoted
+                # here would be compiled into the PUBLIC JavaScript bundle
+                # and shipped to every guest. A planner opens the table and
+                # sees the row itself, which is better anyway.
                 flags.append(f"{label}: inferred {gap} extra seat(s) from unmarked "
-                             f"multi-person row(s) {[e['name'] for e in cands]} — "
+                             f"multi-person row(s) {[e['id'] for e in cands]} — "
                              f"arithmetic closes exactly to {stated}")
             else:
                 flags.append(f"{label}: seats total {total} but heading declares "
@@ -130,7 +136,8 @@ for side in sides:
         for e in t['entries']:
             if e['seats'] == 1 and joins(e['name']) > 1 and not e.get('inferred'):
                 e['ambiguous'] = True
-                flags.append(f"{label}: \"{e['name']}\" names {joins(e['name'])} people "
+                # Same reason: the row id, not the name. See above.
+                flags.append(f"{label}: row {e['id']} names {joins(e['name'])} people "
                              f"but the table already balances at 1 seat — NOT split, "
                              f"needs a human ruling")
 

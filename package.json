@@ -7,6 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.api.json",
+    "seating:migration": "node scripts/seating/make-migration.mjs",
+    "seating:hash-pin": "node scripts/seating/hash-pin.mjs",
+    "test:planner": "node scripts/seating/planner-test.mjs",
     "sync:rsvps": "node --env-file-if-exists=.env scripts/sync/run.mjs",
     "build:appsscript": "node scripts/sync/build-appsscript.mjs",
     "test:appsscript": "node scripts/sync/build-appsscript.mjs && node scripts/sync/appsscript-harness.mjs --file ./data/rsvps.xlsx",
@@ -27,7 +31,9 @@
     "pdf:verify": "node scripts/pdf/verify.mjs",
     "email:reconcile": "node --env-file-if-exists=.env scripts/email/reconcile.mjs",
     "pdf:retouch": "python3 scripts/pdf/retouch-moodboards.py",
-    "email:update": "node --env-file-if-exists=.env scripts/email/send-update.mjs"
+    "email:update": "node --env-file-if-exists=.env scripts/email/send-update.mjs",
+    "test:renumber": "node scripts/seating/renumber-test.mjs",
+    "test:seating-ui": "node scripts/seating/ui-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -47,6 +53,7 @@
     "@types/node": "^22.16.5",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
+    "@vercel/node": "^13.0.1",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.32.0",

@@ -454,9 +454,9 @@ export const SOURCE_TABLES: SourceTable[] = [
  */
 export const SOURCE_FLAGS: string[] = [
   'groom Table 04: seats total 9 but heading declares 10 — left as-is, NOT redistributed',
-  'groom Table 09: inferred 1 extra seat(s) from unmarked multi-person row(s) [\'Tony Nwagba and Chioma Nwagba\'] — arithmetic closes exactly to 10',
-  'groom Table 10: inferred 1 extra seat(s) from unmarked multi-person row(s) [\'Chichebem Memuduaghan + Ayeoritse Memuduaghan\'] — arithmetic closes exactly to 10',
-  'bride Table 11: "Ayang Philippa + Hope Johnson" names 2 people but the table already balances at 1 seat — NOT split, needs a human ruling',
+  'groom Table 09: inferred 1 extra seat(s) from unmarked multi-person row(s) [\'groom-09-07\'] — arithmetic closes exactly to 10',
+  'groom Table 10: inferred 1 extra seat(s) from unmarked multi-person row(s) [\'groom-10-03\'] — arithmetic closes exactly to 10',
+  'bride Table 11: row bride-11-05 names 2 people but the table already balances at 1 seat — NOT split, needs a human ruling',
   'bride table 9: blank bullet row in source, dropped',
 ];
 

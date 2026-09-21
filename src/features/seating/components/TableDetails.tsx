@@ -21,6 +21,7 @@ import { C, F, label } from '../theme';
 export default function TableDetails({
   table, allTables, highlightEntryId, editing, sheet,
   onClose, onRename, onMoveGuest, onGuestDragStart, onGuestDragEnd, error,
+  onRenumber, onSwapNumbers, numberConflict, onClearConflict, notice, durable,
 }: {
   table: SeatingTable;
   allTables: SeatingTable[];
@@ -33,6 +34,13 @@ export default function TableDetails({
   onGuestDragStart(entryId: string): void;
   onGuestDragEnd(): void;
   error: string | null;
+  onRenumber(tableId: string, next: number): void;
+  onSwapNumbers(aId: string, bId: string): void;
+  numberConflict: { tableId: string; next: number; conflictId: string } | null;
+  onClearConflict(): void;
+  notice: string | null;
+  /** False while planner edits live only in this browser. */
+  durable: boolean;
 }) {
   const used = seatsUsed(table);
   const free = seatsFree(table);
@@ -83,7 +91,23 @@ export default function TableDetails({
         {table.group ? ` · ${table.group}` : ''}
       </p>
 
-      {error && (
+      {/* Renumbering. Planner only, round tables only — the VIP slabs, the
+          sweetheart table and the doors are not numbered tables. */}
+      {editing && table.kind === 'round' && (
+        <RenumberField
+          table={table}
+          allTables={allTables}
+          onRenumber={onRenumber}
+          onSwapNumbers={onSwapNumbers}
+          conflict={numberConflict?.tableId === table.id ? numberConflict : null}
+          onClearConflict={onClearConflict}
+          notice={notice}
+          durable={durable}
+          error={error}
+        />
+      )}
+
+      {error && !(editing && table.kind === 'round') && (
         <p style={{
           fontFamily: F.sans, fontSize: '0.72rem', lineHeight: 1.5,
           color: '#8c3d22', background: '#f8e8e1', border: '1px solid #e6c5b6',
@@ -252,5 +276,154 @@ function EntryRow({
         </select>
       )}
     </li>
+  );
+}
+
+/**
+ * The table-number field.
+ *
+ * ── Renumbering is not moving ──────────────────────────────────────────────
+ * Deliberately a separate, explicit action with its own Update button. A
+ * planner drags a table to change WHERE it is and edits this to change what
+ * it is CALLED, and neither ever implies the other. Nothing here renumbers
+ * tables automatically because something was dragged.
+ *
+ * ── The conflict is an offer, not a wall ───────────────────────────────────
+ * Refusing a duplicate and stopping there would leave a planner who has just
+ * physically swapped two tables with no way forward but to invent a spare
+ * number, apply it, then go and fix the other table. So the refusal comes
+ * with the thing they actually wanted: swap the two numbers. Positions and
+ * guests stay exactly where they are — only the labels trade places.
+ */
+function RenumberField({
+  table, allTables, onRenumber, onSwapNumbers, conflict, onClearConflict, notice, durable, error,
+}: {
+  table: SeatingTable;
+  allTables: SeatingTable[];
+  onRenumber(tableId: string, next: number): void;
+  onSwapNumbers(aId: string, bId: string): void;
+  conflict: { tableId: string; next: number; conflictId: string } | null;
+  onClearConflict(): void;
+  notice: string | null;
+  durable: boolean;
+  error: string | null;
+}) {
+  // Keyed on the table id AND its number so the field resets when the planner
+  // selects a different table, or when an undo rolls a number back.
+  const [value, setValue] = useState(String(table.number));
+  const [touchedId, setTouchedId] = useState(`${table.id}:${table.number}`);
+  const key = `${table.id}:${table.number}`;
+  if (key !== touchedId) {
+    setTouchedId(key);
+    setValue(String(table.number));
+  }
+
+  const parsed = Number(value);
+  const changed = value.trim() !== '' && parsed !== table.number;
+  const other = conflict ? allTables.find((t) => t.id === conflict.conflictId) : null;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!changed) return;
+    onRenumber(table.id, parsed);
+  };
+
+  return (
+    <div style={{
+      marginTop: '1rem', padding: '0.8rem 0.9rem',
+      background: C.ivory, border: `1px solid ${C.rule}`,
+    }}>
+      <form onSubmit={submit} style={{ display: 'flex', alignItems: 'flex-end', gap: '0.6rem', flexWrap: 'wrap' }}>
+        <label style={{ display: 'block' }}>
+          <span style={{ ...label(C.muted, '0.55rem'), display: 'block', marginBottom: '0.4rem' }}>
+            Table Number
+          </span>
+          <input
+            value={value}
+            onChange={(ev) => { setValue(ev.target.value.replace(/[^\d]/g, '')); onClearConflict(); }}
+            inputMode="numeric"
+            aria-label={`Table number for ${tableLabel(table)}`}
+            style={{
+              width: 76, textAlign: 'center',
+              // 16px: anything smaller and iOS Safari zooms the page on focus.
+              fontSize: '1rem', fontFamily: F.serif, color: C.ink,
+              padding: '0.5rem 0.4rem', background: C.paper,
+              border: `1px solid ${conflict ? '#c2603f' : C.rule}`, outline: 'none',
+            }}
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={!changed}
+          style={{
+            ...label(changed ? C.green : C.faint, '0.58rem'),
+            background: 'none', border: `1px solid ${changed ? C.green : C.rule}`,
+            padding: '0.55rem 0.9rem', cursor: changed ? 'pointer' : 'not-allowed',
+          }}
+        >
+          Update
+        </button>
+      </form>
+
+      {conflict && other && (
+        <div style={{ marginTop: '0.7rem' }}>
+          <p style={{
+            fontFamily: F.sans, fontSize: '0.72rem', lineHeight: 1.5,
+            color: '#8c3d22', margin: 0,
+          }}>
+            {error ?? `Table ${String(conflict.next).padStart(2, '0')} already exists on this side.`}
+          </p>
+          <button
+            type="button"
+            onClick={() => onSwapNumbers(table.id, other.id)}
+            style={{
+              ...label(C.green, '0.58rem'), marginTop: '0.6rem',
+              background: C.goldSoft, border: `1px solid ${C.goldSoft}`,
+              padding: '0.55rem 0.9rem', cursor: 'pointer',
+            }}
+          >
+            Swap table numbers
+          </button>
+          <p style={{
+            fontFamily: F.serif, fontStyle: 'italic', fontSize: '0.85rem',
+            color: C.muted, margin: '0.5rem 0 0', lineHeight: 1.6,
+          }}>
+            {tableLabel(table)} becomes {String(conflict.next).padStart(2, '0')} and that table
+            becomes {String(table.number).padStart(2, '0')}. Nobody moves seat and no table
+            moves position — only the numbers trade places.
+          </p>
+        </div>
+      )}
+
+      {error && !conflict && (
+        <p style={{
+          fontFamily: F.sans, fontSize: '0.72rem', lineHeight: 1.5,
+          color: '#8c3d22', margin: '0.7rem 0 0',
+        }}>
+          {error}
+        </p>
+      )}
+
+      {notice && !conflict && (
+        <p style={{
+          fontFamily: F.serif, fontStyle: 'italic', fontSize: '0.85rem',
+          color: C.muted, margin: '0.7rem 0 0', lineHeight: 1.6,
+        }}>
+          {notice}
+        </p>
+      )}
+
+      {/* Never let a planner believe a renumber is safely stored when it is
+          sitting in one browser's localStorage. */}
+      {!durable && (
+        <p style={{
+          fontFamily: F.sans, fontSize: '0.64rem', lineHeight: 1.6,
+          color: C.muted, margin: '0.7rem 0 0',
+        }}>
+          Saved in this browser only, like every other planner edit — and only
+          reaches guests once you Publish.
+        </p>
+      )}
+    </div>
   );
 }

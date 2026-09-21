@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    /* Server code is checked strictly. The browser bundle is not, for
+       historical reasons, but there is no reason to carry that into new
+       code that handles credentials. */
+    "strict": true,
+    "noImplicitAny": false,
+    "noUnusedLocals": false
+  },
+  "include": ["api"]
+}
