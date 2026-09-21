@@ -28,6 +28,14 @@ dist-ssr
 .env.*
 !.env.example
 secrets/
-data/
+# ANCHORED to the repository root, and it must stay that way.
+#
+# Written bare as `data/`, this pattern matched a directory named `data` at
+# ANY depth. It was meant for the sync layer's export dump at the root, but
+# it also silently swallowed src/features/seating/data/ — the generated
+# seating dataset the application imports. `git add -A` skipped it without a
+# word, the commit looked complete, and a clean clone failed to build with
+# "Failed to resolve import @/features/seating/data/seatingSource".
+/data/
 scripts/sync/logs/
 scratch/
