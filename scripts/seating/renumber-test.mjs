@@ -24,6 +24,14 @@ await build({
 const { buildInitialLayout, renumberTable, swapTableNumbers,
         hasUnpublishedChanges, moveEntry } = await import(`file://${outfile}`);
 
+// The source notes live beside the data and are checked against it below.
+const sourceOut = join(dirname(outfile), 'source.mjs');
+await build({
+  entryPoints: [join(ROOT, 'src/features/seating/data/seatingSource.ts')],
+  bundle: true, format: 'esm', platform: 'node', outfile: sourceOut, logLevel: 'warning',
+});
+const { SOURCE_FLAGS } = await import(`file://${sourceOut}`);
+
 const results = [];
 const ck = (name, pass, detail) => {
   results.push(pass);
@@ -39,6 +47,39 @@ const snapshot = (t) => JSON.stringify([t.x, t.y, t.capacity, t.entries.map((e) 
 const bride = rounds(base, 'bride');
 const groom = rounds(base, 'groom');
 const spare = Math.max(...bride.map((t) => t.number)) + 5;
+
+console.log('\nThe dataset itself');
+{
+  /**
+   * Entry ids are how a person is addressed: moveEntry() finds them by id,
+   * and the public lookup resolves a guest's choice by id. Two rows sharing
+   * one would silently act on the wrong person, and nothing else in the app
+   * would notice. This has already happened once, from an over-broad
+   * find-and-replace, so it is checked rather than assumed.
+   */
+  const ids = base.tables.flatMap((t) => t.entries.map((e) => e.id));
+  const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+  ck('every guest entry has a unique id', dupes.length === 0, `duplicated: ${[...new Set(dupes)].join(', ')}`);
+
+  const tableIds = base.tables.map((t) => t.id);
+  ck('every table has a unique id', new Set(tableIds).size === tableIds.length);
+  ck('every entry id belongs to its own table',
+    base.tables.every((t) => t.entries.every((e) => e.id.startsWith(t.id + '-'))));
+
+  // The source notes are rendered in the planner bar, and AdminPanel is
+  // imported unconditionally — so anything quoted there ships to every
+  // visitor. They must cite row ids, never names.
+  const flagged = SOURCE_FLAGS.join(' ');
+  const leaked = base.tables.flatMap((t) => t.entries.map((e) => e.name))
+    .filter((n) => n.length > 5 && flagged.includes(n));
+  ck('the source notes quote no guest names', leaked.length === 0, leaked[0]);
+
+  // And the ids they DO cite must resolve, or the note sends a planner to a
+  // row that does not exist.
+  const cited = [...flagged.matchAll(/\b((?:bride|groom)-\d{2}-\d{2})\b/g)].map((m) => m[1]);
+  const unknown = cited.filter((id) => !ids.includes(id));
+  ck('and every row id they cite exists', unknown.length === 0, unknown.join(', '));
+}
 
 console.log('\nRenumbering');
 {
