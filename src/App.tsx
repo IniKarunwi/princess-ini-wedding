@@ -3,10 +3,20 @@ import Home from "./pages/Home";
 import Coming from "./pages/Coming";
 import Wedding from "./pages/Wedding";
 import NotFound from "./pages/NotFound";
+import Music from "./components/site/Music";
 
 export default function App() {
   return (
     <BrowserRouter>
+      {/* Outside <Routes> on purpose.
+          Mounted inside the home route, the <audio> element would be torn
+          down and rebuilt on every navigation — the song would cut out when
+          a guest opened the menu, and restart from the first bar when they
+          came back. Out here it survives navigation and simply keeps
+          playing. It renders nothing at all until a licensed recording is
+          present; see public/audio/README.md. */}
+      <Music />
+
       <Routes>
         <Route path="/" element={<Home />} />
 
