@@ -12,10 +12,10 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { readEnv } from '../_lib/env';
-import { readCookie, verify } from '../_lib/session';
-import { sessionEpoch } from '../_lib/store';
-import { fail, json, methodIs } from '../_lib/http';
+import { readEnv } from '../_lib/env.js';
+import { readCookie, verify } from '../_lib/session.js';
+import { sessionEpoch } from '../_lib/store.js';
+import { fail, json, methodIs } from '../_lib/http.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!methodIs(req, res, 'GET')) return;

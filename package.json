@@ -33,7 +33,8 @@
     "pdf:retouch": "python3 scripts/pdf/retouch-moodboards.py",
     "email:update": "node --env-file-if-exists=.env scripts/email/send-update.mjs",
     "test:renumber": "node scripts/seating/renumber-test.mjs",
-    "test:seating-ui": "node scripts/seating/ui-test.mjs"
+    "test:seating-ui": "node scripts/seating/ui-test.mjs",
+    "test:vercel-build": "node scripts/seating/vercel-build-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -53,6 +54,7 @@
     "@types/node": "^22.16.5",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
+    "@vercel/build-utils": "^14.10.1",
     "@vercel/node": "^13.0.1",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",

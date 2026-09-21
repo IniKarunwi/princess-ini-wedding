@@ -11,8 +11,8 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { clearCookie } from '../_lib/session';
-import { json, methodIs } from '../_lib/http';
+import { clearCookie } from '../_lib/session.js';
+import { json, methodIs } from '../_lib/http.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!methodIs(req, res, 'POST')) return;

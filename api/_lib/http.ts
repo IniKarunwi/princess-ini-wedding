@@ -4,9 +4,9 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { ConfigError, readEnv, type PlannerEnv } from './env';
-import { readCookie, verify, type SessionClaims } from './session';
-import { sessionEpoch, StoreError } from './store';
+import { ConfigError, readEnv, type PlannerEnv } from './env.js';
+import { readCookie, verify, type SessionClaims } from './session.js';
+import { sessionEpoch, StoreError } from './store.js';
 
 export function json(res: VercelResponse, status: number, body: unknown) {
   // A seating draft is not cacheable by anything, ever. Vercel's edge will
