@@ -50,10 +50,21 @@
     <meta name="twitter:image"       content="/og-image.jpg" />
     <meta name="twitter:image:alt"   content="Princess &amp; IniOluwa — Wedding Invitation, September 26, 2026" />
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&display=swap" rel="stylesheet" />
+    <!-- ========================= FONTS =========================
+         Self-hosted; the @font-face rules live in src/index.css.
+         No preconnect and no Google stylesheet: both sat on the
+         critical path for guests on Nigerian mobile data.
+
+         The two faces the first screen paints are preloaded so they
+         are fetched alongside the CSS rather than after the browser
+         has parsed it and only then discovered the @font-face rules.
+         The italic face is deliberately NOT preloaded — nothing above
+         the fold is italic.
+    ========================================================== -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/fonts/cormorant-latin.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/fonts/pinyon-latin.woff2" />
   </head>
   <body>
     <div id="root"></div>
