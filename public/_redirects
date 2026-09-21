@@ -1,0 +1,20 @@
+# SPA fallback — required for /seating-chart to work on a direct load.
+#
+# Until now the site had exactly one route, "/", so a guest typing a URL
+# never hit anything else and this file was not needed. /seating-chart is
+# the first deep route: it is handled by React Router in the browser, which
+# means the SERVER must still answer a request for /seating-chart with
+# index.html and let the app route it. Without this, a guest opening the
+# link from a printed card, a WhatsApp message or the email gets a 404 —
+# clicking through from the homepage would work and the direct link would
+# not, which is the worst possible version of the bug because it looks fine
+# in testing.
+#
+# 200, not 301: rewrite the response, do not redirect the browser. A 301
+# would change the address bar and lose the path the router needs.
+#
+# Honoured by Netlify and Cloudflare Pages. Vercel ignores this file and
+# already does SPA fallback for Vite projects, so it is inert there rather
+# than harmful. If the host turns out to be GitHub Pages or plain S3,
+# neither applies and the fallback has to be configured there instead.
+/*    /index.html   200
