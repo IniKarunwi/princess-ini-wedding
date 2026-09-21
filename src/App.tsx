@@ -5,6 +5,10 @@ import Wedding from "./pages/Wedding";
 import SeatingChart from "./pages/SeatingChart";
 import NotFound from "./pages/NotFound";
 import Music from "./components/site/Music";
+import WeddingHub from "./pages/WeddingHub";
+import MenuPage from "./pages/MenuPage";
+import ThroughYourEyes from "./pages/ThroughYourEyes";
+import { FOOD_MENU, DRINKS_MENU, MENU_TITLE } from "./features/weddingday/menu";
 
 export default function App() {
   return (
@@ -32,19 +36,31 @@ export default function App() {
           />
         } />
         <Route path="/menu" element={
-          <Coming
+          <MenuPage
             eyebrow="At the Reception"
             title="Food Menu"
-            note="Our menu is still being finalised with the kitchen. It will appear here in good time — and on your table on the day."
+            subtitle={MENU_TITLE}
+            sections={FOOD_MENU}
           />
         } />
+        {/* Structure and styling are done; DRINKS_MENU is deliberately
+            empty until the real list is supplied. Filling that one array
+            is the whole remaining job. */}
         <Route path="/drinks" element={
-          <Coming
+          <MenuPage
             eyebrow="At the Reception"
             title="Drinks"
-            note="The drinks list is still being finalised. It will appear here before the day."
+            sections={DRINKS_MENU}
+            emptyNote="The drinks list is still being finalised. It will appear here before the day — and there will be plenty of it on the night."
           />
         } />
+
+        {/* ── The table QR lands here ──────────────────────────────────
+            One code on every reception table resolves to /wedding. Short,
+            permanent and easy to encode, and the only URL printed on the
+            cards — everything else is reached from it. */}
+        <Route path="/wedding" element={<WeddingHub />} />
+        <Route path="/wedding/camera" element={<ThroughYourEyes />} />
 
         {/* The real reception hall map, from the seating-chart workstream.
             This is the one line of the merge that mattered. The homepage
