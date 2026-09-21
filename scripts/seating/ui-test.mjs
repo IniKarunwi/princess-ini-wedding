@@ -184,6 +184,59 @@ let movedId;
     void before;
   }
 
+  /* ── The acceptance test: MOVE a table, not just renumber one ──────────
+     Dragging is the other half of "the same saved chart", and it exercises
+     a different path: coordinates rather than a label. The hall is dense,
+     so a guessed offset is quite likely to land inside the dance floor or
+     another table and be refused — which would fail this test for a reason
+     that has nothing to do with saving. So try a few and take the first
+     the app actually accepts. */
+  {
+    const pos = (page, id) => page.evaluate((tid) => {
+      const c = document.querySelector(`[data-table-id="${tid}"] circle:nth-of-type(1)`)
+        ?? document.querySelector(`[data-table-id="${tid}"] circle`);
+      const el = document.querySelector(`[data-table-id="${tid}"]`);
+      const box = el?.getBBox?.();
+      return box ? `${Math.round(box.x)},${Math.round(box.y)}` : (c ? `${c.getAttribute('cx')},${c.getAttribute('cy')}` : null);
+    }, id);
+
+    const start = await pos(a, movedId);
+    const box = await a.locator(`[data-table-id="${movedId}"]`).boundingBox();
+
+    let dragged = false;
+    for (const [dx, dy] of [[0, 90], [0, -90], [90, 0], [-90, 0], [0, 150]]) {
+      await a.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await a.mouse.down();
+      await a.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy, { steps: 12 });
+      await a.mouse.up();
+      await a.waitForTimeout(350);
+      if (await pos(a, movedId) !== start) { dragged = true; break; }
+    }
+    ck('a table can be dragged to a new spot', dragged);
+
+    if (dragged) {
+      const moved = await pos(a, movedId);
+      await a.getByRole('button', { name: /save draft/i }).click();
+      await a.waitForTimeout(900);
+      ck('the move saves',
+        /draft saved · version\s*\d/i.test(await a.locator('body').innerText()));
+
+      await b.reload({ waitUntil: 'domcontentloaded' });
+      await settle(b);
+      ck('the other device sees the moved table after refreshing',
+        await pos(b, movedId) === moved, `${await pos(b, movedId)} vs ${moved}`);
+
+      // A third device, signing in fresh, must see the same thing.
+      const third = await device();
+      const c = await open(third);
+      await signIn(c, 'Coordinator');
+      await c.waitForTimeout(800);
+      ck('and so does a third planner signing in for the first time',
+        await pos(c, movedId) === moved, `${await pos(c, movedId)} vs ${moved}`);
+      await c.close();
+    }
+  }
+
   await a.close();
   await b.close();
 }
