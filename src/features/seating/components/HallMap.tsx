@@ -270,9 +270,14 @@ export default function HallMap({
         {/* Compass ribbon — the orientation is stated, not implied */}
         <text x={HALL.w / 2} y={44} textAnchor="middle"
               fill={C.faint} fontFamily={F.sans} fontSize={22} letterSpacing={9}>NORTH</text>
-        <text x={HALL.w / 2} y={HALL.h - 26} textAnchor="middle"
+        {/* Just "SOUTH", and out of the centre.
+            It read "SOUTH · GUEST ARRIVAL" and sat mid-wall — which is now
+            exactly where the couple's dance-in is, and would have said the
+            opposite of the truth right beside it. Guests arrive through the
+            main entrance on the east wall; this door is the couple's alone. */}
+        <text x={64} y={HALL.h - 26} textAnchor="start"
               fill={C.faint} fontFamily={F.sans} fontSize={20} letterSpacing={9}>
-          SOUTH · GUEST ARRIVAL
+          SOUTH
         </text>
 
         <FixedElements />
@@ -393,6 +398,39 @@ function FixedElements() {
           );
         }
         if (z.kind === 'door') {
+          // A door in the SOUTH wall is a horizontal opening with an upright
+          // label; the east and west walls take a vertical opening and a
+          // rotated one. Same zone data, drawn to suit the wall it is in.
+          if (z.wall === 'south') {
+            const cx = z.x + z.w / 2;
+            // Everything here lives in the 78-unit band between the bottom
+            // row of tables (rims at y = 1212) and the south wall (y = 1290),
+            // and inside the 196-unit horizontal gap between the innermost
+            // tables. On one line at full size the label printed straight
+            // across Table 11's seats, so it is set on two shorter lines.
+            return (
+              <g key={z.id}>
+                <text x={cx} y={HALL.h - 70} textAnchor="middle"
+                      fill={C.muted} fontFamily={F.sans} fontSize={13} letterSpacing={4}>
+                  COUPLE&rsquo;S
+                </text>
+                <text x={cx} y={HALL.h - 52} textAnchor="middle"
+                      fill={C.muted} fontFamily={F.sans} fontSize={13} letterSpacing={4}>
+                  DANCE-IN
+                </text>
+                {/* Points north, the way the couple walk: in from the south
+                    door, up the aisle, to the dance floor. */}
+                <path d={`M ${cx} ${HALL.h - 20} L ${cx} ${HALL.h - 42}`}
+                      stroke={C.goldSoft} strokeWidth={2} fill="none" />
+                <path d={`M ${cx - 7} ${HALL.h - 36} L ${cx} ${HALL.h - 46} L ${cx + 7} ${HALL.h - 36}`}
+                      stroke={C.goldSoft} strokeWidth={2} fill="none" />
+                {/* The opening, straddling the south wall line at y = 1290. */}
+                <rect x={z.x + 24} y={HALL.h - 16} width={z.w - 48} height={12}
+                      fill={MAP.floor} stroke={C.goldSoft} strokeWidth={3} />
+              </g>
+            );
+          }
+
           const east = z.wall === 'east';
           return (
             <g key={z.id}>

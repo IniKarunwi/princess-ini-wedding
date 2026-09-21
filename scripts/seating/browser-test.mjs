@@ -60,8 +60,45 @@ const unlock = async (p) => {
 
   // Fixed furniture is present and labelled.
   const svg = await p.locator('svg[role=application]').innerHTML();
-  for (const t of ['BRIDE & GROOM', 'Dance Floor', 'CENTRAL AISLE', 'MAIN ENTRANCE', "COUPLE'S DANCE-IN", 'NORTH', 'SOUTH'])
-    check(`public: hall shows "${t}"`, svg.includes(t.replace(/&/g, '&amp;').replace(/'/g, "'")) || svg.includes(t));
+  for (const t of ['BRIDE & GROOM', 'Dance Floor', 'CENTRAL AISLE', 'MAIN ENTRANCE', 'NORTH', 'SOUTH'])
+    check(`public: hall shows "${t}"`, svg.includes(t.replace(/&/g, '&amp;')) || svg.includes(t));
+
+  // The couple's dance-in is set on two lines with a typographic apostrophe,
+  // so it is matched as its parts rather than as one literal string.
+  check('public: hall shows the couple\'s dance-in',
+    /COUPLE[\u2019']S/.test(svg) && svg.includes('DANCE-IN'));
+
+  /* ── Doors: which wall each one is in ──────────────────────────────── */
+  const doors = await p.evaluate(() => {
+    const texts = [...document.querySelectorAll('svg[role=application] text')];
+    const find = (re) => {
+      const t = texts.find(t => re.test(t.textContent || ''));
+      if (!t) return null;
+      const b = t.getBBox ? t.getBBox() : null;
+      return { x: +t.getAttribute('x'), y: +t.getAttribute('y'),
+               rotated: !!t.getAttribute('transform') };
+    };
+    const svg = document.querySelector('svg[role=application]');
+    const vb = svg.getAttribute('viewBox').split(' ').map(Number);
+    return { couple: find(/DANCE-IN/), main: find(/MAIN ENTRANCE/), hallW: vb[2], hallH: vb[3] };
+  });
+
+  check('doors: couple\'s dance-in exists', !!doors.couple);
+  check("doors: couple's dance-in is on the SOUTH wall",
+    doors.couple && doors.couple.y > doors.hallH * 0.85,
+    doors.couple ? `y=${doors.couple.y} of ${doors.hallH}` : 'missing');
+  check("doors: couple's dance-in is NOT on the east or west wall",
+    doors.couple && doors.couple.x > doors.hallW * 0.3 && doors.couple.x < doors.hallW * 0.7
+      && !doors.couple.rotated,
+    doors.couple ? `x=${doors.couple.x} of ${doors.hallW}, rotated=${doors.couple.rotated}` : 'missing');
+  check("doors: couple's dance-in is centred on the central aisle",
+    doors.couple && Math.abs(doors.couple.x - doors.hallW / 2) < 40,
+    doors.couple ? `x=${doors.couple.x}, hall centre=${doors.hallW / 2}` : 'missing');
+  check('doors: main entrance is STILL on the east wall',
+    doors.main && doors.main.x > doors.hallW * 0.9 && doors.main.rotated,
+    doors.main ? `x=${doors.main.x} of ${doors.hallW}` : 'missing');
+  check('doors: the south wall is not labelled as guest arrival',
+    !svg.includes('GUEST ARRIVAL'));
 
   // No editing affordances anywhere.
   check('public: no edit controls', await p.getByRole('button', { name: /Publish|Save draft|Undo/ }).count() === 0);

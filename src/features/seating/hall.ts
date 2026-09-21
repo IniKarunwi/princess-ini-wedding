@@ -13,7 +13,12 @@
  *
  *            ROUND TABLES  │ AISLE │  ROUND TABLES
  *              (bride)     │       │    (groom)
+ *                       COUPLE'S DANCE-IN
  *                            SOUTH
+ *
+ * The couple enter from the SOUTH and walk north up the aisle. Guests arrive
+ * through the MAIN ENTRANCE, mid-way along the EAST wall. Two different
+ * doors doing two different jobs.
  *
  * Both VIP tables run NORTH-SOUTH — tall, not wide — with the dance floor
  * between them, one west and one east. The central aisle runs north-south
@@ -60,10 +65,13 @@ export const VIP_GEOM = {
   groom: { x: 910, y: 236, w: VIP_W, h: 374 },   // EAST of the dance floor
 } as const;
 
-/** The aisle runs from just below the dance floor to the south wall. */
-// Stops short of the south wall so it does not print over the
-// 'SOUTH · GUEST ARRIVAL' label, which it previously bisected.
-const AISLE = { x: 628, y: 648, w: 104, h: HALL.h - 648 - 64 };
+/**
+ * The aisle runs from just below the dance floor to the south wall, where it
+ * now terminates at the couple's dance-in doorway. It used to stop short to
+ * avoid printing over a centred south label; that label has moved to the
+ * corner, so the aisle can reach the wall it is supposed to lead to.
+ */
+const AISLE = { x: 628, y: 648, w: 104, h: HALL.h - 648 - 10 };
 
 /**
  * Clearance kept in front of each doorway.
@@ -88,10 +96,19 @@ export const ZONES: Zone[] = [
   { id: 'door-main', label: 'Main Entrance', kind: 'door', wall: 'east',
     x: HALL.w - DOOR_CLEAR, y: 620, w: DOOR_CLEAR, h: 200 },
 
-  // The couple's dance-in is on the WEST wall, level with the dance floor so
-  // the walk in leads straight to it.
-  { id: 'door-couple', label: "Couple's Dance-In", kind: 'door', wall: 'west',
-    x: 0, y: 352, w: DOOR_CLEAR, h: 180 },
+  // The couple's dance-in is on the SOUTH wall, centred on the aisle.
+  //
+  // The couple enter from the south and walk north up the aisle to the dance
+  // floor and the sweetheart table, so the aisle terminates at this doorway
+  // rather than at a blank wall. It is NOT a guest entrance — guests arrive
+  // through the main entrance on the east wall.
+  //
+  // The width is bounded by the innermost round tables on each side, whose
+  // rims sit at x = 572 (bride) and x = 768 (groom). Centred on the aisle at
+  // x = 680, ±84 clears both. The depth is bounded above by the bottom row,
+  // whose lowest rim is at y = 1212.
+  { id: 'door-couple', label: "Couple's Dance-In", kind: 'door', wall: 'south',
+    x: AISLE.x + AISLE.w / 2 - 84, y: HALL.h - 90, w: 168, h: 90 },
 ];
 
 export const zoneById = (id: string) => ZONES.find((z) => z.id === id)!;
