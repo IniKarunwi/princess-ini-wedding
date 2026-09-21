@@ -47,3 +47,6 @@ dist/guides/
 # it is supplied at deploy time. See public/audio/README.md.
 public/audio/*
 !public/audio/README.md
+
+# Vercel CLI scratch output — never committed.
+.vercel/

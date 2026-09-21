@@ -11,9 +11,9 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { rowToLayout } from '../_lib/layout';
-import { fail, json, methodIs, requirePlanner } from '../_lib/http';
-import { getLayout, publish } from '../_lib/store';
+import { rowToLayout } from '../_lib/layout.js';
+import { fail, json, methodIs, requirePlanner } from '../_lib/http.js';
+import { getLayout, publish } from '../_lib/store.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!methodIs(req, res, 'POST')) return;

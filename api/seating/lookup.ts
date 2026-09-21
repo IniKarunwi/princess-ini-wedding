@@ -32,9 +32,9 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { readEnv } from '../_lib/env';
-import { fail, json, methodIs } from '../_lib/http';
-import { getLayout } from '../_lib/store';
+import { readEnv } from '../_lib/env.js';
+import { fail, json, methodIs } from '../_lib/http.js';
+import { getLayout } from '../_lib/store.js';
 
 const MIN_QUERY = 3;
 const MAX_CHOICES = 6;

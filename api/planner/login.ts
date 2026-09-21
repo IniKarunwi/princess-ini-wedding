@@ -12,10 +12,10 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { readEnv } from '../_lib/env';
-import { checkPin, issue, setCookie, SESSION_DAYS } from '../_lib/session';
-import { sessionEpoch } from '../_lib/store';
-import { clientIp, fail, json, methodIs, rateForgive, rateLimit } from '../_lib/http';
+import { readEnv } from '../_lib/env.js';
+import { checkPin, issue, setCookie, SESSION_DAYS } from '../_lib/session.js';
+import { sessionEpoch } from '../_lib/store.js';
+import { clientIp, fail, json, methodIs, rateForgive, rateLimit } from '../_lib/http.js';
 
 /** Keeps a label a human typed; refuses one that would break the audit line. */
 function cleanName(raw: unknown): string | null {

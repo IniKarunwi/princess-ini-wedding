@@ -2,8 +2,25 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    /*
+     * nodenext, NOT bundler — and this is load-bearing.
+     *
+     * Vercel does not bundle these functions. It compiles each file to .js,
+     * ships them next to a package.json that carries this project's
+     * "type": "module", and Node's ESM resolver loads them. Under ESM a
+     * relative import must carry its extension: `from '../_lib/env'` throws
+     * ERR_MODULE_NOT_FOUND at import time, which surfaces as
+     * FUNCTION_INVOCATION_FAILED with no useful message in the response.
+     *
+     * That is exactly what happened on the first production deploy. It could
+     * not be caught locally because the test harness and the dev server both
+     * bundle with esbuild, which resolves extensionless specifiers happily.
+     *
+     * nodenext makes tsc apply Node's real ESM rules, so an import missing
+     * its .js fails `npm run typecheck` instead of the deployment.
+     */
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "types": ["node"],
     "noEmit": true,
     "isolatedModules": true,

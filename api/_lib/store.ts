@@ -17,7 +17,7 @@
  * infer, and inventing one is how a guest ends up at the wrong table.
  */
 
-import type { PlannerEnv } from './env';
+import type { PlannerEnv } from './env.js';
 
 export interface LayoutRow {
   status: 'draft' | 'published';
