@@ -28,7 +28,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Layout } from './types';
-import { hasUnpublishedChanges, moveEntry, moveTable, removeEntry, renameEntry,
+import { addEntry, hasUnpublishedChanges, moveEntry, moveTable, removeEntry, renameEntry,
          renumberTable, swapTableNumbers } from './model';
 import { seatingService, type Loaded } from './service';
 
@@ -74,6 +74,11 @@ export interface SeatingPlan {
   renameGuest(entryId: string, name: string): void;
   /** Takes a guest off the chart. The table's occupied count drops at once. */
   removeGuest(entryId: string): void;
+  /**
+   * Seats a new guest at a table. Refused, with a reason in `error`, when the
+   * name is blank or the seats would not fit.
+   */
+  addGuest(tableId: string, name: string, seats?: number): void;
 
   /** Changes a round table's displayed number. Never moves anyone. */
   renumber(tableId: string, next: number): void;
@@ -236,6 +241,20 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     setError(null);
     commit(next);
   }, [draft, commit]);
+
+  const addGuest = useCallback((tableId: string, name: string, seats = 1) => {
+    setDraft((cur) => {
+      if (!cur) return cur;
+      const res = addEntry(cur, tableId, name, seats);
+      if (res.ok === false) { setError(res.reason); return cur; }
+      setError(null);
+      past.current = [...past.current, cur].slice(-HISTORY_LIMIT);
+      future.current = [];
+      bumpHistory((n) => n + 1);
+      return res.layout;
+    });
+    setLastAction(null);
+  }, []);
 
   const removeGuest = useCallback((entryId: string) => {
     setDraft((cur) => {
@@ -474,7 +493,7 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     visible: viewerIsAdmin ? draft ?? published : published,
     draftVersion, draftBy,
     dirty, canUndo, canRedo, saving, lastAction, error, conflict,
-    moveTableTo, moveGuestTo, renameGuest, removeGuest,
+    moveTableTo, moveGuestTo, renameGuest, removeGuest, addGuest,
     renumber, swapNumbers, numberConflict, clearNumberConflict, notice,
     undo, redo, saveDraft, publish, discardDraft, reloadDraft, adoptLayout,
   };
