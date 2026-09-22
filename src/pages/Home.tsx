@@ -549,8 +549,31 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── VENUE ─────────────────────────────────────────────────────────── */}
+      {/* ── VENUE ─────────────────────────────────────────────────────────
+          The watercolour that went out in the confirmation packs.
+
+          Guests have already had this picture in their inbox, so putting it
+          here is not decoration — it is the same building they were shown,
+          which is worth more for recognising the place than a photograph of
+          a facade would be.
+
+          It is the SITE's own copy under /photos. The file in /email is
+          hard-coded into 136 delivered confirmations and is not touched.
+
+          Multiplied into the ivory for the same reason as the portrait
+          above: the illustration's paper is #fcf3e5 against a #f7f3e9 page,
+          which is near enough to look like a mistake and far enough to show
+          as a pale rectangle. Multiply makes the paper the page — which is
+          also just how watercolour behaves on paper. Reveal animates
+          opacity, so the wrapper carries its own ivory for the blend to
+          resolve against. */}
       <Section id="venue">
+        <div style={{
+          display: wide ? 'grid' : 'block',
+          gridTemplateColumns: wide ? 'minmax(0, 46fr) minmax(0, 54fr)' : undefined,
+          columnGap: wide ? 'clamp(2rem, 5vw, 4.5rem)' : undefined,
+          alignItems: 'center',
+        }}>
         <div style={{ maxWidth: '40rem', marginLeft: wide ? '6%' : 0 }}>
           <Reveal>
             <Label>Where everything happens</Label>
@@ -569,6 +592,32 @@ export default function Home() {
             </Body>
             <div style={{ marginTop: '0.5rem' }}>
               <Engraved href={MAP_URL}>Open in Google Maps</Engraved>
+            </div>
+          </Reveal>
+        </div>
+
+          <Reveal delay={180}>
+            <div style={{
+              background: C.ivory,
+              marginTop: wide ? 0 : 'clamp(2.5rem, 9vw, 3.5rem)',
+            }}>
+              <img
+                src="/photos/venue-watercolour.jpg"
+                srcSet="/photos/venue-watercolour-sm.jpg 700w, /photos/venue-watercolour.jpg 1100w"
+                // Measured, not guessed: it renders at 635 of 1440 on desktop
+                // and 335 of 390 on a phone. Declaring 100vw made a phone
+                // fetch the 1100w file for a 335px slot.
+                sizes={wide ? '46vw' : '88vw'}
+                alt={`${WEDDING.venueName} — watercolour illustration`}
+                loading="lazy"
+                decoding="async"
+                width={1100}
+                height={846}
+                style={{
+                  width: '100%', height: 'auto', display: 'block',
+                  mixBlendMode: 'multiply',
+                }}
+              />
             </div>
           </Reveal>
         </div>
