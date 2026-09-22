@@ -129,24 +129,92 @@ export default function Home() {
       </section>
 
       {/* ── WELCOME ───────────────────────────────────────────────────────
-          Their words, from the printed guide. Set large and narrow, the way
-          a letter is set — not at page width like body copy on a blog. */}
+          Their words, from the printed guide, set against the portrait.
+
+          ── Why the photograph has no frame ─────────────────────────────
+          It was shot high-key on white. Put inside a card it reads as a
+          picture ON the page; left unframed and multiplied into the ivory,
+          the white simply becomes the page and the couple appear to be
+          standing in it. That is the whole composition — the right column
+          is not an image slot, it is the other half of the spread.
+
+          The multiply needs cream BEHIND it to resolve against, and Reveal
+          animates opacity, which opens a stacking context the blend cannot
+          see past. Hence the explicit ivory on the wrapper: without it the
+          couple would sit on a white rectangle on a cream page. */}
       <Section>
-        <div style={{ maxWidth: '42rem', marginLeft: wide ? '8%' : 0 }}>
-          <Reveal>
-            <Label>Dear Friends &amp; Family</Label>
-            <h2 style={{
-              fontFamily: F.serif, fontWeight: 300, fontSize: T.heading, lineHeight: 1.06,
-              color: C.green, margin: '1.25rem 0 2rem', letterSpacing: '-0.01em',
-            }}>
-              You&rsquo;re invited to<br />celebrate with us
-            </h2>
-          </Reveal>
-          {WELCOME.map((para, i) => (
-            <Reveal key={i} delay={100 + i * 90}>
-              <Body style={{ marginBottom: '1.5rem', color: C.ink }}>{para}</Body>
+        <div style={{
+          display: wide ? 'grid' : 'block',
+          // 47/53 — the photograph takes the larger share, which is what
+          // stops this reading as two equal boxes.
+          gridTemplateColumns: wide ? 'minmax(0, 47fr) minmax(0, 53fr)' : undefined,
+          columnGap: wide ? 'clamp(2rem, 5.5vw, 5rem)' : undefined,
+          alignItems: 'center',
+        }}>
+          {/* ── The letter ─────────────────────────────────────────────── */}
+          <div style={{ maxWidth: wide ? '36rem' : '42rem' }}>
+            <Reveal>
+              <Label>Dear Friends &amp; Family</Label>
+              {/* Italic Cormorant, already self-hosted — no new webfont for
+                  one heading. The second line is indented rather than
+                  centred: the stagger is what gives it the editorial
+                  cadence, and it keeps the ragged left edge deliberate
+                  instead of accidental. */}
+              <h2 style={{
+                fontFamily: F.serif, fontWeight: 300, fontStyle: 'italic',
+                fontSize: 'clamp(2.15rem, 6.2vw, 4rem)', lineHeight: 0.98,
+                color: C.green, margin: '1.4rem 0 2.25rem', letterSpacing: '-0.02em',
+              }}>
+                <span style={{ display: 'block' }}>You&rsquo;re invited to</span>
+                <span style={{ display: 'block', marginLeft: '0.7em' }}>
+                  celebrate with us
+                </span>
+              </h2>
             </Reveal>
-          ))}
+            {/* A shorter measure than the heading. Body copy set to the full
+                column ran to 80-odd characters and read like documentation. */}
+            <div style={{ maxWidth: '31rem' }}>
+              {WELCOME.map((para, i) => (
+                <Reveal key={i} delay={100 + i * 90}>
+                  <Body style={{ marginBottom: '1.5rem', color: C.ink }}>{para}</Body>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+
+          {/* ── The portrait ───────────────────────────────────────────── */}
+          <Reveal delay={220}>
+            <div style={{
+              background: C.ivory,
+              // Runs out towards the gutter on desktop, so the right edge is
+              // a photograph meeting the page rather than a column stopping
+              // politely short of it.
+              marginRight: wide ? 'calc(-1 * clamp(0.5rem, 3vw, 3rem))' : 0,
+              marginTop: wide ? 0 : 'clamp(2.75rem, 10vw, 4rem)',
+              // The headline stops growing at 4rem, so beyond about 1600px an
+              // uncapped photograph starts to dwarf it and the spread tips out
+              // of balance. Past that width the composition gains margin
+              // instead of scale, which is what a printed spread does.
+              maxWidth: wide ? '46rem' : undefined,
+              marginLeft: wide ? 'auto' : undefined,
+            }}>
+              <img
+                src="/photos/invitation.jpg"
+                srcSet="/photos/invitation-sm.jpg 760w, /photos/invitation.jpg 1200w"
+                sizes={wide ? '53vw' : '92vw'}
+                alt="Princess and IniOluwa in black tie, photographed against a white studio backdrop"
+                loading="lazy"
+                decoding="async"
+                width={1200}
+                height={1438}
+                style={{
+                  width: '100%', height: 'auto', display: 'block',
+                  // Whites become the ivory behind; the blacks stay black.
+                  mixBlendMode: 'multiply',
+                }}
+              />
+            </div>
+          </Reveal>
         </div>
       </Section>
 
