@@ -1,7 +1,7 @@
 /**
- * The food and drinks menus.
+ * The food menu.
  *
- * ── Food: transcribed from the caterer's document ──────────────────────────
+ * ── Transcribed from the caterer's document ────────────────────────────────
  * Source: "26th Sept. Option Menu.pdf" — a one-page Word export, headed
  * "26th September 2026 MENU". Nothing here is invented and nothing is
  * silently reworded.
@@ -108,16 +108,3 @@ export const MENU_NOTES: string[] = [
   'Salad items sharing one comma-separated line in the source are listed separately here; wording unchanged.',
 ];
 
-/**
- * The drinks list.
- *
- * ── Deliberately empty ─────────────────────────────────────────────────────
- * No drinks document has been supplied, and the brief is explicit that none
- * are to be invented. The page is built and styled and will render the list
- * the moment this array is filled — add entries in the same shape as
- * FOOD_MENU above and nothing else needs touching.
- *
- * Until then /drinks shows an honest "still being finalised" state rather
- * than a plausible-looking wine list nobody ordered.
- */
-export const DRINKS_MENU: MenuSection[] = [];

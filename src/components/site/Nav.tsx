@@ -36,7 +36,6 @@ const ITEMS: Array<{ to?: string; label: string; state?: string }> = [
   { to: ROUTES.home,      label: 'Home' },
   { to: ROUTES.programme, label: 'Wedding Service Programme' },
   { to: ROUTES.menu,      label: 'Food Menu' },
-  { to: ROUTES.drinks,    label: 'Drinks' },
   { to: ROUTES.seating,   label: 'Find Your Seat' },
   { to: '/#venue',        label: 'Venue & Directions' },
   { to: '/#stay',         label: 'Where to Stay' },

@@ -35,7 +35,6 @@ interface Action {
 const ACTIONS: Action[] = [
   // Food first: it is what a seated guest actually wants.
   { to: '/menu',   title: 'Food Menu', note: 'See what’s being served' },
-  { to: '/drinks', title: 'Drinks',    note: 'Wine, cocktails & refreshments' },
   // Shown either way so the concept reads whole on the card, but inert until
   // photographs have somewhere to go. See features/weddingday/phase.ts.
   CAMERA_ENABLED

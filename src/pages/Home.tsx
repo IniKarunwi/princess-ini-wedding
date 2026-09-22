@@ -19,6 +19,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Nav from '@/components/site/Nav';
+import DressInspiration from '@/components/site/DressInspiration';
 import { Reveal, Label, Script, Body, Rule, Engraved, Photo } from '@/components/site/primitives';
 import { C, F, T, GUTTER, SECTION } from '@/lib/design';
 import { WEDDING, PROGRAMME, WELCOME, PHONE_FREE, STAY, DRESS, MAP_URL, ROUTES, hotelMapUrl } from '@/lib/wedding';
@@ -445,8 +446,11 @@ export default function Home() {
       </section>
 
       {/* ── THE TABLE ─────────────────────────────────────────────────────
-          Food, drinks and the seat, set as one menu rather than three
-          feature blocks. A restaurant prints these on one card; so do we. */}
+          The reception's reading matter, set the way a restaurant sets a
+          card rather than as a feature block. The list is kept — not
+          flattened into a single link — because it is the row that carries
+          the label and the note, and because anything else served at the
+          table belongs in it. */}
       <Section>
         <Reveal>
           <div style={{ textAlign: 'center', marginBottom: 'clamp(2.5rem, 8vw, 4rem)' }}>
@@ -460,7 +464,6 @@ export default function Home() {
         <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
           {[
             { to: ROUTES.menu, label: 'Food Menu', note: 'What we will be eating together' },
-            { to: ROUTES.drinks, label: 'Drinks', note: 'Wine, cocktails and something soft' },
           ].map((row, i) => (
             <Reveal key={row.label} delay={i * 100}>
               <Link to={row.to} style={{ textDecoration: 'none', display: 'block' }}>
@@ -686,6 +689,11 @@ export default function Home() {
                 colours rather than nine. Only the separators may break. */}
             {DRESS.swatches.map(([, name]) => name.replace(/ /g, ' ')).join('  ·  ')}
           </p>
+        </Reveal>
+        {/* Directly under the palette, because it is an answer to it: the
+            colours, and then one reading of the colours. */}
+        <Reveal delay={280}>
+          <DressInspiration />
         </Reveal>
       </Section>
 
