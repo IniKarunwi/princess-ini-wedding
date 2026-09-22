@@ -13,14 +13,14 @@
  * planners will be doing this on a phone at the venue.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SeatingTable, SeatEntry } from '../types';
 import { seatsUsed, seatsFree, tableLabel, tableLongLabel, sideLabel } from '../types';
 import { C, F, label } from '../theme';
 
 export default function TableDetails({
   table, allTables, highlightEntryId, editing, sheet,
-  onClose, onRename, onMoveGuest, onGuestDragStart, onGuestDragEnd, error,
+  onClose, onRename, onRemove, onMoveGuest, onGuestDragStart, onGuestDragEnd, error,
   onRenumber, onSwapNumbers, numberConflict, onClearConflict, notice, durable,
 }: {
   table: SeatingTable;
@@ -30,6 +30,7 @@ export default function TableDetails({
   sheet: boolean;
   onClose(): void;
   onRename(entryId: string, name: string): void;
+  onRemove(entryId: string): void;
   onMoveGuest(entryId: string, tableId: string): void;
   onGuestDragStart(entryId: string): void;
   onGuestDragEnd(): void;
@@ -127,6 +128,8 @@ export default function TableDetails({
             tables={allTables}
             currentTableId={table.id}
             onRename={(n) => onRename(e.id, n)}
+            onRemove={() => onRemove(e.id)}
+            tableLabel={tableLabel(table)}
             onMove={(to) => onMoveGuest(e.id, to)}
             onDragStart={() => onGuestDragStart(e.id)}
             onDragEnd={onGuestDragEnd}
@@ -156,21 +159,48 @@ export default function TableDetails({
 }
 
 function EntryRow({
-  entry, highlighted, editing, tables, currentTableId,
-  onRename, onMove, onDragStart, onDragEnd,
+  entry, highlighted, editing, tables, currentTableId, tableLabel: label_,
+  onRename, onRemove, onMove, onDragStart, onDragEnd,
 }: {
   entry: SeatEntry;
   highlighted: boolean;
   editing: boolean;
   tables: SeatingTable[];
   currentTableId: string;
+  /** "Table 04" — for the removal question, which has to name the table. */
+  tableLabel: string;
   onRename(name: string): void;
+  onRemove(): void;
   onMove(tableId: string): void;
   onDragStart(): void;
   onDragEnd(): void;
 }) {
   const [draftName, setDraftName] = useState(entry.name);
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  /*
+   * Keep the field honest when the name changes underneath it — an undo, a
+   * reload of the shared draft, another planner's save. Without this the
+   * input keeps whatever it was last given and can show one name while the
+   * plan holds another.
+   *
+   * It cannot fight the typist: entry.name only changes on commit, never on
+   * keystroke.
+   */
+  useEffect(() => { setDraftName(entry.name); }, [entry.name]);
+
+  /**
+   * Blank is not a rename and not a deletion.
+   *
+   * The model refuses it, so the plan keeps the old name — and this puts the
+   * old name back on screen too. Leaving the field blank while the data said
+   * otherwise was the actual bug: the planner believed they had cleared it.
+   */
+  const commitName = () => {
+    if (!draftName.trim()) { setDraftName(entry.name); return; }
+    if (draftName !== entry.name) onRename(draftName);
+  };
 
   return (
     <li
@@ -203,7 +233,7 @@ function EntryRow({
             <input
               value={draftName}
               onChange={(ev) => setDraftName(ev.target.value)}
-              onBlur={() => draftName !== entry.name && onRename(draftName)}
+              onBlur={commitName}
               onKeyDown={(ev) => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur(); }}
               aria-label={`Name for ${entry.name}`}
               style={{
@@ -235,18 +265,70 @@ function EntryRow({
         </span>
 
         {editing && (
-          <button
-            type="button" onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            style={{
-              background: 'none', border: `1px solid ${C.rule}`, cursor: 'pointer',
-              padding: '0.3rem 0.5rem', ...label(C.muted, '0.55rem'),
-            }}
-          >
-            Move
-          </button>
+          <span style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
+            <button
+              type="button" onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
+              style={{
+                background: 'none', border: `1px solid ${C.rule}`, cursor: 'pointer',
+                padding: '0.3rem 0.5rem', ...label(C.muted, '0.55rem'),
+              }}
+            >
+              Move
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              aria-label={`Remove ${entry.name}`}
+              style={{
+                background: 'none', border: `1px solid ${C.rule}`, cursor: 'pointer',
+                padding: '0.3rem 0.5rem', ...label('#8c3d22', '0.55rem'),
+              }}
+            >
+              Remove
+            </button>
+          </span>
         )}
       </div>
+
+      {/* Removing somebody from the room is not undoable by a colleague on
+          another device once it is published, so it asks first and names both
+          the person and the table. */}
+      {editing && confirming && (
+        <div role="alertdialog" aria-label={`Remove ${entry.name}?`} style={{
+          marginTop: '0.6rem', background: '#f8e8e1', border: '1px solid #e6c5b6',
+          padding: '0.7rem 0.75rem',
+        }}>
+          <p style={{
+            fontFamily: F.sans, fontSize: '0.75rem', lineHeight: 1.6,
+            color: '#7a2f18', margin: '0 0 0.6rem',
+          }}>
+            Remove {entry.name} from {label_}?
+            {entry.seats > 1 && ` That frees ${entry.seats} seats.`}
+          </p>
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => { setConfirming(false); onRemove(); }}
+              style={{
+                background: '#8c3d22', border: '1px solid #8c3d22', color: '#fff',
+                cursor: 'pointer', padding: '0.4rem 0.7rem', ...label('#fff', '0.55rem'),
+              }}
+            >
+              Yes, remove
+            </button>
+            <button
+              type="button" onClick={() => setConfirming(false)}
+              style={{
+                background: 'none', border: `1px solid ${C.rule}`, cursor: 'pointer',
+                padding: '0.4rem 0.7rem', ...label(C.muted, '0.55rem'),
+              }}
+            >
+              Keep
+            </button>
+          </div>
+        </div>
+      )}
 
       {editing && open && (
         <select

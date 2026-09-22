@@ -592,7 +592,177 @@ console.log('\nClicking a table versus dragging it');
   await p.close();
 }
 
-/* ── 8 · Signing out ─────────────────────────────────────────────────────── */
+/* ── 8 · Removing a guest ────────────────────────────────────────────────── */
+
+console.log('\nRemoving a guest');
+{
+  const a = await open(laptop);
+  const b = await open(phone);
+
+  const id = await roundTableId(a);
+  const plan = (page) => page.evaluate(async (tid) => {
+    const r = await fetch('/api/planner/draft', { credentials: 'same-origin' });
+    const { draft } = await r.json();
+    const t = draft.tables.find((x) => x.id === tid);
+    return { version: draft.version, number: t.number,
+             names: t.entries.map((e) => e.name), seats: t.entries.reduce((n, e) => n + e.seats, 0) };
+  }, id);
+
+  const before = await plan(a);
+  const victim = before.names[0];
+
+  await a.locator(`[data-table-id="${id}"]`).click();
+  await a.waitForTimeout(400);
+
+  const seatsOnScreen = async (page) =>
+    (await page.locator('aside').innerText()).match(/(\d+)\/(\d+)\s*\n?SEATS/i)?.[0]
+    ?? (await page.locator('aside').innerText()).match(/\d+\/\d+/)?.[0];
+  const countBefore = await seatsOnScreen(a);
+
+  // ── The control, and the question it asks ───────────────────────
+  ck('each guest has a Remove action',
+    await a.getByRole('button', { name: `Remove ${victim}` }).count() === 1);
+
+  await a.getByRole('button', { name: `Remove ${victim}` }).click();
+  await a.waitForTimeout(300);
+
+  const ask = await a.locator('body').innerText();
+  ck('it asks before removing anyone',
+    new RegExp(`remove ${victim.replace(/[.*+?^$|()\[\]{}\\]/g, '\\$&')} from table`, 'i').test(ask),
+    ask.match(/remove [^\n]*/i)?.[0]);
+
+  // Backing out must change nothing.
+  await a.getByRole('button', { name: /^keep$/i }).click();
+  await a.waitForTimeout(300);
+  ck('declining leaves the guest seated',
+    (await plan(a)).names.length === before.names.length);
+
+  // ── Confirm ─────────────────────────────────────────────────────
+  await a.getByRole('button', { name: `Remove ${victim}` }).click();
+  await a.waitForTimeout(250);
+  await a.getByRole('button', { name: /yes, remove/i }).click();
+  await a.waitForTimeout(500);
+
+  const countAfter = await seatsOnScreen(a);
+  ck('the occupied count drops immediately', countAfter !== countBefore,
+    `${countBefore} then ${countAfter}`);
+  ck('and the guest is gone from the panel',
+    await a.getByRole('button', { name: `Remove ${victim}` }).count() === 0);
+  ck('it counts as an unpublished change',
+    /unpublished changes/i.test(await a.locator('body').innerText()));
+
+  // ── Undo brings them back ───────────────────────────────────────
+  await a.getByRole('button', { name: /undo/i }).click();
+  await a.waitForTimeout(450);
+  ck('undo restores the removed guest',
+    await a.getByRole('button', { name: `Remove ${victim}` }).count() === 1);
+  ck('and the count goes back', await seatsOnScreen(a) === countBefore,
+    `${await seatsOnScreen(a)} vs ${countBefore}`);
+
+  // Remove again, for real this time.
+  await a.getByRole('button', { name: `Remove ${victim}` }).click();
+  await a.waitForTimeout(250);
+  await a.getByRole('button', { name: /yes, remove/i }).click();
+  await a.waitForTimeout(400);
+
+  // ── Save Draft: shared, but not yet public ──────────────────────
+  await a.getByRole('button', { name: /save draft/i }).click();
+  await a.waitForTimeout(1000);
+  ck('the removal saves', /draft saved · version\s*\d/i.test(await a.locator('body').innerText()));
+
+  const onShared = await plan(a);
+  ck('the shared draft no longer has them', !onShared.names.includes(victim));
+  ck('and one fewer seat is taken', onShared.seats < before.seats);
+
+  await b.reload({ waitUntil: 'domcontentloaded' });
+  await settle(b);
+  ck('the second device sees the removal', !(await plan(b)).names.includes(victim));
+
+  // The public side must be untouched until Publish.
+  const lookup = (page, q) => page.evaluate(async (name) => {
+    const r = await fetch('/api/seating/lookup', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ q: name }),
+    });
+    return r.json();
+  }, q);
+
+  const guest = await (await device()).newPage();
+  await guest.goto(B + '/seating-chart', { waitUntil: 'domcontentloaded' });
+  await settle(guest);
+
+  const stillThere = await lookup(guest, victim);
+  ck('Find My Seat still finds them before Publish', stillThere.found === true,
+    JSON.stringify(stillThere).slice(0, 120));
+
+  const publicSeats = (page) => page.evaluate(async (tid) => {
+    const r = await fetch('/api/seating/published');
+    const { published } = await r.json();
+    return published.tables.find((t) => t.id === tid).seated;
+  }, id);
+  const publicBefore = await publicSeats(guest);
+  ck('and the public seated count has not moved', publicBefore === before.seats,
+    `${publicBefore} vs ${before.seats}`);
+
+  // ── Publish ─────────────────────────────────────────────────────
+  await a.getByRole('button', { name: /publish changes/i }).click();
+  await a.getByRole('button', { name: /yes, publish/i }).click();
+  await a.waitForTimeout(1300);
+
+  await guest.reload({ waitUntil: 'domcontentloaded' });
+  await settle(guest);
+
+  const afterPublish = await lookup(guest, victim);
+  ck('after Publish, Find My Seat no longer finds them',
+    afterPublish.found !== true, JSON.stringify(afterPublish).slice(0, 120));
+  const publicAfter = await publicSeats(guest);
+  ck('and the public seated count has dropped', publicAfter === before.seats - 1,
+    `${publicAfter} vs ${before.seats - 1}`);
+
+  await guest.close();
+  await a.close();
+  await b.close();
+}
+
+/* ── 9 · A blank rename is not a removal ─────────────────────────────────── */
+
+console.log('\nEmptying a name does nothing');
+{
+  const p = await open(laptop);
+  const id = await roundTableId(p);
+  const state = () => p.evaluate(async (tid) => {
+    const r = await fetch('/api/planner/draft', { credentials: 'same-origin' });
+    const { draft } = await r.json();
+    const t = draft.tables.find((x) => x.id === tid);
+    return { version: draft.version, names: t.entries.map((e) => e.name) };
+  }, id);
+
+  const before = await state();
+  const name = before.names[0];
+
+  await p.locator(`[data-table-id="${id}"]`).click();
+  await p.waitForTimeout(400);
+
+  const field = p.getByLabel(`Name for ${name}`);
+  await field.click();
+  await field.fill('');
+  await p.getByRole('button', { name: /save draft/i }).click();
+  await p.waitForTimeout(1000);
+
+  ck('the field visibly restores the name rather than staying blank',
+    await p.getByLabel(`Name for ${name}`).inputValue() === name,
+    JSON.stringify(await p.getByLabel(`Name for ${name}`).inputValue().catch(() => 'gone')));
+
+  const after = await state();
+  ck('the guest is still seated', after.names.includes(name));
+  ck('nobody was removed', after.names.length === before.names.length);
+  ck('and the shared version did not move', after.version === before.version,
+    `${before.version} then ${after.version}`);
+
+  await p.close();
+}
+
+/* ── 10 · Signing out ─────────────────────────────────────────────────────── */
 
 console.log('\nSigning out');
 {
