@@ -761,8 +761,11 @@ export default function Home() {
       </Section>
 
       {/* ── CLOSING ───────────────────────────────────────────────────────
-          The back of the stationery. No links, no footer navigation, nothing
-          to do — the page should end the way a letter ends. */}
+          The back of the stationery. No footer navigation — the page should
+          end the way a letter ends. The single exception is the registry,
+          which belongs with the signature for the same reason it would be on
+          a card tucked into the envelope rather than printed on the
+          invitation itself. */}
       <section style={{ background: C.green, padding: `${SECTION} ${GUTTER}`, textAlign: 'center' }}>
         <Reveal>
           <Script color={C.goldSoft} size="clamp(1.6rem, 6.5vw, 2.4rem)">With love,</Script>
@@ -786,6 +789,35 @@ export default function Home() {
           }}>
             {WEDDING.venueName} &middot; {WEDDING.venueArea}
           </p>
+
+          {/* Quiet on purpose. Your presence is the gift; this is only here
+              for the guests who ask, and they should not have to. */}
+          <div style={{ marginTop: '2.75rem' }}>
+            <p style={{
+              fontFamily: F.serif, fontStyle: 'italic', fontWeight: 300,
+              fontSize: '0.95rem', color: 'rgba(168,189,166,0.75)',
+              margin: '0 0 0.25rem',
+            }}>
+              Your presence is the gift. If you would like to give something more —
+            </p>
+            {/* Styled as <Engraved> rather than wrapping one: a router <Link>
+                is already an anchor, and nesting a button inside it would be
+                two controls where the guest sees one. */}
+            <span style={{ display: 'inline-block', padding: '0.6rem 0', lineHeight: 1 }}>
+              <Link
+                to="/registry"
+                style={{
+                  display: 'inline-block',
+                  fontFamily: F.sans, fontSize: 'clamp(0.66rem, 2.4vw, 0.76rem)',
+                  fontWeight: 500, letterSpacing: '0.24em', textTransform: 'uppercase',
+                  color: C.goldSoft, textDecoration: 'none',
+                  borderBottom: `1px solid ${C.goldSoft}`, paddingBottom: '0.5rem',
+                }}
+              >
+                Our Registry
+              </Link>
+            </span>
+          </div>
         </Reveal>
       </section>
     </main>

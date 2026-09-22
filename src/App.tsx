@@ -3,6 +3,7 @@ import Home from "./pages/Home";
 import Coming from "./pages/Coming";
 import Wedding from "./pages/Wedding";
 import SeatingChart from "./pages/SeatingChart";
+import RegistryPage from "./pages/RegistryPage";
 import NotFound from "./pages/NotFound";
 import Music from "./components/site/Music";
 import WeddingHub from "./pages/WeddingHub";
@@ -87,6 +88,11 @@ export default function App() {
             closed rather than linking to it. Nothing here re-opens
             registrations — they are closed server-side. */}
         <Route path="/rsvp" element={<Wedding />} />
+
+        {/* The registry on its own URL, so the closing signature can point at
+            it now that the RSVP flow that used to hold it is closed. Same
+            component, same single source of account details. */}
+        <Route path="/registry" element={<RegistryPage />} />
 
         <Route path="*" element={<NotFound />} />
       </Routes>

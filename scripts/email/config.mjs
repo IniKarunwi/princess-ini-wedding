@@ -97,7 +97,6 @@ export const STAY = {
         ['Sweetroof', 'Asokoro'],
         ['Musada Luxury Suites', 'Maitama'],
         ['Hotel Rosebud', 'Garki'],
-        ['Rita Lori Hotels', 'Garki'],
         ['Elomaz Hotels', 'Garki Area 11'],
       ],
     },
