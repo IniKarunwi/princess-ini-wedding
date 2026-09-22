@@ -36,6 +36,17 @@ function useWide() {
   return wide;
 }
 
+/**
+ * The evening.
+ *
+ * Near-black, but not neutral: it carries a green undertone so the reception
+ * section belongs to a wedding whose colour is green rather than looking like
+ * a different website. Sampled against the photograph it sits beside, whose
+ * right-hand side measures #0a0a0a — close enough that the two read as one
+ * continuous field.
+ */
+const NIGHT = '#0b0e0a';
+
 const Section = ({ id, bg, children, pad = true }: {
   id?: string; bg?: string; children: React.ReactNode; pad?: boolean;
 }) => (
@@ -344,20 +355,64 @@ export default function Home() {
       </Section>
 
       {/* ── RECEPTION ─────────────────────────────────────────────────────
-          Full-bleed colour after two monochrome sections. This is where the
-          site turns from invitation into wedding-day information, and the
-          colour shift is what signals it without a heading saying so. */}
-      <section style={{ position: 'relative', background: C.green }}>
-        <div style={{ display: 'grid', gridTemplateColumns: wide ? '1.05fr 1fr' : '1fr' }}>
-          <Photo
-            name="detail"
-            alt="Princess and IniOluwa's hands, her emerald dress against his suit, a monogrammed cuff"
-            ratio={wide ? '4 / 5' : '4 / 3'}
-            focal="52% 46%"
-          />
+          Where the day turns into the evening.
+
+          ── The photograph is not cropped ───────────────────────────────
+          Its subject is not only the couple: it is the spotlight, the dark
+          it is cut out of, and the shadow thrown across the floor. Covering
+          a landscape container with a 4:5 frame would take the first thing
+          off the top and the last off the bottom, so the frame is left at
+          its own ratio and the LAYOUT bends around it instead.
+
+          ── The dark continues past the edge ────────────────────────────
+          The photograph's right-hand side measures #0a0a0a; the panel is a
+          near-black carrying a green undertone, so the two read as one
+          unbroken field and the type appears to sit in the picture's own
+          negative space rather than in a box beside it. A gradient over the
+          last fifth of the frame removes the seam entirely.
+
+          Ivory on that dark measures 15.3:1 — the contrast is not a
+          judgement call, it was sampled off the file. */}
+      <section style={{ position: 'relative', background: NIGHT }}>
+        <div style={{
+          display: 'grid',
+          // The picture takes the larger share; the words sit in the dark.
+          gridTemplateColumns: wide ? '1.35fr 1fr' : '1fr',
+          alignItems: 'stretch',
+        }}>
+          <div style={{ position: 'relative', background: NIGHT }}>
+            <img
+              src="/photos/reception.jpg"
+              srcSet="/photos/reception-sm.jpg 820w, /photos/reception.jpg 1400w"
+              sizes={wide ? '58vw' : '100vw'}
+              alt="Princess and IniOluwa under a single spotlight, his head bowed to her shoulder, their shadow thrown long across the floor"
+              loading="lazy"
+              decoding="async"
+              width={1400}
+              height={1750}
+              style={{ width: '100%', height: 'auto', display: 'block' }}
+            />
+            {/* Dissolves the right edge into the panel. Desktop only — on a
+                phone the panel is below, not beside, and a horizontal fade
+                there would dim the spotlight for nothing. */}
+            {wide && (
+              <div aria-hidden style={{
+                position: 'absolute', inset: '0 0 0 auto', width: '22%',
+                background: `linear-gradient(to right, rgba(11,14,10,0) 0%, ${NIGHT} 92%)`,
+                pointerEvents: 'none',
+              }} />
+            )}
+          </div>
+
           <div style={{
             padding: `${SECTION} ${GUTTER}`,
             display: 'flex', flexDirection: 'column', justifyContent: 'center',
+            // A breath of green at the foot, so the evening still belongs to
+            // a wedding whose colour is green rather than to a black website.
+            // Kept to a whisper: at full strength it read as a glow in the
+            // corner and started competing with the spotlight, which is the
+            // one thing in this section allowed to be bright.
+            background: `linear-gradient(180deg, ${NIGHT} 64%, #0d150b 100%)`,
           }}>
             <Reveal>
               <Label color={C.goldSoft}>Afterwards</Label>
