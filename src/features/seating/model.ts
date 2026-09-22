@@ -60,17 +60,60 @@ export function moveTable(l: Layout, tableId: string, x: number, y: number): Lay
     t.id === tableId && t.movable ? { ...t, x: Math.round(x), y: Math.round(y) } : t));
 }
 
+/**
+ * Renames one entry.
+ *
+ * ── A blank name is not a rename, and not a deletion ───────────────────────
+ * Returns the layout UNCHANGED — the same object reference — when the new
+ * name is blank, whitespace only, or identical to the old one. That identity
+ * is what the hook reads to decide there is nothing to record, so a planner
+ * who clears a field by accident gets no undo step, no "unpublished changes",
+ * no new updatedAt, and no version burned on the shared draft.
+ *
+ * It deliberately does not delete. Backspacing a name is far more often a
+ * slip than an intention, and there is an explicit Remove for the times it is
+ * meant. See removeEntry.
+ */
 export function renameEntry(l: Layout, entryId: string, name: string): Layout {
+  const next = name.trim();
+  if (!next) return l;
+
+  const current = l.tables.flatMap((t) => t.entries).find((e) => e.id === entryId);
+  if (!current || current.name === next) return l;
+
   return touch(l, l.tables.map((t) => ({
     ...t,
     entries: t.entries.map((e) =>
-      e.id === entryId ? { ...e, name: name.trim() || e.name, renamed: true } : e),
+      e.id === entryId ? { ...e, name: next, renamed: true } : e),
   })));
 }
 
 export type MoveResult =
   | { ok: true; layout: Layout }
   | { ok: false; reason: string };
+
+/**
+ * Takes an entry off the chart entirely.
+ *
+ * The seats it occupied return to the table for free, because seatsUsed()
+ * counts the entries that are actually there — a 10/10 table reads 9/10 the
+ * moment this returns, with no second tally to fall out of step.
+ *
+ * Undo is a whole-layout snapshot, so restoring a removed guest needs nothing
+ * extra here.
+ */
+export function removeEntry(l: Layout, entryId: string): MoveResult {
+  const from = l.tables.find((t) => t.entries.some((e) => e.id === entryId));
+  if (!from) return { ok: false, reason: 'That guest is no longer seated' };
+
+  return {
+    ok: true,
+    layout: touch(l, l.tables.map((t) =>
+      t.id === from.id
+        ? { ...t, entries: t.entries.filter((e) => e.id !== entryId) }
+        : t)),
+  };
+}
 
 /**
  * Moves one entry to another table.

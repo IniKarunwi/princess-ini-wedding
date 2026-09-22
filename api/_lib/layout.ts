@@ -34,7 +34,13 @@ const isTable = (t: any): boolean =>
   && Array.isArray(t.entries)
   && t.entries.every((e: any) =>
     e && typeof e === 'object'
-    && typeof e.id === 'string' && typeof e.name === 'string'
+    && typeof e.id === 'string' && e.id.length > 0
+    // A blank or whitespace-only name is refused at the boundary, not just in
+    // the client. Such an entry would still hold its seats while being
+    // unfindable in Find My Seat — a guest with a chair and no way to be told
+    // where it is. Removing somebody is an explicit action, and it deletes
+    // the entry rather than emptying it.
+    && typeof e.name === 'string' && e.name.trim().length > 0
     && Number.isInteger(e.seats) && e.seats >= 0);
 
 export function checkLayout(raw: unknown): Check {

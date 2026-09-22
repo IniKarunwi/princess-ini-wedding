@@ -22,7 +22,8 @@ await build({
   bundle: true, format: 'esm', platform: 'node', outfile, logLevel: 'warning',
 });
 const { buildInitialLayout, renumberTable, swapTableNumbers,
-        hasUnpublishedChanges, moveEntry } = await import(`file://${outfile}`);
+        hasUnpublishedChanges, moveEntry, renameEntry,
+        removeEntry } = await import(`file://${outfile}`);
 
 // The source notes live beside the data and are checked against it below.
 const sourceOut = join(dirname(outfile), 'source.mjs');
@@ -79,6 +80,59 @@ console.log('\nThe dataset itself');
   const cited = [...flagged.matchAll(/\b((?:bride|groom)-\d{2}-\d{2})\b/g)].map((m) => m[1]);
   const unknown = cited.filter((id) => !ids.includes(id));
   ck('and every row id they cite exists', unknown.length === 0, unknown.join(', '));
+}
+
+console.log('\nRemoving a guest, and refusing to remove one by accident');
+{
+  const table = base.tables.find((t) => t.kind === 'round' && t.entries.length > 1);
+  const victim = table.entries[0];
+  const seatsBefore = table.entries.reduce((n, e) => n + e.seats, 0);
+
+  const res = removeEntry(base, victim.id);
+  ck('a guest can be removed', res.ok === true);
+  const after = get(res.layout, table.id);
+  eq('the entry is gone', after.entries.some((e) => e.id === victim.id), false);
+  eq('one fewer entry', after.entries.length, table.entries.length - 1);
+  eq('and the seats they held are freed',
+     after.entries.reduce((n, e) => n + e.seats, 0), seatsBefore - victim.seats);
+  eq('capacity is untouched', after.capacity, table.capacity);
+  ck('the original layout is not mutated',
+     get(base, table.id).entries.some((e) => e.id === victim.id));
+  ck('nobody else at the table was disturbed',
+     after.entries.map((e) => e.id).join(',')
+       === table.entries.slice(1).map((e) => e.id).join(','));
+  ck('and no other table changed',
+     JSON.stringify(res.layout.tables.filter((t) => t.id !== table.id))
+       === JSON.stringify(base.tables.filter((t) => t.id !== table.id)));
+
+  ck('removing it counts as an unpublished change',
+     hasUnpublishedChanges({ ...res.layout, status: 'draft' },
+                           { ...base, status: 'published' }) === true);
+
+  const gone = removeEntry(res.layout, victim.id);
+  ck('removing the same guest twice is refused, not silent', gone.ok === false);
+
+  // ── The accident this replaces ──────────────────────────────────
+  const blank = renameEntry(base, victim.id, '');
+  ck('an emptied name changes nothing at all', blank === base);
+  const spaces = renameEntry(base, victim.id, '   ');
+  ck('and neither does whitespace', spaces === base);
+  ck('so a blank rename is not an unpublished change',
+     hasUnpublishedChanges({ ...blank, status: 'draft' },
+                           { ...base, status: 'published' }) === false);
+  eq('the name is still there', get(blank, table.id).entries[0].name, victim.name);
+  eq('and nobody was removed', get(blank, table.id).entries.length, table.entries.length);
+
+  const same = renameEntry(base, victim.id, victim.name);
+  ck('renaming to the identical name is also a no-op', same === base);
+  const padded = renameEntry(base, victim.id, `  ${victim.name}  `);
+  ck('...including when only the padding differs', padded === base);
+
+  const real = renameEntry(base, victim.id, 'A Genuinely New Name');
+  ck('a real rename still works', real !== base);
+  eq('and lands', get(real, table.id).entries[0].name, 'A Genuinely New Name');
+  eq('without touching seats',
+     get(real, table.id).entries.reduce((n, e) => n + e.seats, 0), seatsBefore);
 }
 
 console.log('\nRenumbering');

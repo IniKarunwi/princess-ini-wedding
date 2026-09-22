@@ -796,6 +796,22 @@ console.log('\nThe server refuses nonsense');
   });
   eq('two tables with one id are refused', dupes.status, 422);
 
+  // A blank name would hold its seats while being unfindable in Find My Seat.
+  // Removing somebody deletes the entry; it never empties the name.
+  const blankName = structuredClone(seed);
+  blankName.tables[0].entries[0].name = '';
+  const blank = await d.call('/api/planner/draft', {
+    method: 'PUT', body: { version: 1, payload: blankName },
+  });
+  eq('an empty guest name is refused at the boundary', blank.status, 422);
+
+  const spaceName = structuredClone(seed);
+  spaceName.tables[0].entries[0].name = '   ';
+  const spaces = await d.call('/api/planner/draft', {
+    method: 'PUT', body: { version: 1, payload: spaceName },
+  });
+  eq('and so is a whitespace-only one', spaces.status, 422);
+
   const noVersion = await d.call('/api/planner/draft', { method: 'PUT', body: { payload: seed } });
   eq('a save with no version is refused', noVersion.status, 400);
 

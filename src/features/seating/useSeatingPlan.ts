@@ -28,7 +28,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Layout } from './types';
-import { hasUnpublishedChanges, moveEntry, moveTable, renameEntry,
+import { hasUnpublishedChanges, moveEntry, moveTable, removeEntry, renameEntry,
          renumberTable, swapTableNumbers } from './model';
 import { seatingService, type Loaded } from './service';
 
@@ -72,6 +72,8 @@ export interface SeatingPlan {
   moveTableTo(tableId: string, x: number, y: number): void;
   moveGuestTo(entryId: string, tableId: string): void;
   renameGuest(entryId: string, name: string): void;
+  /** Takes a guest off the chart. The table's occupied count drops at once. */
+  removeGuest(entryId: string): void;
 
   /** Changes a round table's displayed number. Never moves anyone. */
   renumber(tableId: string, next: number): void;
@@ -129,6 +131,21 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
   const resetHistory = () => { past.current = []; future.current = []; };
 
   /**
+   * The draft as the server last confirmed it.
+   *
+   * Save Draft compares against this and does nothing when they match. Two
+   * reasons. A planner who clears a name by accident and presses Save would
+   * otherwise burn a version on the shared draft — enough to hand a colleague
+   * a 409 for a change that does not exist. And "Draft saved · version 11"
+   * after a rejected edit tells them something happened when nothing did.
+   *
+   * Compared by the same fingerprint as "unpublished changes", so updatedAt
+   * and the `renamed` marker do not count: neither is anything a guest or
+   * another planner would see.
+   */
+  const savedRef = useRef<Layout | null>(null);
+
+  /**
    * Loads the published room, and the shared draft as well for a planner.
    *
    * A guest never asks for the draft: the request would be refused anyway,
@@ -146,6 +163,7 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
           const { draft: d, published: full } = await seatingService.loadDraft();
           if (!live) return;
           setDraft(d.layout);
+          savedRef.current = d.layout;
           setDraftVersion(d.version);
           setDraftBy(d.updatedBy);
           // The planner's copy of the published layout, with guest names. The
@@ -203,10 +221,35 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     setLastAction(null);
   }, []);
 
+  /**
+   * Renames a guest, or does nothing at all.
+   *
+   * renameEntry returns the SAME layout when the new name is blank or
+   * unchanged. Comparing by identity here is what makes a rejected rename a
+   * true no-op: no undo step, no dirty flag, no updatedAt, and nothing for
+   * Save Draft to bump a version over.
+   */
   const renameGuest = useCallback((entryId: string, name: string) => {
+    if (!draft) return;
+    const next = renameEntry(draft, entryId, name);
+    if (next === draft) return;
     setError(null);
-    commit(draft ? renameEntry(draft, entryId, name) : null);
+    commit(next);
   }, [draft, commit]);
+
+  const removeGuest = useCallback((entryId: string) => {
+    setDraft((cur) => {
+      if (!cur) return cur;
+      const res = removeEntry(cur, entryId);
+      if (res.ok === false) { setError(res.reason); return cur; }
+      setError(null);
+      past.current = [...past.current, cur].slice(-HISTORY_LIMIT);
+      future.current = [];
+      bumpHistory((n) => n + 1);
+      return res.layout;
+    });
+    setLastAction(null);
+  }, []);
 
   const renumber = useCallback((tableId: string, next: number) => {
     setDraft((cur) => {
@@ -300,12 +343,20 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
 
   const saveDraft = useCallback(async () => {
     if (!draft) return;
+
+    // Nothing to send. See savedRef.
+    if (savedRef.current && !hasUnpublishedChanges(draft, savedRef.current)) {
+      setLastAction('No changes to save');
+      return;
+    }
+
     setSaving(true);
     const res = await seatingService.saveDraft(draft, draftVersion);
     setSaving(false);
     if (refused('save', res)) return;
     if (!res.ok) return;
     setConflict(null);
+    savedRef.current = draft;
     setDraftVersion(res.version);
     setDraftBy(res.updatedBy);
     setLastAction(`Draft saved · version ${res.version}`);
@@ -318,12 +369,17 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     // to be saved first or it is not what goes live. Doing that here rather
     // than nagging the planner is the difference between a publish button
     // that works and one that quietly publishes yesterday.
-    const saved = await seatingService.saveDraft(draft, draftVersion);
-    if (refused('publish', saved)) { setSaving(false); return; }
-    if (!saved.ok) { setSaving(false); return; }
-    setDraftVersion(saved.version);
+    let version = draftVersion;
+    if (!savedRef.current || hasUnpublishedChanges(draft, savedRef.current)) {
+      const saved = await seatingService.saveDraft(draft, draftVersion);
+      if (refused('publish', saved)) { setSaving(false); return; }
+      if (!saved.ok) { setSaving(false); return; }
+      savedRef.current = draft;
+      version = saved.version;
+      setDraftVersion(version);
+    }
 
-    const res = await seatingService.publish(saved.version);
+    const res = await seatingService.publish(version);
     setSaving(false);
     if (refused('publish', res)) return;
     if (!res.ok) return;
@@ -332,6 +388,7 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     setPublished(res.published.layout);
     if (res.draft) {
       setDraft(res.draft.layout);
+      savedRef.current = res.draft.layout;
       setDraftVersion(res.draft.version);
       setDraftBy(res.draft.updatedBy);
     }
@@ -349,6 +406,7 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     if (refused('save', res)) return;
     if (!res.ok) return;
     setDraft(fresh);
+    savedRef.current = fresh;
     setDraftVersion(res.version);
     setDraftBy(res.updatedBy);
     resetHistory();
@@ -361,6 +419,7 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     try {
       const { draft: d, published: full } = await seatingService.loadDraft();
       setDraft(d.layout);
+      savedRef.current = d.layout;
       setDraftVersion(d.version);
       setDraftBy(d.updatedBy);
       if (full) setPublished(full.layout);
@@ -389,7 +448,9 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     setSaving(false);
     if (refused('save', res)) return;
     if (!res.ok) return;
-    setDraft({ ...structuredClone(layout), status: 'draft' });
+    const adopted: Layout = { ...structuredClone(layout), status: 'draft' };
+    setDraft(adopted);
+    savedRef.current = adopted;
     setDraftVersion(res.version);
     setDraftBy(res.updatedBy);
     resetHistory();
@@ -413,7 +474,7 @@ export function useSeatingPlan(viewerIsAdmin: boolean): SeatingPlan {
     visible: viewerIsAdmin ? draft ?? published : published,
     draftVersion, draftBy,
     dirty, canUndo, canRedo, saving, lastAction, error, conflict,
-    moveTableTo, moveGuestTo, renameGuest,
+    moveTableTo, moveGuestTo, renameGuest, removeGuest,
     renumber, swapNumbers, numberConflict, clearNumberConflict, notice,
     undo, redo, saveDraft, publish, discardDraft, reloadDraft, adoptLayout,
   };
