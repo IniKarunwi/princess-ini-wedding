@@ -39,6 +39,17 @@ const FULL: View = { x: 0, y: 0, w: HALL.w, h: HALL.h };
 const MIN_W = 340;              // deepest zoom in
 const MAX_W = HALL.w * 1.15;    // furthest zoom out
 
+/**
+ * How far a pointer may wander, in SCREEN pixels, before the press stops
+ * being a click and becomes a drag or a pan.
+ *
+ * Eight is the figure most touch platforms settle on, and it is about the
+ * width of a fingertip's wobble. Below it nothing moves and nothing is
+ * committed; above it the interaction is a drag and the click is suppressed.
+ * Screen pixels rather than hall units, so it means the same at every zoom.
+ */
+const DRAG_SLOP = 8;
+
 export default function HallMap({
   layout, selectedTableId, onSelectTable,
   editing, onMoveTable, onDropGuest, draggingEntryId, handleRef,
@@ -148,6 +159,22 @@ export default function HallMap({
   const pinchFrom = useRef<{ dist: number; view: View } | null>(null);
   const movedRef = useRef(false);
 
+  /**
+   * A table the pointer is holding but has not yet dragged.
+   *
+   * Pressing a table used to start the drag immediately, which had three
+   * consequences for anyone who just wanted to see who was sitting there:
+   * a 1px tremor moved the table on screen, `movedRef` went true so the
+   * click that opens the details was swallowed, and pointerup committed the
+   * move — marking the draft dirty from what the planner experienced as a
+   * click. Nobody can hold a finger perfectly still on a phone.
+   *
+   * So the press is only remembered here. The drag starts in onPointerMove,
+   * after the pointer has travelled DRAG_SLOP, and until then the table has
+   * not moved and the interaction is still a click.
+   */
+  const pendingGrab = useRef<{ id: string; px: number; py: number } | null>(null);
+
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -165,6 +192,26 @@ export default function HallMap({
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    /*
+     * A held table that has not travelled far enough is still a click.
+     *
+     * The threshold is measured in SCREEN pixels from where the pointer
+     * landed, not in hall units, so it means the same thing at every zoom
+     * level — 8px on the glass is 8px whether the room is zoomed right in or
+     * showing the whole floor.
+     */
+    const pending = pendingGrab.current;
+    if (pending && !drag) {
+      if (Math.hypot(e.clientX - pending.px, e.clientY - pending.py) < DRAG_SLOP) return;
+      const p = toHall(e.clientX, e.clientY);
+      const others = layout.tables
+        .filter((t) => t.kind === 'round' && t.id !== pending.id)
+        .map((t) => ({ id: t.id, x: t.x, y: t.y }));
+      setDrag({ id: pending.id, x: p.x, y: p.y, ok: placementCheck(p.x, p.y, pending.id, others).ok });
+      movedRef.current = true;
+      return;
+    }
 
     // Dragging a table wins over panning.
     if (drag) {
@@ -199,7 +246,13 @@ export default function HallMap({
       const scale = Math.min(r.width / f.view.w, r.height / f.view.h);
       const dx = (e.clientX - f.px) / scale;
       const dy = (e.clientY - f.py) / scale;
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) movedRef.current = true;
+      // Screen pixels, and the same slop as a table drag. It used to compare
+      // HALL units against 2, which meant the distance you had to hold still
+      // changed with the zoom level — and at a close zoom, two hall units is
+      // a fraction of a pixel, so almost any press counted as a pan and ate
+      // the click. A VIP table cannot be dragged, so this is the path its
+      // clicks take.
+      if (Math.hypot(e.clientX - f.px, e.clientY - f.py) >= DRAG_SLOP) movedRef.current = true;
       setView(clampView({ ...f.view, x: f.view.x - dx, y: f.view.y - dy }));
     }
   };
@@ -208,6 +261,9 @@ export default function HallMap({
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinchFrom.current = null;
     if (pointers.current.size === 0) panFrom.current = null;
+    // Released without crossing the threshold: nothing was dragged, so there
+    // is nothing to commit. The click that follows opens the table.
+    pendingGrab.current = null;
 
     if (drag) {
       if (drag.ok) onMoveTable(drag.id, drag.x, drag.y);
@@ -298,8 +354,11 @@ export default function HallMap({
               ev.stopPropagation();
               (ev.target as Element).setPointerCapture?.(ev.pointerId);
               pointers.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-              const p = toHall(ev.clientX, ev.clientY);
-              setDrag({ id: t.id, x: p.x, y: p.y, ok: placementCheck(p.x, p.y, t.id, others).ok });
+              // Remember where the finger landed, but do NOT start dragging.
+              // The drag begins in onPointerMove, once it has travelled far
+              // enough to be one. See DRAG_SLOP.
+              movedRef.current = false;
+              pendingGrab.current = { id: t.id, px: ev.clientX, py: ev.clientY };
             }}
             onHover={(on) => setHoverTable(on ? t.id : null)}
             onDropGuest={() => draggingEntryId && onDropGuest(draggingEntryId, t.id)}

@@ -502,7 +502,97 @@ console.log('\nPublishing');
   await a.close();
 }
 
-/* ── 7 · Signing out ─────────────────────────────────────────────────────── */
+/* ── 7 · Click is not drag ───────────────────────────────────────────────── */
+
+console.log('\nClicking a table versus dragging it');
+{
+  const p = await open(laptop);
+  const id = await roundTableId(p);
+
+  /** The table's rendered position, so "did it move?" is answered by the DOM. */
+  const pos = (page, tid) => page.evaluate((t) => {
+    const b = document.querySelector(`[data-table-id="${t}"]`)?.getBBox?.();
+    return b ? `${Math.round(b.x)},${Math.round(b.y)}` : null;
+  }, tid);
+
+  /**
+   * A name seated at that table, to tell whether the details panel opened.
+   *
+   * Checked through the rename INPUT, not through body text: in planner mode
+   * each guest is an editable field, and an input's value is not part of
+   * innerText. Asserting on the text would have reported the panel closed
+   * while it was plainly open.
+   */
+  const seated = await p.evaluate(async (tid) => {
+    const res = await fetch('/api/planner/draft', { credentials: 'same-origin' });
+    const { draft } = await res.json();
+    return draft.tables.find((t) => t.id === tid)?.entries[0]?.name ?? null;
+  }, id);
+  ck('the table under test has someone seated at it', !!seated);
+
+  /** Is THIS table's detail panel open? */
+  const opened = () => p.getByLabel(`Name for ${seated}`).count().then((n) => n > 0);
+
+  /** Moves the selection elsewhere, so each case starts from a known state. */
+  const selectAnother = async () => {
+    const other = await p.evaluate((skip) =>
+      [...document.querySelectorAll('[data-table-id]')]
+        .map((el) => el.getAttribute('data-table-id'))
+        .find((t) => !t.includes('vip') && t !== skip), id);
+    await p.locator(`[data-table-id="${other}"]`).click();
+    await p.waitForTimeout(350);
+  };
+
+  const box = await p.locator(`[data-table-id="${id}"]`).boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+
+  // ── 1 · A plain click opens the members and moves nothing ──────────
+  const before = await pos(p, id);
+  await p.mouse.move(cx, cy);
+  await p.mouse.down();
+  await p.mouse.up();
+  await p.waitForTimeout(450);
+
+  ck('a plain click opens the table members', await opened());
+  ck('and the table has not moved', await pos(p, id) === before,
+    `${await pos(p, id)} vs ${before}`);
+
+  // ── 2 · A tremor smaller than the threshold is still a click ───────
+  await selectAnother();
+  ck('selection moved away, ready for the next case', !(await opened()));
+
+  await p.mouse.move(cx, cy);
+  await p.mouse.down();
+  // 4px diagonally: about 5.7px of travel, comfortably under 8.
+  await p.mouse.move(cx + 4, cy + 4, { steps: 4 });
+  await p.mouse.up();
+  await p.waitForTimeout(450);
+
+  ck('a wobble under 8px still opens the table members', await opened());
+  ck('and still has not moved the table', await pos(p, id) === before,
+    `${await pos(p, id)} vs ${before}`);
+
+  // ── 3 · Past the threshold it is a drag, and only a drag ───────────
+  await selectAnother();
+
+  let moved = false;
+  for (const [dx, dy] of [[0, 90], [0, -90], [90, 0], [-90, 0], [0, 150]]) {
+    await p.mouse.move(cx, cy);
+    await p.mouse.down();
+    await p.mouse.move(cx + dx, cy + dy, { steps: 12 });
+    await p.mouse.up();
+    await p.waitForTimeout(400);
+    if (await pos(p, id) !== before) { moved = true; break; }
+  }
+  ck('a drag past 8px moves the table', moved, `still at ${before}`);
+  ck('and the drag does not also open the table members', !(await opened()),
+    'the drop was treated as a click too');
+
+  await p.close();
+}
+
+/* ── 8 · Signing out ─────────────────────────────────────────────────────── */
 
 console.log('\nSigning out');
 {
