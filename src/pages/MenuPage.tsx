@@ -1,9 +1,10 @@
 /**
- * /menu and /drinks — one component, two datasets.
+ * /menu — a menu, taking its sections as a prop.
  *
- * A menu is a list of dishes under headings. Building two near-identical
- * pages so that one could diverge later is how they drift apart; this takes
- * the sections as a prop instead.
+ * A menu is a list of dishes under headings. It took the sections as a prop
+ * so that /menu and /drinks could not drift apart; the drinks menu has since
+ * been dropped from the site, and the prop is kept because the shape is
+ * right, not because there is a second caller today.
  *
  * Set as a printed menu card rather than a web page: centred, generous
  * leading, hairline rules under the section names, no boxes. It is read once,

@@ -1,8 +1,8 @@
 /**
  * A page whose content is not written yet.
  *
- * The brief was explicit: do not invent the service programme, the food menu
- * or the drinks list. So this does not pretend — no skeleton rows, no lorem,
+ * The brief was explicit: do not invent the service programme or the food
+ * menu. So this does not pretend — no skeleton rows, no lorem,
  * no "Starters / Mains / Desserts" headings waiting to be filled in. A guest
  * who opens the menu QR on the day and finds invented dishes is worse served
  * than one who finds an honest line.

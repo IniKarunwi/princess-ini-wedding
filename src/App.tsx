@@ -9,7 +9,7 @@ import Music from "./components/site/Music";
 import WeddingHub from "./pages/WeddingHub";
 import MenuPage from "./pages/MenuPage";
 import ThroughYourEyes from "./pages/ThroughYourEyes";
-import { FOOD_MENU, DRINKS_MENU, MENU_TITLE } from "./features/weddingday/menu";
+import { FOOD_MENU, MENU_TITLE } from "./features/weddingday/menu";
 import { CAMERA_ENABLED } from "./features/weddingday/phase";
 
 export default function App() {
@@ -45,18 +45,6 @@ export default function App() {
             sections={FOOD_MENU}
           />
         } />
-        {/* Structure and styling are done; DRINKS_MENU is deliberately
-            empty until the real list is supplied. Filling that one array
-            is the whole remaining job. */}
-        <Route path="/drinks" element={
-          <MenuPage
-            eyebrow="At the Reception"
-            title="Drinks"
-            sections={DRINKS_MENU}
-            emptyNote="The drinks list is still being finalised. It will appear here before the day — and there will be plenty of it on the night."
-          />
-        } />
-
         {/* ── The table QR lands here ──────────────────────────────────
             One code on every reception table resolves to /wedding. Short,
             permanent and easy to encode, and the only URL printed on the

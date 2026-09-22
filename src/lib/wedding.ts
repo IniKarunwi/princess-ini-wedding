@@ -14,7 +14,7 @@
  * what people are holding in their hands.
  *
  * NOTHING HERE IS INVENTED. Where content does not exist yet (the service
- * programme, the food and drinks menus) there is no placeholder prose — the
+ * programme) there is no placeholder prose — the
  * page says plainly that it is coming.
  */
 
@@ -138,6 +138,5 @@ export const ROUTES = {
   home: '/',
   programme: '/program',
   menu: '/menu',
-  drinks: '/drinks',
   seating: '/seating-chart',
 } as const;
