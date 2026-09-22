@@ -762,6 +762,170 @@ console.log('\nEmptying a name does nothing');
   await p.close();
 }
 
+/* ── 9b · Adding a guest ─────────────────────────────────────────────────── */
+
+console.log('\nAdding a guest');
+{
+  const a = await open(laptop);
+  const b = await open(phone);
+  const id = await roundTableId(a);
+
+  const plan = (page) => page.evaluate(async (tid) => {
+    const r = await fetch('/api/planner/draft', { credentials: 'same-origin' });
+    const { draft } = await r.json();
+    const t = draft.tables.find((x) => x.id === tid);
+    return { version: draft.version, number: t.number, capacity: t.capacity,
+             names: t.entries.map((e) => e.name),
+             seats: t.entries.reduce((n, e) => n + e.seats, 0) };
+  }, id);
+
+  const lookup = (page, q) => page.evaluate(async (name) => {
+    const r = await fetch('/api/seating/lookup', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ q: name }),
+    });
+    return r.json();
+  }, q);
+
+  const seatsShown = async (page) =>
+    (await page.locator('aside').innerText()).match(/\d+\/\d+/)?.[0];
+
+  await a.locator(`[data-table-id="${id}"]`).click();
+  await a.waitForTimeout(400);
+
+  const start = await plan(a);
+  const NEWCOMER = `Late Addition ${Date.now()}`;
+
+  // ── A full table offers no way to add ───────────────────────────
+  if (start.seats >= start.capacity) {
+    ck('a full table does not offer Add guest',
+      await a.getByRole('button', { name: /\+ add guest/i }).count() === 0);
+    ck('and says it is full',
+      /this table is full/i.test(await a.locator('aside').innerText()));
+
+    // Free a seat so the rest of the journey has somewhere to go.
+    const victim = start.names[0];
+    await a.getByRole('button', { name: `Remove ${victim}` }).click();
+    await a.waitForTimeout(250);
+    await a.getByRole('button', { name: /yes, remove/i }).click();
+    await a.waitForTimeout(450);
+  }
+
+  const before = await seatsShown(a);
+  ck('with a seat free, Add guest appears',
+    await a.getByRole('button', { name: /\+ add guest/i }).count() === 1);
+
+  // ── Blank names are refused ─────────────────────────────────────
+  await a.getByRole('button', { name: /\+ add guest/i }).click();
+  await a.waitForTimeout(250);
+  await a.getByRole('button', { name: /^add guest$/i }).click();
+  await a.waitForTimeout(300);
+  ck('an empty name is refused',
+    await a.getByRole('alert').filter({ hasText: /give the guest a name/i }).count() === 1);
+  ck('and nobody was added', (await plan(a)).names.length === (await plan(a)).names.length
+    && !(await plan(a)).names.includes(''));
+
+  // ── The real addition ───────────────────────────────────────────
+  const field = a.getByLabel(/name of guest to add/i);
+  await field.fill(NEWCOMER);
+  await a.getByRole('button', { name: /^add guest$/i }).click();
+  await a.waitForTimeout(500);
+
+  const afterAdd = await seatsShown(a);
+  ck('the occupied count goes up at once', afterAdd !== before, `${before} then ${afterAdd}`);
+  ck('the guest appears in the table', await a.getByLabel(`Name for ${NEWCOMER}`).count() === 1);
+  ck('it counts as an unpublished change',
+    /unpublished changes/i.test(await a.locator('body').innerText()));
+
+  // ── Fill it to capacity, and check the door closes ──────────────
+  // Done by filling rather than by hoping the table happened to be full:
+  // an assertion inside an `if` that does not fire proves nothing.
+  // The on-screen count, not the server's: these additions are unsaved, so
+  // /api/planner/draft still shows the table as it was before them.
+  const shownSeats = async () => {
+    const m = (await a.locator('aside').innerText()).match(/(\d+)\/(\d+)/);
+    return m ? { used: Number(m[1]), capacity: Number(m[2]) } : null;
+  };
+
+  let filler = 0;
+  for (let guard = 0; guard < 15; guard++) {
+    const state = await shownSeats();
+    if (state && state.used >= state.capacity) break;
+    if (await a.getByRole('button', { name: /\+ add guest/i }).count() === 0) break;
+    await a.getByRole('button', { name: /\+ add guest/i }).click();
+    await a.waitForTimeout(200);
+    await a.getByLabel(/name of guest to add/i).fill(`Filler ${guard}`);
+    await a.getByRole('button', { name: /^add guest$/i }).click();
+    await a.waitForTimeout(350);
+    filler++;
+  }
+
+  const nowFull = await shownSeats();
+  ck('the table is now exactly at capacity', nowFull.used === nowFull.capacity,
+    `${nowFull.used}/${nowFull.capacity}`);
+  ck('once at capacity, Add guest is no longer offered',
+    await a.getByRole('button', { name: /\+ add guest/i }).count() === 0);
+  ck('and the panel explains why, rather than the button just vanishing',
+    /this table is full/i.test(await a.locator('aside').innerText()));
+
+  // Take the filler back out so the rest of the journey is about one guest.
+  for (let i = 0; i < filler; i++) {
+    await a.getByRole('button', { name: /undo/i }).click();
+    await a.waitForTimeout(250);
+  }
+  ck('undoing the filler leaves the real addition in place',
+    await a.getByLabel(`Name for ${NEWCOMER}`).count() === 1);
+
+  // ── Undo ────────────────────────────────────────────────────────
+  await a.getByRole('button', { name: /undo/i }).click();
+  await a.waitForTimeout(450);
+  ck('undo takes the new guest back out',
+    await a.getByLabel(`Name for ${NEWCOMER}`).count() === 0);
+  ck('and the count returns', await seatsShown(a) === before,
+    `${await seatsShown(a)} vs ${before}`);
+
+  // Redo it for the rest of the journey.
+  await a.getByRole('button', { name: /\+ add guest/i }).click();
+  await a.waitForTimeout(250);
+  await a.getByLabel(/name of guest to add/i).fill(NEWCOMER);
+  await a.getByRole('button', { name: /^add guest$/i }).click();
+  await a.waitForTimeout(450);
+
+  // ── Save Draft: shared, still not public ────────────────────────
+  await a.getByRole('button', { name: /save draft/i }).click();
+  await a.waitForTimeout(1000);
+  ck('the addition saves', /draft saved · version\s*\d/i.test(await a.locator('body').innerText()));
+  ck('the shared draft has them', (await plan(a)).names.includes(NEWCOMER));
+
+  await b.reload({ waitUntil: 'domcontentloaded' });
+  await settle(b);
+  ck('the second device sees the new guest', (await plan(b)).names.includes(NEWCOMER));
+
+  const guest = await (await device()).newPage();
+  await guest.goto(B + '/seating-chart', { waitUntil: 'domcontentloaded' });
+  await settle(guest);
+  const early = await lookup(guest, NEWCOMER);
+  ck('the public cannot find them before Publish', early.found !== true,
+    JSON.stringify(early).slice(0, 120));
+
+  // ── Publish ─────────────────────────────────────────────────────
+  await a.getByRole('button', { name: /publish changes/i }).click();
+  await a.getByRole('button', { name: /yes, publish/i }).click();
+  await a.waitForTimeout(1300);
+
+  await guest.reload({ waitUntil: 'domcontentloaded' });
+  await settle(guest);
+  const found = await lookup(guest, NEWCOMER);
+  ck('after Publish, Find My Seat finds them', found.found === true,
+    JSON.stringify(found).slice(0, 150));
+  ck('at the right table', found.table === (await plan(a)).number,
+    `${found.table} vs ${(await plan(a)).number}`);
+
+  await guest.close();
+  await a.close();
+  await b.close();
+}
+
 /* ── 10 · Signing out ─────────────────────────────────────────────────────── */
 
 console.log('\nSigning out');

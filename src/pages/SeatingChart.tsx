@@ -138,6 +138,7 @@ export default function SeatingChart() {
             onClose={() => setSelectedId(null)}
             onRename={plan.renameGuest}
             onRemove={plan.removeGuest}
+            onAdd={plan.addGuest}
             onMoveGuest={plan.moveGuestTo}
             onGuestDragStart={setDraggingEntry}
             onGuestDragEnd={() => setDraggingEntry(null)}
@@ -312,6 +313,7 @@ export default function SeatingChart() {
             onClose={() => setSelectedId(null)}
             onRename={plan.renameGuest}
             onRemove={plan.removeGuest}
+            onAdd={plan.addGuest}
             onMoveGuest={plan.moveGuestTo}
             onGuestDragStart={setDraggingEntry}
             onGuestDragEnd={() => setDraggingEntry(null)}

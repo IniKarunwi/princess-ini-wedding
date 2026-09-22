@@ -9,8 +9,8 @@
 
 import { SOURCE_TABLES } from './data/seatingSource';
 import { initialRoundPositions, VIP_GEOM } from './hall';
-import type { Layout, SeatingTable, Side } from './types';
-import { seatsUsed } from './types';
+import type { Layout, SeatEntry, SeatingTable, Side } from './types';
+import { seatsFree, seatsUsed } from './types';
 
 /** Builds the starting layout straight from the seating document. */
 export function buildInitialLayout(): Layout {
@@ -91,6 +91,76 @@ export function renameEntry(l: Layout, entryId: string, name: string): Layout {
 export type MoveResult =
   | { ok: true; layout: Layout }
   | { ok: false; reason: string };
+
+/**
+ * An id for a guest added by hand.
+ *
+ * The imported rows are numbered per table ("bride-01-00"), which is fine for
+ * a fixed list but not for one that is added to: remove the last row, add
+ * another, and a highest-index-plus-one scheme hands out an id that a removed
+ * guest already had — so an Undo could resurrect somebody into the wrong
+ * identity. A random suffix cannot collide, and the table prefix keeps the id
+ * readable in exported data.
+ *
+ * The id never changes afterwards, which is what lets rename, remove, move,
+ * Undo, Save Draft and Publish all keep addressing the same person.
+ */
+function newEntryId(tableId: string): string {
+  const rand = globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID().slice(0, 8)
+    // randomUUID needs a secure context. Falling back keeps the planner
+    // working on a plain-http preview rather than throwing mid-edit.
+    : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  return `${tableId}-add-${rand}`;
+}
+
+/**
+ * Seats one more guest at a table.
+ *
+ * Refuses rather than overfills, and counts SEATS, not rows: a table of ten
+ * holding a couple worth two seats and seven singles is full at nine entries,
+ * and this says so. That is the same arithmetic moveEntry uses, for the same
+ * reason — a chart that quietly seats eleven people at a table of ten is
+ * discovered at the reception.
+ */
+export function addEntry(
+  l: Layout, tableId: string, name: string, seats = 1,
+): MoveResult {
+  const table = l.tables.find((t) => t.id === tableId);
+  if (!table) return { ok: false, reason: 'No such table' };
+
+  const clean = name.trim().replace(/\s+/g, ' ');
+  if (!clean) return { ok: false, reason: 'Give the guest a name.' };
+  if (!Number.isInteger(seats) || seats < 1) {
+    return { ok: false, reason: 'A guest needs at least one seat.' };
+  }
+
+  const free = seatsFree(table);
+  if (seats > free) {
+    return {
+      ok: false,
+      reason: free === 0
+        ? `${tableName(table)} is full (${table.capacity}/${table.capacity})`
+        : `${tableName(table)} has ${free} seat${free === 1 ? '' : 's'} free, and this needs ${seats}`,
+    };
+  }
+
+  const entry: SeatEntry = {
+    id: newEntryId(tableId),
+    name: clean,
+    seats,
+    // Added by a planner, not read off the document: the seat count is
+    // stated outright rather than inferred from a row of prose.
+    provenance: 'stated',
+    raw: clean,
+  };
+
+  return {
+    ok: true,
+    layout: touch(l, l.tables.map((t) =>
+      t.id === tableId ? { ...t, entries: [...t.entries, entry] } : t)),
+  };
+}
 
 /**
  * Takes an entry off the chart entirely.

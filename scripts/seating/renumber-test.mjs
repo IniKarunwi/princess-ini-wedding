@@ -23,7 +23,7 @@ await build({
 });
 const { buildInitialLayout, renumberTable, swapTableNumbers,
         hasUnpublishedChanges, moveEntry, renameEntry,
-        removeEntry } = await import(`file://${outfile}`);
+        removeEntry, addEntry } = await import(`file://${outfile}`);
 
 // The source notes live beside the data and are checked against it below.
 const sourceOut = join(dirname(outfile), 'source.mjs');
@@ -80,6 +80,81 @@ console.log('\nThe dataset itself');
   const cited = [...flagged.matchAll(/\b((?:bride|groom)-\d{2}-\d{2})\b/g)].map((m) => m[1]);
   const unknown = cited.filter((id) => !ids.includes(id));
   ck('and every row id they cite exists', unknown.length === 0, unknown.join(', '));
+}
+
+console.log('\nAdding a guest');
+{
+  const table = base.tables.find((t) => t.kind === 'round' && t.entries.length > 1);
+  const seatsAt = (l, id) => get(l, id).entries.reduce((n, e) => n + e.seats, 0);
+
+  // Free one seat first, so there is somewhere to add.
+  const freed = removeEntry(base, table.entries[0].id);
+  ck('a seat can be freed', freed.ok === true);
+  const nine = freed.layout;
+  eq('the table is now one short', seatsAt(nine, table.id), table.capacity - table.entries[0].seats);
+
+  const added = addEntry(nine, table.id, 'Newly Invited Guest');
+  ck('a guest can be added to a table with room', added.ok === true);
+  const after = get(added.layout, table.id);
+  eq('the table is back to capacity', seatsAt(added.layout, table.id), table.capacity);
+  eq('one more row', after.entries.length, get(nine, table.id).entries.length + 1);
+
+  const fresh = after.entries.at(-1);
+  eq('the new guest has the name given', fresh.name, 'Newly Invited Guest');
+  eq('and takes one seat by default', fresh.seats, 1);
+  ck('with an id that is unique in the whole room', added.layout.tables
+    .flatMap((t) => t.entries).filter((e) => e.id === fresh.id).length === 1);
+  ck('and belongs to the table it was added to', fresh.id.startsWith(`${table.id}-`));
+  ck('the original layout is not mutated',
+    get(nine, table.id).entries.length === after.entries.length - 1);
+
+  ck('adding counts as an unpublished change',
+    hasUnpublishedChanges({ ...added.layout, status: 'draft' },
+                          { ...nine, status: 'published' }) === true);
+
+  // ── Capacity, counted in seats ─────────────────────────────────
+  const full = addEntry(added.layout, table.id, 'One Too Many');
+  ck('a full table refuses another guest', full.ok === false);
+  ck('and says it is full', /full/i.test(full.reason), full.reason);
+
+  const pair = addEntry(nine, table.id, 'A Couple', 2);
+  ck('a two-seat guest will not fit in one free seat', pair.ok === false);
+  ck('and the reason counts seats, not rows',
+    /seat/i.test(pair.reason) && /needs 2/.test(pair.reason), pair.reason);
+
+  // Two seats free, two-seat guest: fits exactly.
+  const twoFree = removeEntry(nine, get(nine, table.id).entries[0].id);
+  const couple = addEntry(twoFree.layout, table.id, 'A Couple', 2);
+  ck('...but fits when two seats are free', couple.ok === true);
+  eq('and fills the table exactly', seatsAt(couple.layout, table.id), table.capacity);
+
+  // ── Names ──────────────────────────────────────────────────────
+  for (const bad of ['', '   ', '\t\n ']) {
+    const r = addEntry(nine, table.id, bad);
+    ck(`a name of ${JSON.stringify(bad)} is refused`, r.ok === false);
+  }
+  const padded = addEntry(nine, table.id, '  Spaced   Out  ');
+  ck('a padded name is accepted', padded.ok === true);
+  eq('and tidied', get(padded.layout, table.id).entries.at(-1).name, 'Spaced Out');
+
+  const nowhere = addEntry(nine, 'no-such-table', 'Somebody');
+  ck('an unknown table is refused', nowhere.ok === false);
+
+  // ── The new entry behaves like any other ───────────────────────
+  const renamed = renameEntry(added.layout, fresh.id, 'Renamed After Adding');
+  ck('the new guest can be renamed', renamed !== added.layout);
+  eq('and the rename lands',
+     get(renamed, table.id).entries.find((e) => e.id === fresh.id).name,
+     'Renamed After Adding');
+
+  const removedAgain = removeEntry(added.layout, fresh.id);
+  ck('and removed again', removedAgain.ok === true);
+  eq('freeing the seat', seatsAt(removedAgain.layout, table.id), table.capacity - 1);
+
+  // Add, remove, add: the second id must not reuse the first.
+  const again = addEntry(removedAgain.layout, table.id, 'Someone Else');
+  ck('a later addition gets a different id',
+     get(again.layout, table.id).entries.at(-1).id !== fresh.id);
 }
 
 console.log('\nRemoving a guest, and refusing to remove one by accident');

@@ -20,7 +20,7 @@ import { C, F, label } from '../theme';
 
 export default function TableDetails({
   table, allTables, highlightEntryId, editing, sheet,
-  onClose, onRename, onRemove, onMoveGuest, onGuestDragStart, onGuestDragEnd, error,
+  onClose, onRename, onRemove, onAdd, onMoveGuest, onGuestDragStart, onGuestDragEnd, error,
   onRenumber, onSwapNumbers, numberConflict, onClearConflict, notice, durable,
 }: {
   table: SeatingTable;
@@ -31,6 +31,7 @@ export default function TableDetails({
   onClose(): void;
   onRename(entryId: string, name: string): void;
   onRemove(entryId: string): void;
+  onAdd(tableId: string, name: string): void;
   onMoveGuest(entryId: string, tableId: string): void;
   onGuestDragStart(entryId: string): void;
   onGuestDragEnd(): void;
@@ -141,6 +142,13 @@ export default function TableDetails({
           </li>
         )}
       </ul>
+
+      {editing && (
+        <AddGuest
+          table={table}
+          onAdd={(name) => onAdd(table.id, name)}
+        />
+      )}
 
       {sheet && (
         <button
@@ -507,5 +515,112 @@ function RenumberField({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * "+ Add guest".
+ *
+ * ── It counts seats, not rows ──────────────────────────────────────────────
+ * A table of ten holding one couple worth two seats and seven singles is
+ * full at eight rows, so the control has to ask seatsFree(), not
+ * entries.length. When there is no room it says so plainly rather than
+ * disappearing — a planner looking for the button needs to know it is the
+ * table that is full, not that they have missed it.
+ *
+ * The model refuses a blank name and an addition that would not fit, and
+ * those refusals surface through the panel's usual error line. This does its
+ * own blank check as well, so the common slip never travels at all.
+ */
+function AddGuest({ table, onAdd }: { table: SeatingTable; onAdd(name: string): void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const free = seatsFree(table);
+
+  if (free <= 0) {
+    return (
+      <p style={{
+        fontFamily: F.sans, fontSize: '0.68rem', lineHeight: 1.6,
+        color: C.muted, margin: '0.9rem 0 0',
+      }}>
+        This table is full — {seatsUsed(table)} of {table.capacity} seats taken.
+        Remove someone, or move them to another table, to make room.
+      </p>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => { setOpen(true); setProblem(null); }}
+        style={{
+          marginTop: '0.9rem', background: 'none', border: `1px dashed ${C.rule}`,
+          cursor: 'pointer', padding: '0.55rem 0.8rem', width: '100%',
+          ...label(C.green, '0.58rem'),
+        }}
+      >
+        + Add guest
+      </button>
+    );
+  }
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) { setProblem('Give the guest a name.'); return; }
+    onAdd(name);
+    setName('');
+    setOpen(false);
+    setProblem(null);
+  };
+
+  return (
+    <form onSubmit={submit} style={{
+      marginTop: '0.9rem', border: `1px solid ${C.rule}`, padding: '0.75rem',
+      background: C.paper,
+    }}>
+      <label style={{ ...label(C.muted, '0.55rem'), display: 'block', marginBottom: '0.45rem' }}>
+        Add to {tableLabel(table)} · {free} seat{free === 1 ? '' : 's'} free
+      </label>
+      <input
+        autoFocus
+        value={name}
+        onChange={(ev) => { setName(ev.target.value); setProblem(null); }}
+        aria-label={`Name of guest to add to ${tableLabel(table)}`}
+        placeholder="Guest name"
+        style={{
+          width: '100%', boxSizing: 'border-box', fontSize: '1rem',
+          fontFamily: F.serif, color: C.ink, background: C.paper,
+          border: `1px solid ${problem ? '#c2603f' : C.rule}`,
+          padding: '0.5rem', outline: 'none',
+        }}
+      />
+      {problem && (
+        <p role="alert" style={{
+          fontFamily: F.sans, fontSize: '0.68rem', color: '#8c3d22', margin: '0.45rem 0 0',
+        }}>
+          {problem}
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.6rem' }}>
+        <button type="submit" style={{
+          background: C.goldSoft, border: `1px solid ${C.goldSoft}`, cursor: 'pointer',
+          padding: '0.45rem 0.8rem', ...label(C.green, '0.55rem'),
+        }}>
+          Add guest
+        </button>
+        <button
+          type="button"
+          onClick={() => { setOpen(false); setName(''); setProblem(null); }}
+          style={{
+            background: 'none', border: `1px solid ${C.rule}`, cursor: 'pointer',
+            padding: '0.45rem 0.8rem', ...label(C.muted, '0.55rem'),
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
