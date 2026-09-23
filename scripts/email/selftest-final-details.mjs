@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DRESS, WEDDING, SUBJECT_FINAL, CAMERA, REGISTRY_URL, SEATING_URL } from './config.mjs';
+import { DRESS, WEDDING, subjectFinal, CAMERA, REGISTRY_URL, SEATING_URL } from './config.mjs';
 import { renderFinalDetails } from './final-details.mjs';
 import {
   classifyForFinalDetails, selectForFinalDetails, ceremonyCount,
@@ -141,49 +141,63 @@ console.log('\nRecipients: the whole list');
   eq('one of the recipients is a ceremony guest', ceremonyCount(recipients), 1);
 }
 
-/* ── A reception guest must not learn the ceremony exists ────────────────── */
+/* ── No guest learns about an event they were not invited to ─────────────── */
 
 console.log('\nThe rule: only your own events');
 {
-  const r = renderFinalDetails(guest({ approved_for: 'RECEPTION' }),
-    { siteUrl: 'https://princessandini.com', now: SEND_DAY });
-
-  eq('not flagged as a ceremony guest', r.ceremony, false);
-  for (const word of ['ceremony', 'phone-free', 'no-personal-photography', 'service', 'vows']) {
-    ok(`"${word}" appears nowhere in the HTML`, !new RegExp(word, 'i').test(r.html));
-    ok(`"${word}" appears nowhere in the plain text`, !new RegExp(word, 'i').test(r.text));
+  // The phones paragraph deliberately names no part of the day — "a no-phones
+  // event", "our media team", never "ceremony" or "service". So it is safe for
+  // every tier, and needs no gate. This asserts the wording keeps that promise:
+  // if someone reintroduces "ceremony", this fails.
+  for (const tier of ['JOINING', 'RECEPTION', 'AFTERPARTY']) {
+    const r = renderFinalDetails(guest({ approved_for: tier }),
+      { siteUrl: 'https://princessandini.com', now: SEND_DAY });
+    for (const word of ['ceremony', 'service', 'vows', 'after party']) {
+      ok(`${tier}: "${word}" is not named in the HTML`, !new RegExp(word, 'i').test(r.html));
+      ok(`${tier}: nor in the plain text`, !new RegExp(word, 'i').test(r.text));
+    }
   }
 
-  const c = renderFinalDetails(guest({ approved_for: 'JOINING' }),
+  const r = renderFinalDetails(guest({ approved_for: 'RECEPTION' }),
     { siteUrl: 'https://princessandini.com', now: SEND_DAY });
-  eq('a ceremony guest IS flagged', c.ceremony, true);
-  ok('and does read the phone-free paragraph', /no-personal-photography/i.test(c.html));
-  ok('in the plain text too', /no-personal-photography/i.test(c.text));
+  ok('the phones paragraph still reaches a reception-only guest',
+     /no-phones event/i.test(r.html));
+  ok('and in their plain text', /no-phones event/i.test(r.text));
 }
 
 /* ── The camera section is off unless asked for ──────────────────────────── */
 
-console.log('\nThe camera is off by default');
+console.log('\nThe camera is on, and removable');
 {
-  eq('CAMERA.enabled is false in config', CAMERA.enabled, false);
+  eq('CAMERA.enabled is true in config', CAMERA.enabled, true);
 
+  const on = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
+  eq('and the render says so', on.camera, true);
+  ok('the link is the hub, not the camera route',
+     on.html.includes('https://princessandini.com/wedding')
+     && !on.html.includes('/wedding/camera'));
+  ok('ten pictures are asked for', /take 10 pictures/i.test(on.html));
+  ok('and in the plain text', /take 10 pictures/i.test(on.text));
+  ok('not picture-perfect', /picture-perfect/i.test(on.html));
+
+  // The kill switch: if Saturday comes and the camera cannot be trusted.
+  const saved = CAMERA.enabled;
+  CAMERA.enabled = false;
   const off = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
-  eq('and the render says so', off.camera, false);
-  ok('no Instant Camera in the HTML', !/instant camera/i.test(off.html));
-  ok('none in the plain text', !/instant camera/i.test(off.text));
-  ok('no link to /wedding', !off.html.includes('princessandini.com/wedding'));
-  ok('no mention of 10 moments', !/10 moments/i.test(off.html));
+  eq('switching it off removes it', off.camera, false);
+  // The bare string "/wedding" also occurs in a source comment citing
+  // src/lib/wedding.ts, so match the URL a guest could actually click.
+  ok('no camera link', !off.html.includes('princessandini.com/wedding')
+     && !off.html.includes('href="https://princessandini.com/wedding"'));
+  ok('no 10 pictures', !/10 pictures/i.test(off.html));
+  ok('none of it in the plain text', !/10 pictures/i.test(off.text));
+  ok('but the no-phones paragraph survives on its own',
+     /no-phones event/i.test(off.html) && /no-phones event/i.test(off.text));
+  CAMERA.enabled = saved;
 
-  const on = renderFinalDetails(guest(),
+  const forced = renderFinalDetails(guest(),
     { siteUrl: 'https://princessandini.com', now: SEND_DAY, cameraReady: true });
-  eq('--camera-ready turns it on for review', on.camera, true);
-  ok('the section appears', /instant camera/i.test(on.html));
-  ok('with the challenge', /up to 10 moments/i.test(on.html));
-  ok('and in the plain text', /instant camera/i.test(on.text));
-
-  ok('turning it on adds only that section',
-     on.html.length > off.html.length && off.html.length > 4000,
-     `off=${off.html.length} on=${on.html.length}`);
+  eq('--camera-ready forces it on regardless', forced.camera, true);
 }
 
 /* ── The content the brief asked for ─────────────────────────────────────── */
@@ -195,24 +209,35 @@ console.log('\nEvery promised element is present');
   ok('the opening line, with the countdown computed',
      /It&rsquo;s 3 days to our wedding/.test(r.html), r.html.match(/It&rsquo;s [^,]*/)?.[0]);
   ok('and in plain text', r.text.includes("It's 3 days to our wedding"));
-  ok('the website is named as the source', r.html.includes('princessandini.com'));
-  ok('the guest list is described as complete', /guest list is complete/i.test(r.html));
-  ok('the usher instruction', /give your\s+name to one of our ushers/i.test(r.html));
+  ok('a refresher, not an announcement', /refresher on everything/i.test(r.html));
+
+  ok('first, the website', /First/.test(r.html) && r.html.includes('princessandini.com'));
+  ok('in doubt, go there', /in doubt about any detail/i.test(r.html));
+
+  ok('second, the table', /Second/.test(r.html));
+  ok('the guest list is complete', /guest list is complete/i.test(r.html));
+  ok('a seating chart at the venue', /seating chart at\s+the venue/i.test(r.html));
+  ok('say your name at the door', /say your name at the door/i.test(r.html));
+  ok('an usher confirms the table number', /usher will confirm your table number/i.test(r.html));
+  ok("and you don't have to wait", /don&rsquo;t have to wait until Saturday/i.test(r.html));
   ok('the seating-chart link', r.html.includes(SEATING_URL));
-  ok('the dress code title', r.html.includes(DRESS.title));
-  ok('every swatch hex is rendered',
-     DRESS.swatches.every(([hex]) => r.html.includes(hex)));
-  ok('every swatch name is rendered',
-     DRESS.swatches.every(([, n]) => r.html.includes(n)));
-  ok('the venue', r.html.includes(WEDDING.venueName) && r.html.includes(WEDDING.venueArea));
-  ok('the registry, as a P.S.', /P\.S\./.test(r.html) && r.html.includes(REGISTRY_URL));
-  ok('the registry is the last thing before the footer',
-     r.html.lastIndexOf(REGISTRY_URL) > r.html.lastIndexOf(SEATING_URL));
-  ok('a warm closing', /cannot wait to see you/i.test(r.html));
-  // esc() turns the ampersand in "Princess & IniOluwa" into &amp;, so the raw
-  // string is correctly absent — check the escaped form the guest actually sees.
+
+  ok('third, the dress code', /Third/.test(r.html) && r.html.includes(DRESS.title));
+  ok('every swatch hex is rendered', DRESS.swatches.every(([hex]) => r.html.includes(hex)));
+  ok('every swatch name is rendered', DRESS.swatches.every(([, n]) => r.html.includes(n)));
+
+  ok('the location', r.html.includes(WEDDING.venueName) && r.html.includes(WEDDING.venueArea));
+
+  ok('finally, the phones and the camera', /Finally/.test(r.html));
+  ok('the media team is named', /media team/i.test(r.html));
+
+  ok('we look forward to having you', /look forward to having you/i.test(r.html));
   ok('signed by the couple',
      r.html.includes(WEDDING.couple.replace('&', '&amp;')) && r.text.includes(WEDDING.couple));
+  ok('the registry is last, after the signature',
+     r.html.includes(REGISTRY_URL)
+     && r.html.lastIndexOf(REGISTRY_URL) > r.html.lastIndexOf(SEATING_URL));
+  ok('labelled as the wedding registry', /Wedding registry:/i.test(r.html));
 }
 
 console.log('\nIt is the next letter in the same series');
@@ -239,13 +264,22 @@ console.log('\nThe countdown');
 
   const one = renderFinalDetails(guest(),
     { siteUrl: 'https://princessandini.com', now: new Date('2026-09-25T11:00:00Z') });
-  ok('one day reads as "1 day", not "1 days"', /in 1 day!/.test(one.html),
-     one.html.match(/See you in [^!]*/)?.[0]);
+  // The closing no longer carries a countdown — it is "We look forward to
+  // having you." The number appears once, in the opening line.
+  ok('one day reads as "1 day", not "1 days"',
+     /It&rsquo;s 1 day to our wedding/.test(one.html),
+     one.html.match(/It&rsquo;s [^,]*/)?.[0]);
   ok('and the masthead agrees', /One Day to Go/.test(one.html));
 
-  ok('the subject line says 3 days', /\b3 Days\b/i.test(SUBJECT_FINAL));
-  ok('which is only true for a send on the 23rd',
-     daysUntil(WEDDING.date, SEND_DAY) === 3);
+  // The subject is computed, so it cannot disagree with the letter. The send
+  // date is genuinely undecided — Tuesday or Friday — and this is why that is
+  // safe.
+  ok('Tuesday\'s subject says 3 days', /\b3 Days to Go\b/.test(subjectFinal(3)));
+  ok('Friday\'s says tomorrow', /Tomorrow/i.test(subjectFinal(1)), subjectFinal(1));
+  ok('the day itself says today', /Today/i.test(subjectFinal(0)), subjectFinal(0));
+  ok('no stray HTML entity in a subject line',
+     ![3, 1, 0].some(d => /&[a-z]+;/.test(subjectFinal(d))),
+     [3, 1, 0].map(subjectFinal).join(' | '));
 }
 
 /* ── Nothing here reaches the seating data ───────────────────────────────── */

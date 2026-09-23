@@ -370,14 +370,19 @@ export const UPDATE_FINAL = {
 /**
  * The final-details subject line.
  *
- * ── The one place the countdown is hard-coded ──────────────────────────────
- * Everything else computes the number from the wedding date, so it is right on
- * the day it is sent. A subject line cannot be, because it is chosen before
- * the run. "3 days" is true for a send on 23 September 2026 up to midnight
- * WAT; from the 24th it is wrong, and prepare-final-details.mjs refuses to
- * send when this string disagrees with the computed countdown.
+ * ── Computed, not written down ─────────────────────────────────────────────
+ * It was a fixed string reading "3 Days to Go", with a guard in the sender
+ * that refused to deliver when that disagreed with the real countdown. That
+ * is a worse design than simply not being able to be wrong: the send date is
+ * genuinely undecided, and a subject line that has to be remembered is one
+ * that eventually is not.
  */
-export const SUBJECT_FINAL = '3 Days to Go! 💍 · Final Details for Our Wedding';
+export function subjectFinal(days) {
+  const count = days > 1 ? `${days} Days to Go!`
+              : days === 1 ? 'Tomorrow&rsquo;s the Day!'
+              : 'Today&rsquo;s the Day!';
+  return `${count.replace('&rsquo;', '\u2019')} 💍 · Final Details for Our Wedding`;
+}
 
 /** Where a guest finds their table before the day. */
 export const SEATING_URL = 'https://www.princessandini.com/seating-chart';
@@ -388,23 +393,25 @@ export const CAMERA_URL = 'https://princessandini.com/wedding';
 /**
  * The Instant Camera section.
  *
- * ── Off by default, on purpose ─────────────────────────────────────────────
- * The camera is not confirmed production-ready: its first real-device upload
- * failed and the cause is still open. An email inviting 150 guests to use a
- * feature that does not work cannot be recalled, so this flag starts false and
- * the section is absent from the HTML and the plain text entirely — not hidden,
- * not greyed, absent.
+ * ── On, and a kill switch rather than a gate ───────────────────────────────
+ * This started false, on the reasoning that the camera's first real-device
+ * upload had failed. That was the wrong test. The camera is used ON THE DAY,
+ * and the day is Saturday — whether it works this morning says nothing about
+ * whether it works then, and there is time to fix it. The link in the email
+ * points at princessandini.com/wedding, the hub, which is live and simply
+ * shows the card as "Coming Soon" until the feature is switched on.
  *
- * Turning it on is one of two deliberate acts:
- *   · flip `enabled` here, for a real send; or
- *   · pass --camera-ready on a preview or a test, to review the copy without
- *     committing anything.
+ * So the flag is on, and its job is the other direction: if Saturday arrives
+ * and the camera still cannot be trusted, setting this to false removes the
+ * section from the HTML and the plain text entirely — not hidden, not greyed,
+ * absent. --camera-ready on a preview or test forces it on regardless, for
+ * reviewing copy.
  *
  * Removing it permanently is deleting this object and the one block in
  * final-details.mjs that reads it. Nothing else refers to it.
  */
 export const CAMERA = {
-  enabled: false,
+  enabled: true,
   moments: 10,
 };
 

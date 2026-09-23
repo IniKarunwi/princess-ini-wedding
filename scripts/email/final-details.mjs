@@ -14,18 +14,20 @@
  * series before reading a word.
  *
  * ── The one rule that still applies ────────────────────────────────────────
- * A guest is shown only the events they are invited to. This letter is not an
- * enumeration of the day, so the rule mostly has nothing to bite on — with one
- * sharp exception. The no-personal-photography paragraph is about the CEREMONY.
- * A reception-only guest must not read it, because it would tell them a part of
- * the day exists that they were not invited to. So that block renders only for
- * guests whose own event list contains JOINING, and its absence is total: not
- * in the HTML, not in the plain text.
+ * A guest is shown only the events they are invited to. This letter does not
+ * enumerate the day, and — deliberately — the phones paragraph names no part
+ * of it. It says "a no-phones event" and "our media team", never "ceremony"
+ * or "service", so a reception-only guest reads it without learning that a
+ * service they were not invited to exists. An earlier draft said "ceremony"
+ * and had to be gated on the JOINING tier; wording it this way removes the
+ * gate rather than guarding it, which is the better fix.
  *
  * ── The camera section is conditional by construction ──────────────────────
- * `CAMERA.enabled` is false in config.mjs. When it is false this file emits
- * nothing for it at all. See the comment there; removing the feature from the
- * email permanently means deleting that object and the one block below.
+ * `CAMERA.enabled` is true in config.mjs, because the camera is a WEDDING-DAY
+ * feature and the day is Saturday. Setting it false is the kill switch: this
+ * file then emits the phones paragraph alone, with no mention of the camera
+ * in either body. Removing the feature from the email permanently means
+ * deleting that object and the one branch below.
  */
 
 import {
@@ -90,7 +92,7 @@ const swatchRows = () => {
  * `cameraReady` overrides CAMERA.enabled for a preview or a test — it lets the
  * copy be reviewed without committing the feature. It never persists anywhere.
  *
- * Returns { html, text, events, days, ceremony, camera } — the extra fields so
+ * Returns { html, text, events, days, camera } — the extra fields so
  * the sender can assert what it is about to send rather than trusting this
  * function's word for it.
  */
@@ -102,9 +104,6 @@ export function renderFinalDetails(row, {
   const days = daysUntil(WEDDING.date, now);
   const backdrop = assets?.backdrop ?? null;
 
-  // The ceremony paragraph is about a part of the day a reception-only guest
-  // is not invited to. See the header.
-  const ceremony = events.some(e => e.key === 'JOINING');
   const camera = cameraReady || CAMERA.enabled;
 
   const countdown = days > 1 ? `${days} days` : days === 1 ? '1 day' : 'no time at all';
@@ -135,29 +134,33 @@ export function renderFinalDetails(row, {
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
           ${para(`Dear ${esc(name)},`)}
           ${para(`It&rsquo;s ${esc(countdown)} to our wedding, and we&rsquo;re so excited to
-                  have you celebrate with us! Here is everything you need for Saturday.`, '0')}
+                  have you celebrate with us! Here&rsquo;s a refresher on everything
+                  you need for the day.`, '0')}
         </td></tr>
 
         ${divider()}
 
-        <!-- ── THE WEBSITE ───────────────────────────────────────────────── -->
+        <!-- ── FIRST: THE WEBSITE ────────────────────────────────────────── -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
-          ${eyebrow('Everything in one place')}
-          ${heading('Our Wedding Website', '14px')}
-          ${para(`<a href="${esc(siteUrl)}" style="color:${P.green};text-decoration:underline;">${SITE}</a>
-                  has all the details for the day &mdash; the venue, the timings and
-                  everything else. If a question comes up this week, start there.`, '0')}
+          ${eyebrow('First')}
+          ${heading('Everything Is On Our Website', '14px')}
+          ${para(`Our website is up at
+                  <a href="${esc(siteUrl)}" style="color:${P.green};text-decoration:underline;">${SITE}</a>.
+                  If you&rsquo;re ever in doubt about any detail, that is where to find it.`, '0')}
         </td></tr>
 
         ${divider()}
 
-        <!-- ── THE RECEPTION SEATING ─────────────────────────────────────── -->
+        <!-- ── SECOND: YOUR TABLE ────────────────────────────────────────── -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
-          ${eyebrow('At the reception')}
+          ${eyebrow('Second')}
           ${heading('Your Table', '14px')}
-          ${para(`Our reception guest list is complete. On the day, simply give your
-                  name to one of our ushers and they will show you to your table.`)}
-          ${para(`If you&rsquo;d rather know in advance, you can look yourself up here:`, '20px')}
+          ${para(`Our reception guest list is complete, and there is a seating chart at
+                  the venue. All you need to do is say your name at the door &mdash; an
+                  usher will confirm your table number and show you to your seat.`)}
+          ${para(`But you don&rsquo;t have to wait until Saturday. Search your name on our
+                  seating chart and it will show you your table, so you can confirm your
+                  seat right now.`, '20px')}
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
             <tr><td style="background:${P.greenMid};border-radius:4px;">
               <a href="${esc(SEATING_URL)}"
@@ -171,12 +174,12 @@ export function renderFinalDetails(row, {
 
         ${divider()}
 
-        <!-- ── DRESS CODE ────────────────────────────────────────────────── -->
+        <!-- ── THIRD: DRESS CODE ─────────────────────────────────────────── -->
         <!-- Wording and hexes are copied from src/lib/wedding.ts and asserted
              against it by selftest-final-details.mjs. Nothing here is written
              fresh for the email. -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
-          ${eyebrow('What to wear')}
+          ${eyebrow('Third')}
           ${heading(DRESS.title, '14px')}
           ${para(esc(DRESS.invitation), '22px')}
           ${swatchRows()}
@@ -184,57 +187,49 @@ export function renderFinalDetails(row, {
 
         ${divider()}
 
-        <!-- ── VENUE ─────────────────────────────────────────────────────── -->
+        <!-- ── THE LOCATION ──────────────────────────────────────────────── -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
-          ${eyebrow('Where')}
+          ${eyebrow('The location')}
           ${heading(WEDDING.venueName, '10px')}
           <p style="margin:0;font:400 16px/1.8 ${SANS};color:${P.muted};">
             ${esc(WEDDING.venueArea)}
           </p>
         </td></tr>
-${ceremony ? `
-        ${divider()}
-
-        <!-- ── THE CEREMONY, PHONE-FREE ──────────────────────────────────── -->
-        <!-- Ceremony guests only. A reception-only guest must not learn the
-             service exists; see the header. -->
-        <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
-          ${eyebrow('During the ceremony')}
-          ${heading('A Phone-Free Service', '14px')}
-          ${para(`We&rsquo;re having a no-personal-photography ceremony. We&rsquo;d love for
-                  our media team to capture those special moments without phones getting
-                  in the way &mdash; and more importantly, we&rsquo;d love for you to be
-                  fully present with us.`, '0')}
-        </td></tr>` : ''}
 ${camera ? `
         ${divider()}
 
-        <!-- ── INSTANT CAMERA ────────────────────────────────────────────── -->
-        <!-- Conditional on CAMERA.enabled (config.mjs), which is false. This
-             block is absent from the HTML and the text when it is off. -->
+        <!-- ── FINALLY: PHONES, AND THE INSTANT CAMERA ───────────────────── -->
+        <!-- Conditional on CAMERA.enabled (config.mjs). With the flag off this
+             block is absent from the HTML and the plain text, and the phones
+             paragraph below stands on its own. -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
-          ${eyebrow('A little wedding-day surprise')}
-          ${heading('The Wedding Through Your Eyes', '14px')}
-          ${para(`During the celebration, we&rsquo;d love to experience the day through
-                  your eyes. Visit
-                  <a href="${esc(CAMERA_URL)}" style="color:${P.green};text-decoration:underline;">${SITE}/wedding</a>
-                  on Saturday and open our Instant Camera.`)}
-          ${para(`Capture the candid moments around you &mdash; the laughs, the hugs, the
-                  dancing, the reactions and the little things we might otherwise never
-                  get to see.`)}
-          ${para(`We&rsquo;re challenging you to capture up to ${CAMERA.moments} moments for
-                  us throughout the celebration. They don&rsquo;t have to be
-                  picture-perfect. We want to see the day as you saw it.`, '0')}
-        </td></tr>` : ''}
+          ${eyebrow('Finally')}
+          ${heading('Through Your Eyes', '14px')}
+          ${para(`It&rsquo;s a no-phones event &mdash; we&rsquo;d love our media team to have
+                  no restrictions as they capture our special moments.`)}
+          ${para(`But we&rsquo;d also love to experience our wedding through your eyes.
+                  Please take ${CAMERA.moments} pictures for us at
+                  <a href="${esc(CAMERA_URL)}" style="color:${P.green};text-decoration:underline;">${SITE}/wedding</a>.`)}
+          ${para(`They don&rsquo;t have to be picture-perfect &mdash; just the cute and
+                  interesting moments we might otherwise never get to see.`, '0')}
+        </td></tr>` : `
+        ${divider()}
+
+        <!-- ── FINALLY: PHONES ───────────────────────────────────────────── -->
+        <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
+          ${eyebrow('Finally')}
+          ${heading('A No-Phones Celebration', '14px')}
+          ${para(`It&rsquo;s a no-phones event &mdash; we&rsquo;d love our media team to have
+                  no restrictions as they capture our special moments, and we&rsquo;d love
+                  you to be fully present with us.`, '0')}
+        </td></tr>`}
 
         ${divider()}
 
         <!-- ── CLOSING ───────────────────────────────────────────────────── -->
         <tr><td class="pad" style="padding:0 56px 52px;text-align:center;">
-          ${para(`Thank you for the love, the prayers and the support that have carried us
-                  to this week. We cannot wait to see you.`)}
           <p style="margin:0 0 26px;font:italic 400 18px/1.7 ${SERIF};color:${P.greenMid};">
-            See you in ${esc(countdown)}! &#10084;&#65039;
+            We look forward to having you. &#10084;&#65039;
           </p>
           <p style="margin:0 0 8px;font:400 14px/1.6 ${SANS};color:${P.muted};letter-spacing:1px;">
             With love,
@@ -251,10 +246,8 @@ ${camera ? `
                  style="margin:34px 0 0;">
             <tr><td style="border-top:1px solid ${P.rule};padding:18px 0 0;">
               <p style="margin:0;font:400 14px/1.7 ${SANS};color:${P.muted};">
-                <span style="font-weight:700;color:${P.ink};">P.S.</span>
-                If you&rsquo;d like to bless us with a gift, our registry is at
-                <a href="${esc(REGISTRY_URL)}" style="color:${P.green};text-decoration:underline;">ouish.co/princess-and-ini-wedding</a>.
-                Your presence on Saturday is the gift.
+                <span style="font-weight:700;color:${P.ink};">Wedding registry:</span>
+                <a href="${esc(REGISTRY_URL)}" style="color:${P.green};text-decoration:underline;">ouish.co/princess-and-ini-wedding</a>
               </p>
             </td></tr>
           </table>
@@ -274,59 +267,54 @@ ${camera ? `
     `Dear ${name},`,
     '',
     `It's ${countdown} to our wedding, and we're so excited to have you`,
-    'celebrate with us! Here is everything you need for Saturday.',
+    "celebrate with us! Here's a refresher on everything you need for the day.",
     '',
-    'OUR WEDDING WEBSITE',
-    `  ${SITE} has all the details for the day — the venue, the timings and`,
-    '  everything else. If a question comes up this week, start there.',
+    'FIRST — EVERYTHING IS ON OUR WEBSITE',
+    `  Our website is up at ${SITE}. If you're ever in doubt about any detail,`,
+    '  that is where to find it.',
     '',
-    'YOUR TABLE',
-    '  Our reception guest list is complete. On the day, simply give your name',
-    '  to one of our ushers and they will show you to your table.',
-    '  If you’d rather know in advance, you can look yourself up here:',
+    'SECOND — YOUR TABLE',
+    '  Our reception guest list is complete, and there is a seating chart at',
+    '  the venue. All you need to do is say your name at the door — an usher',
+    '  will confirm your table number and show you to your seat.',
+    "  But you don't have to wait until Saturday. Search your name on our",
+    '  seating chart and it will show you your table, so you can confirm your',
+    '  seat right now.',
     `  ${SEATING_URL}`,
     '',
-    `WHAT TO WEAR — ${DRESS.title.toUpperCase()}`,
+    `THIRD — ${DRESS.title.toUpperCase()}`,
     `  ${DRESS.invitation}`,
     `  ${DRESS.swatches.map(([, n]) => n).join(' · ')}`,
     '',
-    'WHERE',
+    'THE LOCATION',
     `  ${WEDDING.venueName}`,
     `  ${WEDDING.venueArea}`,
     '',
-    ...(ceremony ? [
-      'A PHONE-FREE SERVICE',
-      "  We're having a no-personal-photography ceremony. We'd love for our",
-      '  media team to capture those special moments without phones getting in',
-      "  the way — and more importantly, we'd love for you to be fully present",
-      '  with us.',
-      '',
-    ] : []),
     ...(camera ? [
-      'THE WEDDING THROUGH YOUR EYES',
-      "  During the celebration, we'd love to experience the day through your",
-      `  eyes. Visit ${SITE}/wedding on Saturday and open our Instant Camera.`,
-      '  Capture the candid moments around you — the laughs, the hugs, the',
-      '  dancing, the reactions and the little things we might otherwise never',
-      '  get to see.',
-      `  We're challenging you to capture up to ${CAMERA.moments} moments for us`,
-      "  throughout the celebration. They don't have to be picture-perfect. We",
-      '  want to see the day as you saw it.',
+      'FINALLY — THROUGH YOUR EYES',
+      "  It's a no-phones event — we'd love our media team to have no",
+      '  restrictions as they capture our special moments.',
+      "  But we'd also love to experience our wedding through your eyes.",
+      `  Please take ${CAMERA.moments} pictures for us at ${SITE}/wedding.`,
+      "  They don't have to be picture-perfect — just the cute and interesting",
+      '  moments we might otherwise never get to see.',
       '',
-    ] : []),
-    'Thank you for the love, the prayers and the support that have carried us',
-    'to this week. We cannot wait to see you.',
-    '',
-    `See you in ${countdown}!`,
+    ] : [
+      'FINALLY — A NO-PHONES CELEBRATION',
+      "  It's a no-phones event — we'd love our media team to have no",
+      "  restrictions as they capture our special moments, and we'd love you to",
+      '  be fully present with us.',
+      '',
+    ]),
+    'We look forward to having you.',
     '',
     'With love,',
     WEDDING.couple,
     '',
-    `P.S. If you'd like to bless us with a gift, our registry is at`,
-    `     ${REGISTRY_URL}. Your presence on Saturday is the gift.`,
+    `Wedding registry: ${REGISTRY_URL}`,
     '',
     `${WEDDING.venueName}, ${WEDDING.venueArea} — ${WEDDING.dateLong}`,
   ].join('\n');
 
-  return { html, text, events, days, ceremony, camera };
+  return { html, text, events, days, camera };
 }

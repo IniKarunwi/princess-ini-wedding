@@ -36,10 +36,10 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 
 import {
-  TABLE, SUBJECT_FINAL, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO,
+  TABLE, subjectFinal, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO,
   WEDDING, CAMERA, assetUrls,
 } from './config.mjs';
-import { selectForFinalDetails, tierBreakdown, ceremonyCount } from './final-details-recipients.mjs';
+import { selectForFinalDetails, tierBreakdown } from './final-details-recipients.mjs';
 import { renderFinalDetails } from './final-details.mjs';
 import { daysUntil } from './events.mjs';
 import { sendWithRetry, sleep, SendError } from './resend.mjs';
@@ -66,13 +66,11 @@ Wedding Update #3 — final details
   --confirm-send-all   Required to send to everyone. Never implied.
   --send               Deliver. Must be paired with --to, --limit or
                        --confirm-send-all; alone it is refused.
-  --camera-ready       Include the Instant Camera section. Review only — it
-                       does not make the camera work, and it is NOT how the
-                       feature is enabled for a real send. See CAMERA in
-                       config.mjs.
+  --camera-ready       Force the Instant Camera section on. It is already on
+                       by default (CAMERA.enabled in config.mjs); this only
+                       matters for previewing when that has been switched off.
   --preview-tier <T>   JOINING | RECEPTION | AFTERPARTY — which guest the
-                       preview is rendered for. Default: both JOINING and
-                       RECEPTION, so the event rule can be checked.
+                       preview is rendered for. Default: JOINING and RECEPTION.
   --yes                Skip the typed confirmation.
   -h, --help           This message
 
@@ -117,22 +115,6 @@ function parseArgs(argv) {
     throw new Error('--limit needs a positive whole number.');
   }
   return args;
-}
-
-/**
- * The subject line is the one place the countdown is written down rather than
- * computed. If the run happens on a day when it would be a lie, stop.
- */
-function assertSubjectIsTrue(now) {
-  const days = daysUntil(WEDDING.date, now);
-  const claimed = Number(SUBJECT_FINAL.match(/(\d+)\s*Days?/i)?.[1] ?? NaN);
-  if (!Number.isFinite(claimed)) return days;
-  if (claimed !== days) {
-    throw new Error(
-      `The subject line says "${claimed} days" but today is ${days} days out.\n` +
-      `Update SUBJECT_FINAL in scripts/email/config.mjs before sending.`);
-  }
-  return days;
 }
 
 /* ── Fetching the guest list ─────────────────────────────────────────────── */
@@ -194,7 +176,6 @@ function report({ recipients, excluded, duplicates }) {
   for (const [tier, n] of tierBreakdown(recipients)) {
     console.log(`  ${String(n).padStart(4)}  ${tier}`);
   }
-  console.log(`  ${c.dim(`${ceremonyCount(recipients)} of them are ceremony guests and will see the phone-free paragraph`)}`);
 
   const byBucket = new Map();
   for (const e of excluded) {
@@ -238,7 +219,7 @@ async function deliver(targets, { cameraReady, siteUrl, assets }) {
         from: process.env.INVITE_FROM || DEFAULT_FROM,
         replyTo: process.env.INVITE_REPLY_TO || DEFAULT_REPLY_TO,
         to: row.email,
-        subject: SUBJECT_FINAL,
+        subject: subjectFinal(daysUntil(WEDDING.date, new Date())),
         html: r.html,
         text: r.text,
         idempotencyKey: `${CAMPAIGN}:${String(row.email).trim().toLowerCase()}`,
@@ -264,26 +245,21 @@ async function main() {
   const days = daysUntil(WEDDING.date, now);
 
   console.log(`\n${c.bold('Wedding Update #3 — Final Details')}`);
-  console.log(`  ${c.dim(`${days} days to the wedding · subject: ${SUBJECT_FINAL}`)}`);
-  console.log(`  ${c.dim(`Instant Camera section: ${(args.cameraReady || CAMERA.enabled) ? c.amber('INCLUDED') : 'omitted'}`)}`);
-  if (args.cameraReady) {
-    console.log(`  ${c.amber('--camera-ready is for reviewing the copy. It does not mean the camera works.')}`);
-  }
+  console.log(`  ${c.dim(`${days} days to the wedding · subject: ${subjectFinal(days)}`)}`);
+  console.log(`  ${c.dim(`Instant Camera section: ${(args.cameraReady || CAMERA.enabled) ? 'included' : c.amber('OMITTED')}`)}`);
 
   // Previews always. They cost nothing and they are the artefact worth having.
   const { outDir, written } = writePreviews({ cameraReady: args.cameraReady, tier: args.previewTier });
   console.log(`\n${c.bold('Previews')}  ${c.dim(outDir)}`);
   for (const w of written) {
     console.log(`  ${w.tier.padEnd(11)} ${c.cyan(w.htmlPath)}`);
-    console.log(`  ${''.padEnd(11)} ${c.dim(`ceremony block: ${w.r.ceremony ? 'shown' : 'absent'} · camera: ${w.r.camera ? 'shown' : 'absent'} · ${w.r.html.length} bytes`)}`);
+    console.log(`  ${''.padEnd(11)} ${c.dim(`camera: ${w.r.camera ? 'shown' : 'absent'} · ${w.r.html.length} bytes`)}`);
   }
 
   if (!args.send && !args.dryRun) {
     console.log(`\n${c.dim('Nothing was sent. Add --dry-run to see the audience, or --send --to <address> for a test.')}`);
     return;
   }
-
-  assertSubjectIsTrue(now);
 
   const rows = await fetchRows();
   const selection = selectForFinalDetails(rows);
