@@ -14,12 +14,12 @@
  * file is parsed here and compared, character for character.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  DRESS, WEDDING, subjectFinal, CAMERA, REGISTRY_URL, SEATING_URL, MAP_URL, ASSET_FILES,
+  DRESS, WEDDING, subjectFinal, CAMERA, REGISTRY_URL, SEATING_URL, MAP_URL, ASSET_FILES, DOODLES,
 } from './config.mjs';
 import { validateDress } from './dress-code.mjs';
 import { renderFinalDetails } from './final-details.mjs';
@@ -306,8 +306,9 @@ console.log('\nNo asset depends on this branch being deployed');
   ok('backdrop.png predates this branch — it shipped with the confirmation pack',
      ASSET_FILES.backdrop === 'backdrop.png');
 
-  // Exactly one <img>, and it is not ours to deploy: none at all.
-  ok('the letter emits no <img> tags of its own', !/<img/.test(r.html));
+  // Given only the backdrop, the letter emits no <img> at all: the doodles are
+  // conditional on their own assets, never invented.
+  ok('with only the backdrop, no <img> is emitted', !/<img/.test(r.html));
 
   // Rendered with no assets at all — which is what a caller that cannot reach
   // public/email/ produces — the letter must still be complete.
@@ -316,6 +317,78 @@ console.log('\nNo asset depends on this branch being deployed');
   ok('and the website section still reads', /Everything You Need Is Online/.test(bare.html));
   ok('the swatches are unaffected — they are table cells, not images',
      DRESS.swatches.every(([hex]) => bare.html.includes(hex)));
+}
+
+/* ── The doodles ─────────────────────────────────────────────────────────────
+ * They were missing from the delivered email because the only artwork in the
+ * letter was the page backdrop: a CSS background-image (plus VML), drawn at
+ * 3–8.5% opacity and only outside an 840px clean channel. A client that drops
+ * page backgrounds — most of them — showed flat beige, and so did every
+ * window narrower than 840px even when it did not.
+ *
+ * These assertions are about the fix surviving: real <img> elements, sized,
+ * decorative, and present for BOTH tiers. */
+
+console.log('\nThe doodles are images, not a background');
+{
+  const assets = Object.fromEntries(Object.keys(ASSET_FILES)
+    .map(k => [k, `https://princessandini.com/email/${ASSET_FILES[k]}`]));
+
+  for (const tier of ['JOINING', 'RECEPTION']) {
+    const r = renderFinalDetails({ ...guest(), approved_for: tier },
+      { siteUrl: 'https://princessandini.com', now: SEND_DAY, assets });
+    const imgs = [...r.html.matchAll(/<img[^>]*>/g)].map(m => m[0]);
+
+    eq(`${tier}: three doodles`, imgs.length, 3);
+    for (const key of Object.keys(DOODLES)) {
+      ok(`${tier}: ${key} is present`, r.html.includes(`${key}.png`));
+    }
+    ok(`${tier}: every doodle carries width AND height`,
+       imgs.every(i => /width="\d+"/.test(i) && /height="\d+"/.test(i)), imgs.join('\n'));
+    ok(`${tier}: every doodle is decorative (alt="")`,
+       imgs.every(i => /alt=""/.test(i)));
+    ok(`${tier}: every doodle is display:block`,
+       imgs.every(i => /display:block/.test(i)));
+    ok(`${tier}: no doodle relies on a CSS background-image`,
+       !/background-image[^;]*doodle/.test(r.html));
+    ok(`${tier}: none would force a horizontal scroll on a phone`,
+       imgs.every(i => /max-width:100%/.test(i)));
+  }
+
+  // The crest sits above the greeting, the sign-off flourish below the last
+  // section — if they ever swap, the letter opens with champagne.
+  const r = renderFinalDetails(guest(),
+    { siteUrl: 'https://princessandini.com', now: SEND_DAY, assets });
+  ok('the crest comes before the greeting',
+     r.html.indexOf('doodle-crest') < r.html.indexOf('Dear '));
+  ok('the sign-off flourish comes after it',
+     r.html.indexOf('doodle-signoff') > r.html.indexOf('Dear '));
+  ok('and before the sign-off, not after it',
+     r.html.indexOf('doodle-signoff') < r.html.indexOf('With love'));
+
+  // Copy is untouched by all of this.
+  const plain = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
+  eq('the plain text is unchanged by the doodles', plain.text, r.text);
+}
+
+console.log('\nThe declared sizes match the real files');
+{
+  // PNG: bytes 16–24 of the file are the IHDR width and height, big-endian.
+  // Read directly rather than through an image library, so this test has no
+  // dependency and cannot be skipped when one is missing.
+  for (const [key, want] of Object.entries(DOODLES)) {
+    const file = join(ROOT, 'public', 'email', ASSET_FILES[key]);
+    if (!existsSync(file)) { ok(`${key}: the file exists`, false, file); continue; }
+    const buf = readFileSync(file);
+    const width = buf.readUInt32BE(16);
+    const height = buf.readUInt32BE(20);
+    // Rendered at 2x, displayed at 1x.
+    eq(`${key} is twice its display width`, width, want.width * 2);
+    eq(`${key} is twice its display height`, height, want.height * 2);
+    ok(`${key} is a PNG`, buf.slice(1, 4).toString() === 'PNG');
+    ok(`${key} is small enough to not delay the render`, buf.length < 40 * 1024,
+       `${(buf.length / 1024).toFixed(1)}KB`);
+  }
 }
 
 console.log('\nThe venue is a link to the map');
@@ -380,12 +453,14 @@ console.log('\nThe countdown');
      [3, 1, 0].map(subjectFinal).join(' | '));
 }
 
-/* ── Nothing here reaches the seating data ───────────────────────────────── */
+/* ── What may touch seating, and what it may do to it ────────────────────── */
 
 console.log('\nIsolation');
 {
-  const files = ['final-details.mjs', 'final-details-recipients.mjs', 'prepare-final-details.mjs'];
-  for (const f of files) {
+  // The letter and rule A stay entirely clear of seating. The union rule does
+  // read the published plan, but it reaches it through union-audience.mjs, so
+  // neither of these two has to know it exists.
+  for (const f of ['final-details.mjs', 'final-details-recipients.mjs']) {
     const src = readFileSync(join(ROOT, 'scripts/email', f), 'utf8');
     const imports = [...src.matchAll(/^import[\s\S]*?from\s+'([^']+)';/gm)].map(m => m[1]);
     ok(`${f} imports nothing from the seating feature`,
@@ -394,8 +469,27 @@ console.log('\nIsolation');
        !/seating_layouts|guest_photos|planner_settings/.test(src));
   }
   const rec = readFileSync(join(ROOT, 'scripts/email/final-details-recipients.mjs'), 'utf8');
-  ok('the recipient rules read the RSVP table only',
+  ok('rule A reads the RSVP table only',
      !/from '\.\/store|supabase\.storage/.test(rec));
+
+  // The two files that DO read seating may only read it. A write verb is the
+  // failure worth catching: this campaign must never be able to change where
+  // anybody sits, and the draft plan is not what guests were shown.
+  for (const f of ['prepare-final-details.mjs', 'union-audience.mjs']) {
+    const src = readFileSync(join(ROOT, 'scripts/email', f), 'utf8');
+    ok(`${f} never imports the planner or the seating feature`,
+       ![...src.matchAll(/^import[\s\S]*?from\s+'([^']+)';/gm)]
+         .some(m => /seating\/|planner|features\//i.test(m[1])));
+    ok(`${f} issues no write request`,
+       !/method:\s*['"](POST|PATCH|PUT|DELETE)['"]/i.test(src));
+    ok(`${f} never reads the draft layout`, !/status=eq\.draft/.test(src));
+  }
+  const prep = readFileSync(join(ROOT, 'scripts/email/prepare-final-details.mjs'), 'utf8');
+  ok('the sender delivers to the union audience',
+     /unionAudience\(/.test(prep) && /audience\.audience/.test(prep));
+  ok('and checks it before sending', /assertAudience\(audience\)/.test(prep));
+  ok('a --to test reads neither table',
+     prep.indexOf('args.send && args.to') < prep.indexOf('await fetchInputs()'));
 }
 
 /* ── Done ────────────────────────────────────────────────────────────────── */

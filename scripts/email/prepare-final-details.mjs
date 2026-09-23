@@ -24,11 +24,27 @@
  *             --send would deliver a second copy. The Resend idempotency key
  *             below is what actually prevents that.
  *
- * ── Who gets it ────────────────────────────────────────────────────────────
- * Approved, attending, invited to the reception, plus-one decided, reachable.
- * See final-details-recipients.mjs, where the rule and its reasoning live. The
- * seating chart is NOT consulted: it decides where someone sits, never whether
- * they are emailed.
+ * ── Who gets it: the UNION rule ────────────────────────────────────────────
+ * Two lists, and everyone on either of them:
+ *
+ *   A   approved, attending, invited to the reception, plus-one decided,
+ *       reachable. The original rule, unchanged, in final-details-recipients.mjs.
+ *   B   guests who hold a seat in the PUBLISHED plan, can be matched to an
+ *       RSVP row confidently, are reachable, and whom rule A misses.
+ *
+ * Nobody is removed from A for failing to match a seat — a name the matcher
+ * cannot resolve is a matching failure, and the guest should not pay for it.
+ * On a shared inbox A wins, so no existing recipient's letter changes.
+ *
+ * ── The one thing a seat can never do ──────────────────────────────────────
+ * Grant the ceremony. A seat is evidence of a reception place and of nothing
+ * else; the JOINING tier in approved_for is the only thing that puts the
+ * service and the phones note in the letter. See unionAudience.
+ *
+ * ── What this file now reads, and what it still will not touch ─────────────
+ * It GETs the published seating layout. That is the whole of its involvement
+ * with seating: there is no write verb here, the draft layout is never read,
+ * and the planner is never called.
  */
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
@@ -39,7 +55,10 @@ import {
   TABLE, subjectFinal, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO,
   WEDDING, CAMERA, assetUrls, ASSET_FILES,
 } from './config.mjs';
-import { selectForFinalDetails, tierBreakdown, ceremonyCount } from './final-details-recipients.mjs';
+import { selectForFinalDetails, tierBreakdown } from './final-details-recipients.mjs';
+import {
+  unionAudience, eventsForRecipient, fetchUnionInputs, printUnionReport,
+} from './union-audience.mjs';
 import { validateDress } from './dress-code.mjs';
 import { renderFinalDetails } from './final-details.mjs';
 import { daysUntil, eventsForGuest } from './events.mjs';
@@ -76,7 +95,8 @@ Wedding Update #3 — final details
                        skip it for --confirm-send-all.
   -h, --help           This message
 
-Writes nothing to the database, and never reads seating data.
+Writes nothing to the database. Reads the PUBLISHED seating layout, and only
+reads it — see the union rule at the top of this file.
 `;
 
 function parseArgs(argv) {
@@ -121,19 +141,20 @@ function parseArgs(argv) {
 
 /* ── Fetching the guest list ─────────────────────────────────────────────── */
 
-async function fetchRows() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+/**
+ * Both inputs to the union rule, read through the audit's own loader.
+ *
+ * Deliberately not a second fetch written here: the audit and the send must
+ * be built from the same data by the same code, or the number you approved
+ * and the number that goes out can differ without anything looking wrong.
+ */
+async function fetchInputs() {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error(
       'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are needed to read the guest list.\n' +
       'Run with --env-file=.env, or use the no-flag preview which needs neither.');
   }
-  const res = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/${TABLE}?select=*`, {
-    headers: { apikey: key, authorization: `Bearer ${key}` },
-  });
-  if (!res.ok) throw new Error(`Could not read ${TABLE}: ${res.status} ${await res.text()}`);
-  return res.json();
+  return fetchUnionInputs();
 }
 
 /* ── Previews ────────────────────────────────────────────────────────────── */
@@ -219,10 +240,11 @@ function report({ recipients, excluded, duplicates }, rows) {
     return ev.includes('RECEPTION') && !ev.includes('JOINING');
   });
 
-  console.log(`\n${c.bold('═══ RECIPIENT AUDIT ═══')}`);
-  console.log(`  ${c.dim(`source: the ${TABLE} table. Seating data is not consulted.`)}`);
+  console.log(`\n${c.bold('═══ RULE A IN DETAIL ═══')}`);
+  console.log(`  ${c.dim(`source: the ${TABLE} table alone. This is SET A, not the final audience —`)}`);
+  console.log(`  ${c.dim('some of the exclusions below are added back by a seat. See the union audit.')}`);
   console.log(`\n  rows read from ${TABLE} ............ ${String(rows.length).padStart(5)}`);
-  console.log(`  ${c.bold('ELIGIBLE RECIPIENTS')} ............. ${c.green(String(recipients.length).padStart(5))}`);
+  console.log(`  ${c.bold('QUALIFY UNDER RULE A')} ............ ${c.green(String(recipients.length).padStart(5))}`);
   console.log(`      of which JOINING (ceremony) ... ${String(joining.length).padStart(5)}   ${c.dim('← see the phones note')}`);
   console.log(`      of which RECEPTION-only ....... ${String(receptionOnly.length).padStart(5)}   ${c.dim('← do not')}`);
   console.log(`  duplicate addresses removed ....... ${String(duplicates.length).padStart(5)}`);
@@ -289,14 +311,92 @@ async function confirm(phrase) {
   return typed.trim() === phrase;
 }
 
-async function deliver(targets, { cameraReady, siteUrl, assets }) {
+/**
+ * The checks that must hold before a single message goes out.
+ *
+ * Deliberately assertions and not warnings. Each one is a property the rule
+ * is supposed to guarantee; if one is false the rule is not doing what was
+ * approved, and the right outcome is to send nothing.
+ */
+function assertAudience(u) {
+  const key = (e) => String(e ?? '').trim().toLowerCase();
+  const problems = [];
+
+  // Set A survives in full. This is the whole point of the union.
+  const inAudience = new Set(u.audience.map(e => key(e.row.email)));
+  const lost = u.original.filter(e => !inAudience.has(key(e.row.email)));
+  if (lost.length) {
+    problems.push(`${lost.length} rule-A recipient(s) are missing from the audience: ` +
+                  lost.map(e => e.row.full_name).join(', '));
+  }
+
+  // One inbox, one letter.
+  if (inAudience.size !== u.audience.length) {
+    problems.push(`${u.audience.length} recipients share only ${inAudience.size} addresses`);
+  }
+
+  // Nobody held back is in the audience.
+  for (const w of u.withheld) {
+    if (inAudience.has(key(w.row.email))) {
+      problems.push(`${w.row.full_name} is withheld but appears in the audience`);
+    }
+  }
+
+  // A seat never granted the ceremony.
+  for (const e of u.audience) {
+    const ceremony = eventsForRecipient(e).some(ev => ev.key === 'JOINING');
+    if (ceremony && !e.joining) {
+      problems.push(`${e.row.full_name} would receive the ceremony section without a JOINING tier`);
+    }
+  }
+
+  // The two counts cover everyone, so "73 + 67" can be checked against the total.
+  if (u.joining + u.receptionOnly !== u.audience.length) {
+    problems.push(`${u.joining} JOINING + ${u.receptionOnly} reception-only ` +
+                  `≠ ${u.audience.length} recipients`);
+  }
+
+  if (problems.length) {
+    throw new Error('The audience failed its own checks, so nothing was sent:\n  · ' +
+                    problems.join('\n  · '));
+  }
+  console.log(`\n  ${c.green('✓')} audience checks passed: rule A intact, one letter per inbox, ` +
+              `no seat granted the ceremony`);
+}
+
+/**
+ * The Resend credential.
+ *
+ * sendEmail builds `Bearer ${apiKey}` unconditionally, so an absent key is not
+ * an error there — it is the string "Bearer undefined", which Resend rejects
+ * with "API key is invalid". That message names the key, so it sends you to
+ * look at .env, at the dashboard, at anything except the one caller that
+ * forgot to pass it. Reading it here, by name, and refusing early is what
+ * makes the failure legible.
+ */
+function apiKey() {
+  const key = String(process.env.RESEND_API_KEY ?? '').trim();
+  if (!key) {
+    throw new Error(
+      'RESEND_API_KEY is not set, so nothing can be sent.\n' +
+      'Run with --env-file=.env, or use --dry-run, which needs no key.');
+  }
+  return key;
+}
+
+async function deliver(targets, { cameraReady, siteUrl, assets, key }) {
   let sent = 0;
   const failed = [];
 
-  for (const [i, row] of targets.entries()) {
-    const r = renderFinalDetails(row, { siteUrl, assets, cameraReady });
+  for (const [i, entry] of targets.entries()) {
+    const row = entry.row;
+    // A seating-derived recipient is shown the reception because they hold a
+    // seat. Everyone else is shown exactly their RSVP tier.
+    const events = entry.source === 'test' ? null : eventsForRecipient(entry);
+    const r = renderFinalDetails(row, { siteUrl, assets, cameraReady, events });
     try {
       await sendWithRetry({
+        apiKey: key,
         from: process.env.INVITE_FROM || DEFAULT_FROM,
         replyTo: process.env.INVITE_REPLY_TO || DEFAULT_REPLY_TO,
         to: row.email,
@@ -349,39 +449,49 @@ async function main() {
     return;
   }
 
-  const rows = await fetchRows();
-  const selection = selectForFinalDetails(rows);
-  report(selection, rows);
-
-  if (!args.send) {
-    console.log(`\n${c.dim('Dry run. Nothing was sent.')}`);
-    return;
-  }
-
   const siteUrl = process.env.INVITE_SITE_URL || 'https://princessandini.com';
   const assets = assetUrls({ siteUrl, baseUrl: process.env.INVITE_ASSET_BASE_URL });
 
-  // --to is a test to an address that need not be a guest. Nothing is read
-  // from or written to the guest list for it.
-  if (args.to) {
+  // --to is a test to an address that need not be a guest. It happens BEFORE
+  // anything is read: a test message has no business touching the guest list
+  // or the seating plan, and it should work when neither can be reached.
+  if (args.send && args.to) {
     const row = {
       full_name: 'Preview Guest', email: args.to,
       main_invite_status: 'APPROVED', attending: true,
       approved_for: args.previewTier || 'JOINING', plus_one_requested: false,
     };
+    // Before the prompt, not after it. Being asked to confirm and then told
+    // the credential is missing wastes the one thing the prompt is for.
+    const key = apiKey();
     console.log(`\n${c.bold('One test message')} to ${c.cyan(args.to)}`);
+    console.log(`  ${c.dim('no guest list and no seating plan was read for this')}`);
     if (!args.yes && !(await confirm('SEND TEST'))) {
       console.log(c.dim('Not confirmed. Nothing sent.'));
       return;
     }
-    const { sent, failed } = await deliver([row], { cameraReady: args.cameraReady, siteUrl, assets });
+    const { sent, failed } = await deliver(
+      [{ row, source: 'test' }], { cameraReady: args.cameraReady, siteUrl, assets, key });
     console.log(sent ? c.green('\nResend accepted the test message.')
                      : c.red('\nResend did not accept it.'));
     if (failed.length) process.exitCode = 1;
     return;
   }
 
-  const targets = args.limit ? selection.recipients.slice(0, args.limit) : selection.recipients;
+  const inputs = await fetchInputs();
+  const audience = unionAudience(inputs.rsvpRows, inputs.seated);
+
+  printUnionReport(audience, inputs);
+  report(selectForFinalDetails(inputs.rsvpRows), inputs.rsvpRows);
+  assertAudience(audience);
+
+  if (!args.send) {
+    console.log(`\n${c.dim('Dry run. Nothing was sent.')}`);
+    return;
+  }
+
+  const targets = args.limit ? audience.audience.slice(0, args.limit) : audience.audience;
+  const key = apiKey();   // before the prompt, for the same reason as above
 
   // The phrase carries the COUNT, so it cannot be typed from memory or copied
   // from a previous run — you have to have read the number above it.
@@ -404,7 +514,7 @@ async function main() {
     console.log(c.dim('Not confirmed. Nothing sent.'));
     return;
   }
-  const { sent, failed } = await deliver(targets, { cameraReady: args.cameraReady, siteUrl, assets });
+  const { sent, failed } = await deliver(targets, { cameraReady: args.cameraReady, siteUrl, assets, key });
   console.log(`\n${c.bold('Done')}  ${c.green(`${sent} sent`)}${failed.length ? c.red(`, ${failed.length} failed`) : ''}`);
   if (failed.length) process.exitCode = 1;
 }

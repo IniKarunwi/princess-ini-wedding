@@ -39,7 +39,7 @@
 
 import {
   WEDDING, REGISTRY_URL, SEATING_URL, CAMERA_URL, CAMERA, DRESS,
-  PALETTE as P, UPDATE_FINAL, MAP_URL,
+  PALETTE as P, UPDATE_FINAL, MAP_URL, DOODLES,
 } from './config.mjs';
 import { eventsForGuest, daysUntil } from './events.mjs';
 import { shellTop, shellBottom, esc, SERIF, SANS } from './chrome.mjs';
@@ -69,6 +69,53 @@ const divider = () => `
   <tr><td style="padding:30px 0;text-align:center;line-height:1;">
     <span style="color:${P.gold};font-size:18px;letter-spacing:8px;font-family:Georgia,serif;">&#10022; &#9670; &#10022;</span>
   </td></tr>`;
+
+/**
+ * A wedding doodle, as an ordinary image.
+ *
+ * ── Why an <img> and not the backdrop ──────────────────────────────────────
+ * The doodles were already here, as the tile behind the page — and almost
+ * nobody saw them. They are drawn at 3–8.5% opacity outside an 840px clean
+ * channel, so on anything narrower than that (a phone, a reading pane, a
+ * preview panel) there is nothing to see; and a page-level background-image is
+ * the first thing a mail client discards, which left this letter with no
+ * artwork at all. See generate-doodles.mjs for the measurements.
+ *
+ * So these sit inside the card as images. Every rule here is about surviving
+ * a client that is hostile to everything except <img>:
+ *
+ *   · width AND height attributes, so the row is the right size before the
+ *     bytes arrive and the layout does not jump
+ *   · display:block, because a bare <img> is inline and picks up a stray
+ *     baseline gap underneath it in Outlook
+ *   · border:0 and outline:none, for the blue border some clients draw
+ *   · max-width:100% in the style, so a narrow phone scales rather than
+ *     forcing a horizontal scroll
+ *   · alt="" — decorative. With images blocked a client shows nothing, which
+ *     is what you want; alt text would announce a picture nobody can see.
+ *
+ * The image itself is opaque and already the card's colour, so there is no
+ * background to set behind it and nothing to go wrong in dark mode.
+ *
+ * Returns '' when the asset is not available, so a render with no assets
+ * produces no <img> at all.
+ */
+const doodleImg = (assets, key) => {
+  const src = assets?.[key];
+  const size = DOODLES[key];
+  if (!src || !size) return '';
+  return `<img src="${esc(src)}" width="${size.width}" height="${size.height}" alt="" ` +
+         `style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;` +
+         `width:${size.width}px;max-width:100%;height:auto;">`;
+};
+
+/** The same, as its own table row. */
+const doodleRow = (assets, key, padding) => {
+  const img = doodleImg(assets, key);
+  return img ? `\n        <tr><td align="center" style="padding:${padding};font-size:0;line-height:0;">
+          ${img}
+        </td></tr>` : '';
+};
 
 const para = (html, mb = '12px') =>
   `<p style="margin:0 0 ${mb};font:400 16px/1.8 ${SANS};color:${P.ink};">${html}</p>`;
@@ -117,15 +164,24 @@ const swatchRows = () => {
  * `cameraReady` overrides CAMERA.enabled for a preview or a test — it lets the
  * copy be reviewed without committing the feature. It never persists anywhere.
  *
+ * `events` overrides which parts of the day this guest is shown. It exists for
+ * one case: a guest who holds a seat in the published plan but whose RSVP row
+ * does not name the Reception. The seat is the evidence that they are coming
+ * to the reception, and the sender grants that explicitly rather than this
+ * file guessing at it. The default is the RSVP tier, unchanged. It cannot be
+ * used to smuggle in a ceremony invitation: `ceremony` below still reads the
+ * JOINING key, and the only caller that passes this — unionAudience — never
+ * puts JOINING there.
+ *
  * Returns { html, text, events, days, ceremony, camera } — the extra fields so
  * the sender can assert what it is about to send rather than trusting this
  * function's word for it.
  */
 export function renderFinalDetails(row, {
-  siteUrl, now = new Date(), assets, cameraReady = false,
+  siteUrl, now = new Date(), assets, cameraReady = false, events: eventsOverride = null,
 } = {}) {
   const name = firstName(row);
-  const events = eventsForGuest(row);
+  const events = eventsOverride ?? eventsForGuest(row);
   const days = daysUntil(WEDDING.date, now);
   const backdrop = assets?.backdrop ?? null;
 
@@ -156,7 +212,7 @@ export function renderFinalDetails(row, {
           <p style="margin:0;font:400 15px/1.6 ${SANS};color:${P.muted};letter-spacing:.5px;">
             ${esc(UPDATE_FINAL.title)}
           </p>
-        </td></tr>
+        </td></tr>${doodleRow(assets, 'doodle-crest', '4px 24px 26px')}
 
         <!-- ── OPENING ───────────────────────────────────────────────────── -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
@@ -296,10 +352,14 @@ ${camera ? `
           ${para(`Those may end up being some of our favourite memories from the day.`, '0')}
         </td></tr>` : ''}
 
-        ${divider()}
+        <!-- The one divider that carries a drawing rather than the glyph
+             rule, so the turn into the closing is marked. -->
+        ${doodleRow(assets, 'doodle-divider', '30px 56px') || divider()}
 
         <!-- ── CLOSING ───────────────────────────────────────────────────── -->
         <tr><td class="pad" style="padding:0 56px 52px;text-align:center;">
+          ${doodleImg(assets, 'doodle-signoff')
+            ? `<div style="margin:0 0 18px;">${doodleImg(assets, 'doodle-signoff')}</div>` : ''}
           <p style="margin:0 0 26px;font:italic 400 18px/1.7 ${SERIF};color:${P.greenMid};">
             We look forward to having you celebrate with us.
           </p>
