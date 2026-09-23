@@ -30,9 +30,24 @@ export const ACCEPTED_TYPES = [
  */
 export const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 
-/** Long edge after downscaling. Prints past 10x8 inches; lands near 1-2MB. */
-export const MAX_EDGE = 3000;
-export const JPEG_QUALITY = 0.85;
+/**
+ * Long edge after downscaling, and the JPEG quality used to re-encode.
+ *
+ * Sized against the storage budget rather than against print. The Supabase
+ * project has 1GB in total, and a wedding of this size could plausibly send
+ * somewhere near a thousand photographs — so the number that matters is the
+ * typical object size, and 2400/0.82 lands most phone photographs at or
+ * under a megabyte.
+ *
+ * ~1MB is the objective, not a guarantee. A busy, high-detail frame will
+ * come out larger and is allowed to: there is deliberately no iterative
+ * recompression loop chasing a hard ceiling, because that costs seconds on
+ * a phone and complexity here for bytes nobody will miss.
+ *
+ * 2400 on the long edge still prints comfortably at 8x6 inches.
+ */
+export const MAX_EDGE = 2400;
+export const JPEG_QUALITY = 0.82;
 
 export interface PreparedPhoto {
   /** Client-side id. Also the retry key — a retry re-sends the same photo. */

@@ -76,15 +76,54 @@ await page.route('https://storage.test/**', async (route) => {
  * Painted in the page and handed to the input as a File, so the canvas
  * downscale runs on genuine pixels rather than on a stub.
  */
-async function takePhoto(page, { width = 4032, height = 3024, type = 'image/jpeg', name = 'IMG_0001.jpg' } = {}) {
-  const dataUrl = await page.evaluate(async ([w, h, t]) => {
+async function takePhoto(page, { width = 4032, height = 3024, type = 'image/jpeg', name = 'IMG_0001.jpg', busy = false } = {}) {
+  const dataUrl = await page.evaluate(async ([w, h, t, busy]) => {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const g = c.getContext('2d');
     g.fillStyle = '#1b4332'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#e3cf9a'; g.fillRect(w * 0.2, h * 0.2, w * 0.6, h * 0.6);
+
+    if (busy === 'photo') {
+      // Closer to the entropy of a real photograph than either flat colour
+      // or pure noise: a graded background, a few hundred soft shapes at
+      // varying scales, then a light grain over the whole frame. Flat
+      // colour under-reports the size wildly and noise over-reports it, so
+      // neither is a number worth quoting.
+      const grd = g.createLinearGradient(0, 0, w, h);
+      grd.addColorStop(0, '#12210f'); grd.addColorStop(0.5, '#2d6a4f'); grd.addColorStop(1, '#e8b7a6');
+      g.fillStyle = grd; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 900; i++) {
+        g.globalAlpha = 0.15 + Math.random() * 0.5;
+        g.fillStyle = `hsl(${Math.random() * 360}, ${30 + Math.random() * 50}%, ${20 + Math.random() * 60}%)`;
+        const r = 6 + Math.random() * (w / 9);
+        g.beginPath();
+        g.ellipse(Math.random() * w, Math.random() * h, r, r * (0.4 + Math.random()), Math.random() * 3.14, 0, 6.28);
+        g.fill();
+      }
+      g.globalAlpha = 1;
+      const im = g.getImageData(0, 0, w, h);
+      const dd = im.data;
+      for (let i = 0; i < dd.length; i += 4) {
+        const n = (Math.random() - 0.5) * 26;
+        dd[i] = Math.max(0, Math.min(255, dd[i] + n));
+        dd[i + 1] = Math.max(0, Math.min(255, dd[i + 1] + n));
+        dd[i + 2] = Math.max(0, Math.min(255, dd[i + 2] + n));
+      }
+      g.putImageData(im, 0, 0);
+    } else if (busy) {
+      // Per-pixel noise: the worst case for a JPEG encoder, and a stand-in
+      // for a crowded, high-detail reception photograph.
+      const img = g.getImageData(0, 0, w, h);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (Math.random() * 255) | 0;
+        d[i] = n; d[i + 1] = (n * 7) & 255; d[i + 2] = (n * 13) & 255;
+      }
+      g.putImageData(img, 0, 0);
+    }
     return c.toDataURL(t, 0.9);
-  }, [width, height, type]);
+  }, [width, height, type, busy]);
 
   const b64 = dataUrl.split(',')[1];
   await page.setInputFiles('[data-testid="camera-input"]', {
@@ -206,7 +245,7 @@ console.log('\nWhat the client claimed');
   const sent = signBodies[0];
   eq('a jpeg', sent.contentType, 'image/jpeg');
   ok('a uuid session id', /^[0-9a-f-]{36}$/.test(sent.sessionId));
-  ok('downscaled to 3000 on the long edge', Math.max(sent.width, sent.height) === 3000,
+  ok('downscaled to 2400 on the long edge', Math.max(sent.width, sent.height) === 2400,
      `${sent.width}x${sent.height}`);
   ok('aspect ratio preserved (4032x3024 is 4:3)',
      Math.abs((sent.width / sent.height) - (4032 / 3024)) < 0.01,
@@ -347,6 +386,63 @@ console.log('\nSecrets');
   ok('nor in the bundle', !/service[_-]?role/i.test(scripts));
   ok('the bundle does not reference the bucket directly', !scripts.includes('guest-photos'),
      'the browser should only ever learn the path from the server');
+}
+
+/* ── What a prepared photograph actually weighs ──────────────────────────── */
+
+/**
+ * Reads the size of the blob the client actually produced, straight off the
+ * preview. The objective is roughly a megabyte for a typical photograph, so
+ * this reports rather than merely asserting — a number nobody looks at is a
+ * number that drifts.
+ *
+ * "Typical" and "busy" are two different tests on purpose. A JPEG encoder
+ * spends its bytes on detail, so a smooth frame and a noisy one are the two
+ * ends of what a wedding will actually produce.
+ */
+console.log('\nPrepared sizes');
+mode = 'ok';
+
+async function measure(label, opts) {
+  await page.click('[data-testid="retake"]').catch(() => {});
+  await page.waitForSelector('[data-testid="take-photo"]').catch(() => {});
+  await takePhoto(page, opts);
+  await page.waitForSelector('[data-testid="preview-image"]');
+  const out = await page.evaluate(async () => {
+    const img = document.querySelector('[data-testid="preview-image"]');
+    const blob = await fetch(img.src).then((r) => r.blob());
+    const bmp = await createImageBitmap(blob);
+    const dims = `${bmp.width}x${bmp.height}`;
+    bmp.close?.();
+    return { bytes: blob.size, dims };
+  });
+  console.log(`      ${label}: ${out.dims}, ${(out.bytes / 1024 / 1024).toFixed(2)} MB`);
+  return out;
+}
+
+{
+  // The number that actually matters for the storage budget.
+  const real = await measure('12MP landscape, photograph-like', { width: 4032, height: 3024, busy: 'photo' });
+  eq('a photograph-like frame becomes 2400x1800', real.dims, '2400x1800');
+  ok('and lands near a megabyte', real.bytes <= 2 * 1024 * 1024, `${real.bytes} bytes`);
+
+  const realPortrait = await measure('12MP portrait, photograph-like', { width: 3024, height: 4032, busy: 'photo' });
+  eq('portrait becomes 1800x2400', realPortrait.dims, '1800x2400');
+
+  const landscape = await measure('12MP landscape, flat colour', { width: 4032, height: 3024 });
+  eq('a flat frame becomes 2400x1800 too', landscape.dims, '2400x1800');
+  ok('and is around a megabyte or less', landscape.bytes <= 1.5 * 1024 * 1024,
+     `${landscape.bytes} bytes`);
+
+  const small = await measure('1200x1600, not upscaled', { width: 1200, height: 1600 });
+  eq('a small photo keeps its own size', small.dims, '1200x1600');
+
+  const busy = await measure('12MP busy/high-detail', { width: 4032, height: 3024, busy: true });
+  eq('a busy frame is still 2400 on the long edge',
+     busy.dims.split('x')[0], '2400');
+  ok('and stays well inside the 20MB ceiling', busy.bytes < 20 * 1024 * 1024,
+     `${busy.bytes} bytes`);
+  console.log('      (a busy frame is allowed to exceed ~1MB — there is no recompression loop)');
 }
 
 /* ── Done ────────────────────────────────────────────────────────────────── */

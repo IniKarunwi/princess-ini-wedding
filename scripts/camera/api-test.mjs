@@ -132,7 +132,7 @@ const freshIp = () => { currentIp = `10.0.1.${++ipCounter}`; };
 
 const SESSION = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
 const good = (over = {}) =>
-  ({ sessionId: SESSION, contentType: 'image/jpeg', bytes: 1_200_000, width: 3000, height: 2250, ...over });
+  ({ sessionId: SESSION, contentType: 'image/jpeg', bytes: 900_000, width: 2400, height: 1800, ...over });
 
 /* ── Method ──────────────────────────────────────────────────────────────── */
 
@@ -226,8 +226,8 @@ signed = []; recorded = [];
   eq('one metadata row was written', recorded.length, 1);
   eq('for that path', recorded[0].storage_path, body.path);
   eq('in that session', recorded[0].session_id, SESSION);
-  eq('with the claimed size', recorded[0].bytes, 1_200_000);
-  eq('and the dimensions', recorded[0].width, 3000);
+  eq('with the claimed size', recorded[0].bytes, 900_000);
+  eq('and the dimensions', recorded[0].width, 2400);
   ok('status is NOT sent by the client path', !('status' in recorded[0]));
 }
 {

@@ -39,7 +39,7 @@ values (
   'guest-photos',
   false,
   20971520,                                   -- 20MB/object. The client
-                                              -- downscales to roughly 1-2MB;
+                                              -- downscales to near 1MB;
                                               -- the headroom is for the
                                               -- fallback path, where a photo
                                               -- the browser could not decode

@@ -35,7 +35,8 @@ const TABLE = 'guest_photos';
 /**
  * 20MB.
  *
- * The client downscales to roughly 1-2MB before it ever gets here, so this is
+ * The client downscales to roughly a megabyte before it ever gets here, so
+ * this is
  * not the working size — it is the ceiling for the fallback path, where a
  * photograph the browser could not decode (an iPhone HEIC on a browser
  * without HEIC support) is sent as-is rather than being thrown away.
