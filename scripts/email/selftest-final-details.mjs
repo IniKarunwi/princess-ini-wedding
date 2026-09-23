@@ -280,31 +280,35 @@ console.log('\nEvery promised element is present');
      r.html.lastIndexOf(REGISTRY_URL) > r.html.lastIndexOf(SEATING_URL));
 }
 
-console.log('\nThe things that stop it reading flat');
+console.log('\nNo asset depends on this branch being deployed');
 {
-  const assets = { backdrop: 'https://x.test/backdrop.png', website: 'https://x.test/website.jpg' };
+  const assets = { backdrop: 'https://princessandini.com/email/backdrop.png' };
   const r = renderFinalDetails(guest(),
     { siteUrl: 'https://princessandini.com', now: SEND_DAY, assets });
 
-  // A screenshot of the site, under the section that links to it.
-  ok('the screenshot is rendered', r.html.includes('https://x.test/website.jpg'));
-  ok('it links to the site', /<a href="https:\/\/princessandini\.com"[^>]*>\s*<img/.test(r.html));
-  ok('with width AND height, so Outlook reserves the space',
-     /<img[^>]+width="420"[^>]+height="217"/.test(r.html),
-     r.html.match(/<img[^>]*website[^>]*>/)?.[0]?.slice(0, 160));
-  ok('and alt text', /alt="The Princess &amp; IniOluwa wedding website"/.test(r.html));
-  ok('it is small — 420px, not the full card width', r.html.includes('max-width:420px'));
-  ok('the file is registered as an asset', ASSET_FILES.website === 'website.jpg');
+  // Every image URL the letter emits, whatever the caller passes in.
+  const srcs = [...r.html.matchAll(/(?:src|background)="([^"]+)"/g)].map(m => m[1]);
+  const files = srcs
+    .filter(u => /\/email\//.test(u))
+    .map(u => u.split('/email/')[1].split('?')[0]);
 
-  // The doodle backdrop. It was already wired; this pins it so it stays.
-  ok('the backdrop is applied to the page', r.html.includes('https://x.test/backdrop.png'));
-  ok('tiled', /background-repeat:repeat/.test(r.html));
-  ok('with an Outlook VML fallback', /v:fill type="tile"/.test(r.html));
+  ok('only backdrop.png is referenced', files.every(f => f === 'backdrop.png'),
+     [...new Set(files)].join(', ') || '(none)');
+  ok('no homepage screenshot', !/website\.jpg/.test(r.html));
+  ok('and it is gone from the asset map', !('website' in ASSET_FILES));
+  ok('backdrop.png predates this branch — it shipped with the confirmation pack',
+     ASSET_FILES.backdrop === 'backdrop.png');
 
-  // Without assets — a preview with no files — nothing breaks.
+  // Exactly one <img>, and it is not ours to deploy: none at all.
+  ok('the letter emits no <img> tags of its own', !/<img/.test(r.html));
+
+  // Rendered with no assets at all — which is what a caller that cannot reach
+  // public/email/ produces — the letter must still be complete.
   const bare = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
-  ok('no assets means no broken image tag', !/<img/.test(bare.html));
-  ok('and the section still reads', /Everything You Need Is Online/.test(bare.html));
+  ok('with no assets, nothing is broken', !/<img/.test(bare.html));
+  ok('and the website section still reads', /Everything You Need Is Online/.test(bare.html));
+  ok('the swatches are unaffected — they are table cells, not images',
+     DRESS.swatches.every(([hex]) => bare.html.includes(hex)));
 }
 
 console.log('\nThe venue is a link to the map');

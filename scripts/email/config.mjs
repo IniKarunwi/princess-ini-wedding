@@ -174,19 +174,8 @@ export const ASSET_FILES = {
   'after-party':'after-party.jpg',
   'dress-guide':'dress-guide.jpg',
   venue:        'venue.jpg',      // watercolour of Signature by Wells Carlton
-  website:      'website.jpg',    // a screenshot of the homepage — see below
   backdrop:     'backdrop.png',   // generated — npm run email:backdrop
 };
-
-/**
- * website.jpg is a real screenshot of princessandini.com's homepage, captured
- * from the built site rather than drawn, so it shows the guest exactly what
- * they will land on. 1200px wide for a ~460px slot, which keeps it sharp on a
- * retina phone at 61KB.
- *
- * Re-capture it if the homepage changes; there is no automation, because it
- * has been needed once.
- */
 
 /**
  * What ALREADY-DELIVERED email points at. Do not change these, ever.
@@ -234,7 +223,6 @@ export const ASSET_SIZE = {
   'after-party': { width: 1023, height: 1537 },
   'dress-guide': { width: 1024, height: 1536 },
   venue:         { width: 1429, height: 1100 },
-  website:       { width: 1200, height:  620 },
 };
 
 /** Displayed height for `key` rendered at `displayWidth` CSS px. */

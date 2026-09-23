@@ -5,6 +5,15 @@
  * reception seating works, what to wear, where the venue is, and — if it is
  * switched on — the Instant Camera. It asks for nothing back.
  *
+ * ── No new artwork ─────────────────────────────────────────────────────────
+ * This letter references exactly one image: backdrop.png, which has been
+ * deployed since the confirmation pack and is already in 136 inboxes. There
+ * is deliberately nothing here that needs this branch shipped before the mail
+ * can be sent — an email whose pictures depend on a deploy is an email that
+ * quietly renders wrong if the order slips. A homepage screenshot was tried
+ * and removed for exactly that reason: it was decorative, and it would have
+ * required deploying to make it resolve.
+ *
  * ── Not a redesign ─────────────────────────────────────────────────────────
  * Every visual decision comes from the confirmation pack, by way of the
  * thirty-day note: the same shell from chrome.mjs, the same palette, type
@@ -30,7 +39,7 @@
 
 import {
   WEDDING, REGISTRY_URL, SEATING_URL, CAMERA_URL, CAMERA, DRESS,
-  PALETTE as P, UPDATE_FINAL, MAP_URL, scaledHeight,
+  PALETTE as P, UPDATE_FINAL, MAP_URL,
 } from './config.mjs';
 import { eventsForGuest, daysUntil } from './events.mjs';
 import { shellTop, shellBottom, esc, SERIF, SANS } from './chrome.mjs';
@@ -119,7 +128,6 @@ export function renderFinalDetails(row, {
   const events = eventsForGuest(row);
   const days = daysUntil(WEDDING.date, now);
   const backdrop = assets?.backdrop ?? null;
-  const shot = assets?.website ?? null;
 
   // The phones note names the CEREMONY, so it is gated on the tier. See the
   // block itself for why that matters.
@@ -167,20 +175,8 @@ export function renderFinalDetails(row, {
           ${para(`Our wedding website is live at
                   <a href="${esc(siteUrl)}" style="color:${P.green};text-decoration:underline;">${SITE}</a>.`)}
           ${para(`If you&rsquo;re ever in doubt about the schedule, venue, dress code or any
-                  other details, you&rsquo;ll find everything you need there.`,
-                  shot ? '20px' : '0')}
-${shot ? `
-          <!-- A real screenshot of the homepage, so the guest recognises
-               where the link lands. Deliberately small: it is a signpost,
-               not the artwork. Width and height are both set so the space is
-               reserved before a byte downloads — Outlook ignores height:auto
-               and would otherwise squash it. -->
-          <a href="${esc(siteUrl)}" style="text-decoration:none;">
-            <img src="${esc(shot)}" width="420" height="${scaledHeight('website', 420)}"
-                 alt="The Princess &amp; IniOluwa wedding website"
-                 style="display:block;margin:0 auto;width:100%;max-width:420px;height:auto;
-                        border:1px solid ${P.rule};border-radius:6px;" />
-          </a>` : ''}
+                  other details, you&rsquo;ll find everything you need there.`, '0')}
+
         </td></tr>
 
         ${divider()}
