@@ -347,6 +347,96 @@ export const UPDATE_THIRTY = {
 export const SUBJECT_THIRTY = '30 Days to Go! 💍 · Hotel & Registry Information';
 
 /**
+ * Update #3 — the final details note, sent in the last week.
+ *
+ * Separate from UPDATE and UPDATE_THIRTY rather than replacing either. Both of
+ * those describe emails that have already been delivered; editing one in place
+ * would rewrite the masthead of a letter that is already in people's inboxes
+ * the next time anything re-renders it.
+ */
+export const UPDATE_FINAL = {
+  number: 3,
+  title:  'Final Details',
+  label() { return `Wedding Update #${this.number}`; },
+
+  /** Computed, never written down — see SUBJECT_FINAL for the one that is. */
+  headline(days) {
+    if (days > 1)   return `${days} Days to Go`;
+    if (days === 1) return 'One Day to Go';
+    return 'Today&rsquo;s the Day';
+  },
+};
+
+/**
+ * The final-details subject line.
+ *
+ * ── The one place the countdown is hard-coded ──────────────────────────────
+ * Everything else computes the number from the wedding date, so it is right on
+ * the day it is sent. A subject line cannot be, because it is chosen before
+ * the run. "3 days" is true for a send on 23 September 2026 up to midnight
+ * WAT; from the 24th it is wrong, and prepare-final-details.mjs refuses to
+ * send when this string disagrees with the computed countdown.
+ */
+export const SUBJECT_FINAL = '3 Days to Go! 💍 · Final Details for Our Wedding';
+
+/** Where a guest finds their table before the day. */
+export const SEATING_URL = 'https://www.princessandini.com/seating-chart';
+
+/** Where the Instant Camera lives, if and when it is switched on. */
+export const CAMERA_URL = 'https://princessandini.com/wedding';
+
+/**
+ * The Instant Camera section.
+ *
+ * ── Off by default, on purpose ─────────────────────────────────────────────
+ * The camera is not confirmed production-ready: its first real-device upload
+ * failed and the cause is still open. An email inviting 150 guests to use a
+ * feature that does not work cannot be recalled, so this flag starts false and
+ * the section is absent from the HTML and the plain text entirely — not hidden,
+ * not greyed, absent.
+ *
+ * Turning it on is one of two deliberate acts:
+ *   · flip `enabled` here, for a real send; or
+ *   · pass --camera-ready on a preview or a test, to review the copy without
+ *     committing anything.
+ *
+ * Removing it permanently is deleting this object and the one block in
+ * final-details.mjs that reads it. Nothing else refers to it.
+ */
+export const CAMERA = {
+  enabled: false,
+  moments: 10,
+};
+
+/**
+ * Dress code — COPIED from src/lib/wedding.ts, not invented here.
+ *
+ * The email scripts are .mjs and the site's data is .ts, so there is no import
+ * that works in both. The established pattern in this file is to duplicate
+ * (see STAY), and the risk of duplication is drift.
+ *
+ * selftest-final-details.mjs parses src/lib/wedding.ts and asserts this matches
+ * it exactly — title, invitation, and all nine swatches in order, names and
+ * hexes. Change the site and this fails until it is brought back into line,
+ * which is the only reason it is safe to copy at all.
+ */
+export const DRESS = {
+  title: 'Eden in Full Bloom',
+  invitation: 'We invite you to wear colours you would find in a garden.',
+  swatches: [
+    ['#1b4332', 'Emerald'],
+    ['#2d6a4f', 'Garden Green'],
+    ['#52b788', 'Leaf'],
+    ['#95c9a5', 'Sage'],
+    ['#c9e4d0', 'Morning Mist'],
+    ['#f6f1e4', 'Ivory'],
+    ['#e3cf9a', 'Champagne'],
+    ['#e8b7a6', 'Garden Blush'],
+    ['#7b5236', 'Terracotta'],
+  ],
+};
+
+/**
  * The subject line.
  *
  * Deliberately not "You're invited" — these guests have already RSVP'd, and
