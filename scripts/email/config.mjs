@@ -175,6 +175,32 @@ export const ASSET_FILES = {
   'dress-guide':'dress-guide.jpg',
   venue:        'venue.jpg',      // watercolour of Signature by Wells Carlton
   backdrop:     'backdrop.png',   // generated — npm run email:backdrop
+
+  // The flourishes printed INSIDE the card — generated, npm run email:doodles.
+  // Ordinary <img> elements, unlike the backdrop, which is a CSS/VML page
+  // background and therefore the first thing a mail client throws away.
+  'doodle-crest':   'doodle-crest.png',
+  'doodle-divider': 'doodle-divider.png',
+  'doodle-signoff': 'doodle-signoff.png',
+};
+
+/**
+ * The doodles, and the size each is DISPLAYED at, in CSS pixels.
+ *
+ * The files are rendered at 2x, so these are half their pixel dimensions.
+ * Both numbers go on the <img> as width and height attributes: an image with
+ * a width and no height reserves no vertical space, and the layout jumps when
+ * the bytes land — which on a slow connection reads as a grey box where the
+ * flourish should be. The selftest asserts these against the real files, so
+ * they cannot drift after a re-run of the generator.
+ *
+ * Every one carries alt="" and sits in its own table row, so a client with
+ * images blocked shows clean space rather than a broken icon.
+ */
+export const DOODLES = {
+  'doodle-crest':   { width: 320, height: 86 },
+  'doodle-divider': { width: 588, height: 40 },
+  'doodle-signoff': { width: 260, height: 96 },
 };
 
 /**

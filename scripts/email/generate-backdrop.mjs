@@ -25,6 +25,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
+import { ICONS, ORDER } from './doodle-icons.mjs';
 
 /* ── Dials ───────────────────────────────────────────────────────────────── */
 
@@ -68,71 +69,8 @@ function rng(seed) {
 const rand = rng(20260926);
 const between = (a, b) => a + rand() * (b - a);
 
-/* ── The six icons ───────────────────────────────────────────────────────────
- * Six, repeated, rather than every wedding symbol there is — a smaller
- * vocabulary reads as stationery, a larger one as clip art.
- *
- * Each is drawn stroke-only in a 100×100 box, origin at the centre. Paths are
- * deliberately not geometrically perfect: the control points are a little off
- * true so the line reads as drawn rather than plotted.
- */
-
-const ICONS = {
-  rings: () => `
-    <ellipse cx="-13" cy="3" rx="20" ry="21"/>
-    <ellipse cx="14" cy="0" rx="19" ry="20"/>
-    <path d="M14,-20 l-5,-8 h10 z"/>
-    <path d="M9,-28 l5,5 l5,-5"/>`,
-
-  bouquet: () => `
-    <path d="M0,34 C-2,18 -6,8 -11,-2"/>
-    <path d="M0,34 C1,20 4,10 9,0"/>
-    <path d="M0,34 C0,20 0,12 -1,3"/>
-    <circle cx="-13" cy="-8" r="8.5"/>
-    <circle cx="10" cy="-6" r="7.5"/>
-    <circle cx="-2" cy="-19" r="7"/>
-    <path d="M-24,10 C-19,4 -14,2 -9,3"/>
-    <path d="M22,8 C17,3 12,1 7,2"/>
-    <path d="M-9,29 C-3,32 3,32 9,29"/>`,
-
-  // Two flutes tilted into a toast. Each is a bowl, a stem and a foot drawn
-  // as separate strokes — the first attempt merged them into one silhouette
-  // that read as a tulip rather than a pair of glasses.
-  champagne: () => `
-    <g transform="translate(-15,2) rotate(-13)">
-      <path d="M-12,-30 L12,-30 C11,-16 7,-9 0,-8 C-7,-9 -11,-16 -12,-30 Z"/>
-      <path d="M0,-8 L0,15"/>
-      <path d="M-9,17 L9,17"/>
-    </g>
-    <g transform="translate(15,2) rotate(13)">
-      <path d="M-12,-30 L12,-30 C11,-16 7,-9 0,-8 C-7,-9 -11,-16 -12,-30 Z"/>
-      <path d="M0,-8 L0,15"/>
-      <path d="M-9,17 L9,17"/>
-    </g>
-    <circle cx="0" cy="-38" r="2"/>
-    <circle cx="-9" cy="-45" r="1.5"/>
-    <circle cx="8" cy="-44" r="1.7"/>`,
-
-  heart: () => `
-    <path d="M0,26 C-22,10 -30,-2 -30,-13 C-30,-24 -21,-30 -13,-30
-             C-6,-30 -1,-25 0,-20 C1,-25 6,-30 13,-30
-             C21,-30 30,-24 30,-13 C30,-2 22,10 0,26 Z"/>`,
-
-  envelope: () => `
-    <rect x="-31" y="-21" width="62" height="42" rx="3"/>
-    <path d="M-31,-19 L0,6 L31,-19"/>
-    <path d="M-31,20 L-9,0"/>
-    <path d="M31,20 L9,0"/>`,
-
-  sprig: () => `
-    <path d="M0,32 C1,16 -1,2 0,-30"/>
-    <path d="M0,-6 C-8,-10 -14,-16 -15,-24 C-7,-23 -1,-17 0,-9"/>
-    <path d="M0,2 C8,-2 14,-8 15,-16 C7,-15 1,-9 0,-1"/>
-    <path d="M0,14 C-8,10 -13,4 -14,-4 C-6,-3 -1,3 0,11"/>
-    <path d="M0,-24 C3,-27 5,-30 5,-34 C1,-33 -1,-30 0,-26"/>`,
-};
-
-const ORDER = ['rings', 'bouquet', 'champagne', 'heart', 'envelope', 'sprig'];
+/* The six icons and their order now live in doodle-icons.mjs, so the tile and
+ * the flourishes printed inside the card are the same drawings. */
 
 /* ── Placement ───────────────────────────────────────────────────────────────
  * Flourishes around the edges, not a grid. Positions are laid out on a loose

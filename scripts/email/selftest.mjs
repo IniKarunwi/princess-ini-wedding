@@ -752,7 +752,7 @@ check('a run where everything fails writes nothing',
 {
   const { ASSET_SIZE, ASSET_FILES, SENT_ASSET_FILES, scaledHeight, LAYOUT } = await import('./config.mjs');
   const sharp = (await import('sharp')).default;
-  const { existsSync, statSync } = await import('node:fs');
+  const { existsSync, statSync, readFileSync } = await import('node:fs');
   const { join } = await import('node:path');
   const art = (f) => join(process.cwd(), 'public', 'email', f);
 
@@ -767,9 +767,24 @@ check('a run where everything fails writes nothing',
   // Nothing may reference an asset that is not on disk — the failure mode is
   // silent, because a missing image URL renders as nothing rather than as an
   // error, and it is only visible once it is in a guest's inbox.
+  //
+  // The size floor is here to catch a stub or a truncated write, not to set a
+  // minimum for real artwork. The generated doodles are line drawings on a
+  // flat ground and quantise to a few hundred bytes — doodle-divider.png is a
+  // hairline and a heart — so they are checked by their PNG header instead,
+  // which is what "is this really an image" meant all along.
+  const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
   for (const [key, file] of Object.entries(ASSET_FILES)) {
-    check(`${key}: the file ASSET_FILES points at exists (${file})`,
-      existsSync(art(file)) && statSync(art(file)).size > 1024, file);
+    const path = art(file);
+    if (!existsSync(path)) {
+      check(`${key}: the file ASSET_FILES points at exists (${file})`, false, file);
+      continue;
+    }
+    const isDoodle = key.startsWith('doodle-');
+    const okSize = isDoodle
+      ? readFileSync(path).subarray(0, 4).equals(PNG_MAGIC)
+      : statSync(path).size > 1024;
+    check(`${key}: the file ASSET_FILES points at exists (${file})`, okSize, file);
   }
 
   // No artwork a guest downloads may exceed 0.5 MB. Above that, clients start

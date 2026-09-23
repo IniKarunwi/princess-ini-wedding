@@ -12,7 +12,7 @@
 import { existsSync, statSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { ASSET_FILES } from './config.mjs';
+import { ASSET_FILES, DOODLES } from './config.mjs';
 
 const dir = join(process.cwd(), 'public', 'email');
 
@@ -32,6 +32,9 @@ const PURPOSE = {
   venue:          'the venue card (optional — card renders without it)',
   'dress-guide':  'full width, in every pack',
   backdrop:       'page backdrop — generated, npm run email:backdrop',
+  'doodle-crest':   'flourish under the masthead — npm run email:doodles',
+  'doodle-divider': 'the divider before the closing — npm run email:doodles',
+  'doodle-signoff': 'flourish above the signature — npm run email:doodles',
 };
 
 const OPTIONAL = new Set(['venue']);
@@ -81,7 +84,18 @@ for (const [key, file] of Object.entries(ASSET_FILES)) {
   if (bytes > MAX_BYTES) {
     notes.push(`${(bytes / 1024 / 1024).toFixed(1)}MB — heavy on mobile data`);
   }
-  if (key !== 'backdrop' && meta.width < WANT_WIDTH) {
+  // A doodle is judged against its own declared display size, not the hero
+  // width: each is rendered at exactly 2x what the email shows it at, so
+  // 640px is correct for a 320px flourish and "want 1200" would be nonsense.
+  // What IS worth catching is the file and DOODLES disagreeing, because the
+  // width and height attributes come from DOODLES and the picture from here.
+  const doodle = DOODLES[key];
+  if (doodle) {
+    if (meta.width !== doodle.width * 2 || meta.height !== doodle.height * 2) {
+      notes.push(`${meta.width}×${meta.height}, but DOODLES says it is shown at ` +
+                 `${doodle.width}×${doodle.height} — re-run npm run email:doodles`);
+    }
+  } else if (key !== 'backdrop' && meta.width < WANT_WIDTH) {
     notes.push(`${meta.width}px wide — soft on a retina phone, want ${WANT_WIDTH}`);
   }
   if (notes.length) warnings++;
