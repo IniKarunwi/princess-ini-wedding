@@ -32,7 +32,7 @@
 
 import {
   WEDDING, REGISTRY_URL, SEATING_URL, CAMERA_URL, CAMERA, DRESS,
-  PALETTE as P, UPDATE_FINAL,
+  PALETTE as P, UPDATE_FINAL, MAP_URL, scaledHeight,
 } from './config.mjs';
 import { eventsForGuest, daysUntil } from './events.mjs';
 import { shellTop, shellBottom, esc, SERIF, SANS } from './chrome.mjs';
@@ -103,6 +103,7 @@ export function renderFinalDetails(row, {
   const events = eventsForGuest(row);
   const days = daysUntil(WEDDING.date, now);
   const backdrop = assets?.backdrop ?? null;
+  const shot = assets?.website ?? null;
 
   const camera = cameraReady || CAMERA.enabled;
 
@@ -146,7 +147,20 @@ export function renderFinalDetails(row, {
           ${heading('Everything Is On Our Website', '14px')}
           ${para(`Our website is up at
                   <a href="${esc(siteUrl)}" style="color:${P.green};text-decoration:underline;">${SITE}</a>.
-                  If you&rsquo;re ever in doubt about any detail, that is where to find it.`, '0')}
+                  If you&rsquo;re ever in doubt about any detail, that is where to find it.`,
+                  shot ? '20px' : '0')}
+${shot ? `
+          <!-- A real screenshot of the homepage, so the guest recognises
+               where the link lands. Deliberately small: it is a signpost,
+               not the artwork. Width and height are both set so the space is
+               reserved before a byte downloads — Outlook ignores height:auto
+               and would otherwise squash it. -->
+          <a href="${esc(siteUrl)}" style="text-decoration:none;">
+            <img src="${esc(shot)}" width="420" height="${scaledHeight('website', 420)}"
+                 alt="The Princess &amp; IniOluwa wedding website"
+                 style="display:block;margin:0 auto;width:100%;max-width:420px;height:auto;
+                        border:1px solid ${P.rule};border-radius:6px;" />
+          </a>` : ''}
         </td></tr>
 
         ${divider()}
@@ -181,7 +195,8 @@ export function renderFinalDetails(row, {
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
           ${eyebrow('Third')}
           ${heading(DRESS.title, '14px')}
-          ${para(esc(DRESS.invitation), '22px')}
+          ${para(esc(DRESS.invitation), '6px')}
+          ${para(`<em>${esc(DRESS.formality)}</em>`, '22px')}
           ${swatchRows()}
         </td></tr>
 
@@ -190,9 +205,14 @@ export function renderFinalDetails(row, {
         <!-- ── THE LOCATION ──────────────────────────────────────────────── -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
           ${eyebrow('The location')}
-          ${heading(WEDDING.venueName, '10px')}
-          <p style="margin:0;font:400 16px/1.8 ${SANS};color:${P.muted};">
+          <h2 style="margin:0 0 10px;font:700 26px/1.25 ${SERIF};color:${P.green};">
+            <a href="${esc(MAP_URL)}" style="color:${P.green};text-decoration:underline;">${esc(WEDDING.venueName)}</a>
+          </h2>
+          <p style="margin:0 0 4px;font:400 16px/1.8 ${SANS};color:${P.muted};">
             ${esc(WEDDING.venueArea)}
+          </p>
+          <p style="margin:0;font:400 13px/1.6 ${SANS};color:${P.faint};">
+            Tap the name for directions.
           </p>
         </td></tr>
 ${camera ? `
@@ -204,7 +224,9 @@ ${camera ? `
              paragraph below stands on its own. -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
           ${eyebrow('Finally')}
-          ${heading('Through Your Eyes', '14px')}
+          <h2 style="margin:0 0 14px;font:700 26px/1.25 ${SERIF};color:${P.green};">
+            <span aria-hidden="true">&#128247;</span> Through Your Eyes
+          </h2>
           ${para(`It&rsquo;s a no-phones event &mdash; we&rsquo;d love our media team to have
                   no restrictions as they capture our special moments.`)}
           ${para(`But we&rsquo;d also love to experience our wedding through your eyes.
@@ -284,6 +306,7 @@ ${camera ? `
     '',
     `THIRD — ${DRESS.title.toUpperCase()}`,
     `  ${DRESS.invitation}`,
+    `  ${DRESS.formality}`,
     `  ${DRESS.swatches.map(([, n]) => n).join(' · ')}`,
     '',
     'THE LOCATION',

@@ -18,7 +18,9 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DRESS, WEDDING, subjectFinal, CAMERA, REGISTRY_URL, SEATING_URL } from './config.mjs';
+import {
+  DRESS, WEDDING, subjectFinal, CAMERA, REGISTRY_URL, SEATING_URL, MAP_URL, ASSET_FILES,
+} from './config.mjs';
 import { renderFinalDetails } from './final-details.mjs';
 import {
   classifyForFinalDetails, selectForFinalDetails, ceremonyCount,
@@ -238,6 +240,60 @@ console.log('\nEvery promised element is present');
      r.html.includes(REGISTRY_URL)
      && r.html.lastIndexOf(REGISTRY_URL) > r.html.lastIndexOf(SEATING_URL));
   ok('labelled as the wedding registry', /Wedding registry:/i.test(r.html));
+}
+
+console.log('\nThe things that stop it reading flat');
+{
+  const assets = { backdrop: 'https://x.test/backdrop.png', website: 'https://x.test/website.jpg' };
+  const r = renderFinalDetails(guest(),
+    { siteUrl: 'https://princessandini.com', now: SEND_DAY, assets });
+
+  // A screenshot of the site, under the section that links to it.
+  ok('the screenshot is rendered', r.html.includes('https://x.test/website.jpg'));
+  ok('it links to the site', /<a href="https:\/\/princessandini\.com"[^>]*>\s*<img/.test(r.html));
+  ok('with width AND height, so Outlook reserves the space',
+     /<img[^>]+width="420"[^>]+height="217"/.test(r.html),
+     r.html.match(/<img[^>]*website[^>]*>/)?.[0]?.slice(0, 160));
+  ok('and alt text', /alt="The Princess &amp; IniOluwa wedding website"/.test(r.html));
+  ok('it is small — 420px, not the full card width', r.html.includes('max-width:420px'));
+  ok('the file is registered as an asset', ASSET_FILES.website === 'website.jpg');
+
+  // The doodle backdrop. It was already wired; this pins it so it stays.
+  ok('the backdrop is applied to the page', r.html.includes('https://x.test/backdrop.png'));
+  ok('tiled', /background-repeat:repeat/.test(r.html));
+  ok('with an Outlook VML fallback', /v:fill type="tile"/.test(r.html));
+
+  // Without assets — a preview with no files — nothing breaks.
+  const bare = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
+  ok('no assets means no broken image tag', !/<img/.test(bare.html));
+  ok('and the section still reads', /Everything Is On Our Website/.test(bare.html));
+}
+
+console.log('\nDress code says more than colour');
+{
+  const r = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
+  ok('formal dresses are named', /formal dresses/i.test(r.html));
+  ok('elegant gowns are named', /elegant gowns/i.test(r.html));
+  ok('and it is in the plain text too',
+     /formal dresses and elegant gowns/i.test(r.text));
+  ok('set apart from the colour line', /<em>Formal dresses/.test(r.html));
+}
+
+console.log('\nThe venue is a link to the map');
+{
+  const r = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
+  ok('the venue name is a link', new RegExp(`<a href="[^"]*maps[^"]*"[^>]*>${WEDDING.venueName}`).test(r.html),
+     r.html.match(/<a href="[^"]*maps[^"]*"[^>]*>[^<]*/)?.[0]?.slice(0, 120));
+  ok('to the shared MAP_URL', r.html.includes(MAP_URL.replace(/&/g, '&amp;')) || r.html.includes(MAP_URL));
+  ok('and the guest is told it is tappable', /Tap the name for directions/i.test(r.html));
+}
+
+console.log('\nA camera beside the camera section');
+{
+  const r = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
+  ok('the camera glyph is there', r.html.includes('&#128247;'));
+  ok('next to the heading', /&#128247;<\/span> Through Your Eyes/.test(r.html));
+  ok('and hidden from screen readers', /aria-hidden="true">&#128247;/.test(r.html));
 }
 
 console.log('\nIt is the next letter in the same series');

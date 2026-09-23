@@ -31,13 +31,13 @@
  * they are emailed.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 
 import {
   TABLE, subjectFinal, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO,
-  WEDDING, CAMERA, assetUrls,
+  WEDDING, CAMERA, assetUrls, ASSET_FILES,
 } from './config.mjs';
 import { selectForFinalDetails, tierBreakdown } from './final-details-recipients.mjs';
 import { renderFinalDetails } from './final-details.mjs';
@@ -142,12 +142,34 @@ const PREVIEW_GUESTS = {
   AFTERPARTY: { full_name: 'Tobi Balogun',   approved_for: 'AFTERPARTY' },
 };
 
+/**
+ * The artwork, inlined from public/email/ as data URIs.
+ *
+ * A browser opening a file:// preview cannot reach the deployed https URLs,
+ * so without this the doodle backdrop and the screenshot are simply missing
+ * and the preview looks flat and wrong. Gmail strips data: URIs, which is why
+ * this is for previews ONLY — the email that is actually sent always uses the
+ * https URLs from assetUrls(). Same approach as preview.mjs.
+ */
+function inlinedAssets() {
+  const out = {};
+  for (const [key, file] of Object.entries(ASSET_FILES)) {
+    const path = join(process.cwd(), 'public', 'email', file);
+    if (!existsSync(path)) continue;
+    const buf = readFileSync(path);
+    const mime = buf[0] === 0x89 ? 'image/png' : buf[0] === 0xff ? 'image/jpeg' : null;
+    if (mime) out[key] = `data:${mime};base64,${buf.toString('base64')}`;
+  }
+  return out;
+}
+
 function writePreviews({ cameraReady, tier }) {
   const outDir = join(process.cwd(), 'scratch', 'final-details-preview');
   mkdirSync(outDir, { recursive: true });
 
   const siteUrl = process.env.INVITE_SITE_URL || 'https://princessandini.com';
-  const assets = assetUrls({ siteUrl, baseUrl: process.env.INVITE_ASSET_BASE_URL });
+  const assets = { ...assetUrls({ siteUrl, baseUrl: process.env.INVITE_ASSET_BASE_URL }),
+                   ...inlinedAssets() };
   const tiers = tier ? [tier] : ['JOINING', 'RECEPTION'];
   const written = [];
 
