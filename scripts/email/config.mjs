@@ -347,6 +347,91 @@ export const UPDATE_THIRTY = {
 export const SUBJECT_THIRTY = '30 Days to Go! 💍 · Hotel & Registry Information';
 
 /**
+ * Update #3 — the final details note, sent in the last week.
+ *
+ * Separate from UPDATE and UPDATE_THIRTY rather than replacing either. Both of
+ * those describe emails that have already been delivered; editing one in place
+ * would rewrite the masthead of a letter that is already in people's inboxes
+ * the next time anything re-renders it.
+ */
+export const UPDATE_FINAL = {
+  number: 3,
+  title:  'Final Details',
+  label() { return `Wedding Update #${this.number}`; },
+
+  /** Computed, never written down — see SUBJECT_FINAL for the one that is. */
+  headline(days) {
+    if (days > 1)   return `${days} Days to Go`;
+    if (days === 1) return 'One Day to Go';
+    return 'Today&rsquo;s the Day';
+  },
+};
+
+/**
+ * The final-details subject line.
+ *
+ * ── Computed, not written down ─────────────────────────────────────────────
+ * It was a fixed string reading "3 Days to Go", with a guard in the sender
+ * that refused to deliver when that disagreed with the real countdown. That
+ * is a worse design than simply not being able to be wrong: the send date is
+ * genuinely undecided, and a subject line that has to be remembered is one
+ * that eventually is not.
+ */
+export function subjectFinal(days) {
+  const count = days > 1 ? `${days} Days to Go!`
+              : days === 1 ? 'Tomorrow&rsquo;s the Day!'
+              : 'Today&rsquo;s the Day!';
+  return `${count.replace('&rsquo;', '\u2019')} 💍 · Final Details for Our Wedding`;
+}
+
+/** Where a guest finds their table before the day. */
+export const SEATING_URL = 'https://www.princessandini.com/seating-chart';
+
+/**
+ * Where the Instant Camera lives.
+ *
+ * The www. form, matching SEATING_URL. Both hosts resolve, but a guest who
+ * long-presses a link sees the href, and two spellings of the same domain in
+ * one email looks like one of them is wrong.
+ */
+export const CAMERA_URL = 'https://www.princessandini.com/wedding';
+
+/**
+ * The Instant Camera section.
+ *
+ * ── On, and a kill switch rather than a gate ───────────────────────────────
+ * This started false, on the reasoning that the camera's first real-device
+ * upload had failed. That was the wrong test. The camera is used ON THE DAY,
+ * and the day is Saturday — whether it works this morning says nothing about
+ * whether it works then, and there is time to fix it. The link in the email
+ * points at princessandini.com/wedding, the hub, which is live and simply
+ * shows the card as "Coming Soon" until the feature is switched on.
+ *
+ * So the flag is on, and its job is the other direction: if Saturday arrives
+ * and the camera still cannot be trusted, setting this to false removes the
+ * section from the HTML and the plain text entirely — not hidden, not greyed,
+ * absent. --camera-ready on a preview or test forces it on regardless, for
+ * reviewing copy.
+ *
+ * Removing it permanently is deleting this object and the one block in
+ * final-details.mjs that reads it. Nothing else refers to it.
+ */
+export const CAMERA = {
+  enabled: true,
+  moments: 10,
+};
+
+/**
+ * Dress code.
+ *
+ * Moved to its own file — scripts/email/dress-code.mjs — because it is the one
+ * thing likely to change between now and the send, and it should not require
+ * opening a 500-line config to do it. Re-exported here so every existing
+ * import keeps working.
+ */
+export { DRESS } from './dress-code.mjs';
+
+/**
  * The subject line.
  *
  * Deliberately not "You're invited" — these guests have already RSVP'd, and
