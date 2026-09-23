@@ -53,7 +53,7 @@ import { createInterface } from 'node:readline/promises';
 
 import {
   TABLE, subjectFinal, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO,
-  WEDDING, CAMERA, assetUrls, ASSET_FILES,
+  WEDDING, CAMERA, assetUrls, ASSET_FILES, DAYS_TO_GO,
 } from './config.mjs';
 import { selectForFinalDetails, tierBreakdown } from './final-details-recipients.mjs';
 import {
@@ -61,7 +61,7 @@ import {
 } from './union-audience.mjs';
 import { validateDress } from './dress-code.mjs';
 import { renderFinalDetails } from './final-details.mjs';
-import { daysUntil, eventsForGuest } from './events.mjs';
+import { eventsForGuest } from './events.mjs';
 import { sendWithRetry, sleep, SendError } from './resend.mjs';
 import { idempotencyKey, newRunId } from './idempotency.mjs';
 
@@ -407,7 +407,7 @@ async function deliver(targets, { cameraReady, siteUrl, assets, key }) {
         from: process.env.INVITE_FROM || DEFAULT_FROM,
         replyTo: process.env.INVITE_REPLY_TO || DEFAULT_REPLY_TO,
         to: row.email,
-        subject: subjectFinal(daysUntil(WEDDING.date, new Date())),
+        subject: subjectFinal(DAYS_TO_GO),
         html: r.html,
         text: r.text,
         // A guest's key is the campaign and their address, unchanged — a
@@ -438,7 +438,7 @@ async function main() {
   if (args.help) { console.log(HELP); return; }
 
   const now = new Date();
-  const days = daysUntil(WEDDING.date, now);
+  const days = DAYS_TO_GO;   // written down in config.mjs, not read off the clock
 
   console.log(`\n${c.bold('Wedding Update #3 — Final Details')}`);
   console.log(`  ${c.dim(`${days} days to the wedding · subject: ${subjectFinal(days)}`)}`);
@@ -518,7 +518,7 @@ async function main() {
     console.log(`\n${c.red(c.bold('  ────────────────────────────────────────────────────'))}`);
     console.log(`${c.red(c.bold(`   THIS SENDS TO ${targets.length} REAL GUESTS. IT CANNOT BE UNDONE.`))}`);
     console.log(`${c.red(c.bold('  ────────────────────────────────────────────────────'))}`);
-    console.log(`  ${c.dim(`subject: ${subjectFinal(daysUntil(WEDDING.date, new Date()))}`)}`);
+    console.log(`  ${c.dim(`subject: ${subjectFinal(DAYS_TO_GO)}`)}`);
     console.log(`  ${c.dim(`from:    ${process.env.INVITE_FROM || DEFAULT_FROM}`)}`);
     console.log(`  ${c.dim(`camera section: ${(args.cameraReady || CAMERA.enabled) ? 'INCLUDED' : 'omitted'}`)}`);
   }

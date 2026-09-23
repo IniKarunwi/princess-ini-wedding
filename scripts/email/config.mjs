@@ -380,6 +380,29 @@ export const SUBJECT_THIRTY = '30 Days to Go! 💍 · Hotel & Registry Informati
  * would rewrite the masthead of a letter that is already in people's inboxes
  * the next time anything re-renders it.
  */
+/**
+ * The countdown this campaign says, fixed at the number rather than computed.
+ *
+ * ── Why this is a constant and not daysUntil() ─────────────────────────────
+ * It used to be derived from the clock, which is right for a campaign sent on
+ * an unknown day and wrong for this one. This letter goes out once, on a day
+ * that is already decided, and the countdown appears in the subject line —
+ * the one part of an email that cannot be corrected afterwards.
+ *
+ * Derived from the clock, the number depends on WHEN the send happens and in
+ * WHICH timezone the machine sending it thinks it is. A send that starts at
+ * 23:50 and runs past midnight would put "2 Days to Go" in some inboxes and
+ * "Tomorrow's the Day" in others, from one run. A server on UTC rather than
+ * WAT is an hour from doing the same thing on its own.
+ *
+ * So the number is written down. Sending on a different day means changing
+ * this line, deliberately, and the selftest checks the letter against it.
+ *
+ * The formatting still lives in headline() and subjectFinal() below, so 1 and
+ * 0 read correctly if this is ever set to them.
+ */
+export const DAYS_TO_GO = 2;
+
 export const UPDATE_FINAL = {
   number: 3,
   title:  'Final Details',
@@ -396,12 +419,19 @@ export const UPDATE_FINAL = {
 /**
  * The final-details subject line.
  *
- * ── Computed, not written down ─────────────────────────────────────────────
- * It was a fixed string reading "3 Days to Go", with a guard in the sender
- * that refused to deliver when that disagreed with the real countdown. That
- * is a worse design than simply not being able to be wrong: the send date is
- * genuinely undecided, and a subject line that has to be remembered is one
- * that eventually is not.
+ * ── The wording is computed; the number is not ─────────────────────────────
+ * This function owns the wording only — whether it reads "2 Days to Go!",
+ * "Tomorrow's the Day!" or "Today's the Day!" — so those forms cannot be
+ * mistyped and the plural cannot come out wrong.
+ *
+ * The number itself comes from DAYS_TO_GO above, written down rather than
+ * read off the clock. That was a deliberate reversal: it WAS derived from the
+ * current date, which is the right design for a campaign whose send date is
+ * undecided, and the wrong one here. The send date is now decided, and the
+ * countdown is in the subject line, which is the one part of an email nobody
+ * can correct afterwards. Derived, a send that crosses midnight — or a
+ * machine on UTC rather than WAT — puts two different numbers in two guests'
+ * inboxes from a single run. See DAYS_TO_GO for the whole reasoning.
  */
 export function subjectFinal(days) {
   const count = days > 1 ? `${days} Days to Go!`

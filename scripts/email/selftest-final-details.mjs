@@ -19,14 +19,13 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  DRESS, WEDDING, subjectFinal, CAMERA, REGISTRY_URL, SEATING_URL, MAP_URL, ASSET_FILES, DOODLES,
+  DRESS, WEDDING, subjectFinal, CAMERA, REGISTRY_URL, SEATING_URL, MAP_URL, ASSET_FILES, DOODLES, DAYS_TO_GO, UPDATE_FINAL,
 } from './config.mjs';
 import { validateDress } from './dress-code.mjs';
 import { renderFinalDetails } from './final-details.mjs';
 import {
   classifyForFinalDetails, selectForFinalDetails, ceremonyCount,
 } from './final-details-recipients.mjs';
-import { daysUntil } from './events.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -231,9 +230,9 @@ console.log('\nEvery promised element is present');
 {
   const r = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
 
-  ok('the opening, with the countdown computed',
-     /It&rsquo;s 3 days to our wedding/.test(r.html), r.html.match(/It&rsquo;s [^,]*/)?.[0]);
-  ok('and in plain text', r.text.includes("It's 3 days to our wedding"));
+  ok('the opening, with the countdown as written down',
+     /It&rsquo;s 2 days to our wedding/.test(r.html), r.html.match(/It&rsquo;s [^,]*/)?.[0]);
+  ok('and in plain text', r.text.includes("It's 2 days to our wedding"));
   ok('a quick refresher on the checklist', /quick refresher on your checklist/i.test(r.html));
 
   ok('one — the website', /Everything You Need Is Online/i.test(r.html));
@@ -425,32 +424,62 @@ console.log('\nIt is the next letter in the same series');
   ok('nor into the text', !/undefined/.test(r.text));
 }
 
-/* ── The countdown, and the one hard-coded number ────────────────────────── */
+/* ── The countdown, which is written down and not computed ───────────────── */
 
 console.log('\nThe countdown');
 {
-  eq('noon on 23 September is 3 days out', daysUntil(WEDDING.date, SEND_DAY), 3);
-  eq('the 24th is 2', daysUntil(WEDDING.date, new Date('2026-09-24T11:00:00Z')), 2);
-  eq('the 25th is 1', daysUntil(WEDDING.date, new Date('2026-09-25T11:00:00Z')), 1);
+  // DAYS_TO_GO is the single place the number lives. These assertions are
+  // what make changing it safe: set it, run this, and every visible
+  // occurrence is checked against it rather than against a memory of the copy.
+  eq('the campaign is pinned at two days', DAYS_TO_GO, 2);
 
-  const one = renderFinalDetails(guest(),
-    { siteUrl: 'https://princessandini.com', now: new Date('2026-09-25T11:00:00Z') });
-  // The closing no longer carries a countdown — it is "We look forward to
-  // having you." The number appears once, in the opening line.
-  ok('one day reads as "1 day", not "1 days"',
-     /It&rsquo;s 1 day to our wedding/.test(one.html),
-     one.html.match(/It&rsquo;s [^,]*/)?.[0]);
-  ok('and the masthead agrees', /One Day to Go/.test(one.html));
+  // The clock must not reach the letter. Rendered on three different days —
+  // including the day after the wedding — the countdown does not move.
+  const days = ['2026-09-20', '2026-09-24', '2026-09-27'].map(d =>
+    renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: new Date(`${d}T11:00:00Z`) }));
+  ok('the number does not depend on when it is rendered',
+     days.every(r => r.days === DAYS_TO_GO), days.map(r => r.days).join(', '));
+  ok('nor does the wording',
+     days.every(r => /It&rsquo;s 2 days to our wedding/.test(r.html)));
+  ok('nor the masthead', days.every(r => /2 Days to Go/.test(r.html)));
 
-  // The subject is computed, so it cannot disagree with the letter. The send
-  // date is genuinely undecided — Tuesday or Friday — and this is why that is
-  // safe.
-  ok('Tuesday\'s subject says 3 days', /\b3 Days to Go\b/.test(subjectFinal(3)));
-  ok('Friday\'s says tomorrow', /Tomorrow/i.test(subjectFinal(1)), subjectFinal(1));
+  // A send that crosses midnight is one run, and must not produce two
+  // different letters. This is the case that made the number a constant.
+  const before = renderFinalDetails(guest(),
+    { siteUrl: 'https://princessandini.com', now: new Date('2026-09-24T23:59:00Z') });
+  const after = renderFinalDetails(guest(),
+    { siteUrl: 'https://princessandini.com', now: new Date('2026-09-25T00:01:00Z') });
+  eq('a send crossing midnight says the same thing on both sides', before.html, after.html);
+
+  const r = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
+
+  // Every visible occurrence of a day count, found rather than listed, so a
+  // new one cannot be added without this test noticing.
+  const inHtml = [...r.html.matchAll(/\b(\d+)\s+[Dd]ays?\b/g)].map(m => m[1]);
+  const inText = [...r.text.matchAll(/\b(\d+)\s+[Dd]ays?\b/g)].map(m => m[1]);
+  ok('every day count in the HTML is the pinned one',
+     inHtml.length > 0 && inHtml.every(n => Number(n) === DAYS_TO_GO),
+     inHtml.join(', '));
+  ok('and in the plain text',
+     inText.length > 0 && inText.every(n => Number(n) === DAYS_TO_GO),
+     inText.join(', '));
+  ok('no "3 days" survives anywhere', !/\b3\s+[Dd]ays?\b/.test(r.html + r.text));
+
+  // The subject is built from the same constant as the letter, so the two
+  // cannot disagree — which was the point of computing it, and is preserved.
+  eq('the subject line, exactly',
+     subjectFinal(DAYS_TO_GO),
+     '2 Days to Go! \u{1F48D} \u00b7 Final Details for Our Wedding');
+
+  // The wording for 1 and 0 still has to be right, in case this is ever
+  // re-pinned closer to the day.
+  ok('one day would read "Tomorrow"', /Tomorrow/i.test(subjectFinal(1)), subjectFinal(1));
   ok('the day itself says today', /Today/i.test(subjectFinal(0)), subjectFinal(0));
+  ok('and the masthead has singular wording for it',
+     /One Day to Go/.test(UPDATE_FINAL.headline(1)), UPDATE_FINAL.headline(1));
   ok('no stray HTML entity in a subject line',
-     ![3, 1, 0].some(d => /&[a-z]+;/.test(subjectFinal(d))),
-     [3, 1, 0].map(subjectFinal).join(' | '));
+     ![2, 1, 0].some(d => /&[a-z]+;/.test(subjectFinal(d))),
+     [2, 1, 0].map(subjectFinal).join(' | '));
 }
 
 /* ── What may touch seating, and what it may do to it ────────────────────── */

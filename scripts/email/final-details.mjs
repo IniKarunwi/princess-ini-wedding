@@ -39,9 +39,9 @@
 
 import {
   WEDDING, REGISTRY_URL, SEATING_URL, CAMERA_URL, CAMERA, DRESS,
-  PALETTE as P, UPDATE_FINAL, MAP_URL, DOODLES,
+  PALETTE as P, UPDATE_FINAL, MAP_URL, DOODLES, DAYS_TO_GO,
 } from './config.mjs';
-import { eventsForGuest, daysUntil } from './events.mjs';
+import { eventsForGuest } from './events.mjs';
 import { shellTop, shellBottom, esc, SERIF, SANS } from './chrome.mjs';
 import { firstName } from './recipients.mjs';
 
@@ -182,7 +182,11 @@ export function renderFinalDetails(row, {
 } = {}) {
   const name = firstName(row);
   const events = eventsOverride ?? eventsForGuest(row);
-  const days = daysUntil(WEDDING.date, now);
+  // Written down in config.mjs, not read off the clock. See DAYS_TO_GO there:
+  // the countdown is in the subject line, and a send that crosses midnight —
+  // or a machine on the wrong timezone — must not put two different numbers
+  // in two guests' inboxes from one run.
+  const days = DAYS_TO_GO;
   const backdrop = assets?.backdrop ?? null;
 
   // The phones note names the CEREMONY, so it is gated on the tier. See the
@@ -372,7 +376,7 @@ ${camera ? `
 
           <!-- ── P.S. REGISTRY ──────────────────────────────────────────── -->
           <!-- A postscript, not a section — the smallest thing on the page,
-               which is the right weight for it three days out. -->
+               which is the right weight for it two days out. -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
                  style="margin:34px 0 0;">
             <tr><td style="border-top:1px solid ${P.rule};padding:18px 0 0;">
