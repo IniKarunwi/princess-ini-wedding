@@ -45,7 +45,8 @@
     "test:email:reconcile": "node scripts/email/selftest-reconcile.mjs",
     "test:email:name-match": "node scripts/email/selftest-name-match.mjs",
     "email:final-details:union": "node --env-file-if-exists=.env scripts/email/union-audience.mjs",
-    "test:email:union": "node scripts/email/selftest-union.mjs"
+    "test:email:union": "node scripts/email/selftest-union.mjs",
+    "test:email:send-auth": "node scripts/email/selftest-send-auth.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

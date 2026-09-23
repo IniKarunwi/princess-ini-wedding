@@ -48,8 +48,21 @@ function describe(status, body) {
 export async function sendEmail({
   apiKey, from, to, subject, html, text, replyTo, idempotencyKey, fetchImpl = fetch,
 }) {
+  // A caller that forgets this does not get an error — it gets the literal
+  // string "Bearer undefined", and Resend answers "API key is invalid". That
+  // reply names the key, so it sends you to .env and to the dashboard rather
+  // than to the caller, which is where the fault actually is. Refuse here, in
+  // words that point at the code.
+  const key = String(apiKey ?? '').trim();
+  if (!key) {
+    throw new SendError(
+      'no API key was passed to sendEmail — the caller did not supply apiKey. ' +
+      'This is not a rejected credential; no request was made.',
+      { retryable: false });
+  }
+
   const headers = {
-    Authorization: `Bearer ${apiKey}`,
+    Authorization: `Bearer ${key}`,
     'Content-Type': 'application/json',
   };
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;

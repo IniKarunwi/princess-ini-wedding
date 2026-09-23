@@ -364,7 +364,27 @@ function assertAudience(u) {
               `no seat granted the ceremony`);
 }
 
-async function deliver(targets, { cameraReady, siteUrl, assets }) {
+/**
+ * The Resend credential.
+ *
+ * sendEmail builds `Bearer ${apiKey}` unconditionally, so an absent key is not
+ * an error there — it is the string "Bearer undefined", which Resend rejects
+ * with "API key is invalid". That message names the key, so it sends you to
+ * look at .env, at the dashboard, at anything except the one caller that
+ * forgot to pass it. Reading it here, by name, and refusing early is what
+ * makes the failure legible.
+ */
+function apiKey() {
+  const key = String(process.env.RESEND_API_KEY ?? '').trim();
+  if (!key) {
+    throw new Error(
+      'RESEND_API_KEY is not set, so nothing can be sent.\n' +
+      'Run with --env-file=.env, or use --dry-run, which needs no key.');
+  }
+  return key;
+}
+
+async function deliver(targets, { cameraReady, siteUrl, assets, key }) {
   let sent = 0;
   const failed = [];
 
@@ -376,6 +396,7 @@ async function deliver(targets, { cameraReady, siteUrl, assets }) {
     const r = renderFinalDetails(row, { siteUrl, assets, cameraReady, events });
     try {
       await sendWithRetry({
+        apiKey: key,
         from: process.env.INVITE_FROM || DEFAULT_FROM,
         replyTo: process.env.INVITE_REPLY_TO || DEFAULT_REPLY_TO,
         to: row.email,
@@ -440,6 +461,9 @@ async function main() {
       main_invite_status: 'APPROVED', attending: true,
       approved_for: args.previewTier || 'JOINING', plus_one_requested: false,
     };
+    // Before the prompt, not after it. Being asked to confirm and then told
+    // the credential is missing wastes the one thing the prompt is for.
+    const key = apiKey();
     console.log(`\n${c.bold('One test message')} to ${c.cyan(args.to)}`);
     console.log(`  ${c.dim('no guest list and no seating plan was read for this')}`);
     if (!args.yes && !(await confirm('SEND TEST'))) {
@@ -447,7 +471,7 @@ async function main() {
       return;
     }
     const { sent, failed } = await deliver(
-      [{ row, source: 'test' }], { cameraReady: args.cameraReady, siteUrl, assets });
+      [{ row, source: 'test' }], { cameraReady: args.cameraReady, siteUrl, assets, key });
     console.log(sent ? c.green('\nResend accepted the test message.')
                      : c.red('\nResend did not accept it.'));
     if (failed.length) process.exitCode = 1;
@@ -467,6 +491,7 @@ async function main() {
   }
 
   const targets = args.limit ? audience.audience.slice(0, args.limit) : audience.audience;
+  const key = apiKey();   // before the prompt, for the same reason as above
 
   // The phrase carries the COUNT, so it cannot be typed from memory or copied
   // from a previous run — you have to have read the number above it.
@@ -489,7 +514,7 @@ async function main() {
     console.log(c.dim('Not confirmed. Nothing sent.'));
     return;
   }
-  const { sent, failed } = await deliver(targets, { cameraReady: args.cameraReady, siteUrl, assets });
+  const { sent, failed } = await deliver(targets, { cameraReady: args.cameraReady, siteUrl, assets, key });
   console.log(`\n${c.bold('Done')}  ${c.green(`${sent} sent`)}${failed.length ? c.red(`, ${failed.length} failed`) : ''}`);
   if (failed.length) process.exitCode = 1;
 }
