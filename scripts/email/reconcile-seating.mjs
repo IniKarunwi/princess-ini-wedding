@@ -30,22 +30,24 @@
  *   NOT used    attending, main_invite_status, email_status, plus-one state.
  *               A seat outranks all of them.
  *
- * ── Matching is exact, never fuzzy ────────────────────────────────────────
- * A seated name matches an RSVP row only when the two normalise identically.
- * Normalisation is conservative and is listed in `normalise` below — case,
- * whitespace, a trailing "+N" seat count, and surrounding punctuation. It does
- * NOT strip titles, reorder names, or measure edit distance.
+ * ── Matching ──────────────────────────────────────────────────────────────
+ * Exact matching was tried first and was far too conservative for this data:
+ * it reported most of the immediate family as unseated because the seating
+ * plan says "Mr Olakunle Karunwi +5" where the RSVP says "Olakunle Karunwi
+ * (Father)". The tiers now live in name-match.mjs, which documents each one
+ * and the calibration behind the typo tier.
  *
- * Where no exact match exists, the row is reported as unmatched and CANDIDATES
- * are printed for a human to judge. Nothing is auto-applied. Emailing the
- * wrong person because two guests share a surname is not recoverable, and a
- * name is not evidence of an inbox.
+ * What has NOT changed is the refusal: a tier is only used when exactly one
+ * RSVP row qualifies at it. Two candidates is ambiguity, reported for a human
+ * and never resolved. Emailing the wrong person because two guests share a
+ * surname is not recoverable, and a name is not evidence of an inbox.
  */
 
 import { TABLE } from './config.mjs';
 import { parseTiers } from './events.mjs';
 import { isSendableEmail } from './recipients.mjs';
 import { classifyForFinalDetails } from './final-details-recipients.mjs';
+import { buildIndex, matchOne, words } from './name-match.mjs';
 
 const c = {
   dim:   s => `\x1b[2m${s}\x1b[0m`,
@@ -87,26 +89,8 @@ async function fetchPublished() {
 
 /* ── Names ───────────────────────────────────────────────────────────────── */
 
-/**
- * The only transformation applied before comparing two names.
- *
- * Every step here is something that is unambiguously the same person:
- * casing, doubled spaces, a "+3" seat count typed into a name field, and
- * stray punctuation from a paste. Titles are deliberately NOT stripped —
- * "Pastor Chingtok" and "Chingtok" may or may not be the same person, and
- * that is a judgement for a human.
- */
-export function normalise(name) {
-  return String(name ?? '')
-    .replace(/\s*\+\s*\d+\s*$/, '')       // "Ada Obi +2" → "Ada Obi"
-    .replace(/[.,;:'"()]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-/** Surname-ish tokens, used ONLY to suggest candidates to a human. */
-const tokens = (name) => new Set(normalise(name).split(' ').filter(t => t.length > 2));
+/** Surname-ish words, used ONLY to suggest candidates to a human. */
+const tokens = (name) => new Set(words(name).filter(t => t.length > 2));
 
 function candidatesFor(seatedName, rsvpRows) {
   const want = tokens(seatedName);
@@ -119,7 +103,7 @@ function candidatesFor(seatedName, rsvpRows) {
       return { row: r, shared };
     })
     .filter(x => x.shared > 0)
-    .sort((a, b) => b.shared - a.shared)
+    .sort((a2, b2) => b2.shared - a2.shared)
     .slice(0, 3);
 }
 
@@ -145,25 +129,21 @@ export function seatedFrom(payload) {
 /* ── Reconciling ─────────────────────────────────────────────────────────── */
 
 export function reconcile(seated, rsvpRows) {
-  // An RSVP index by normalised name. A name held by two rows is ambiguous
-  // BEFORE anything is matched against it.
-  const byName = new Map();
-  for (const r of rsvpRows) {
-    const k = normalise(r.full_name);
-    if (!k) continue;
-    if (!byName.has(k)) byName.set(k, []);
-    byName.get(k).push(r);
-  }
+  const index = buildIndex(rsvpRows);
 
-  const matched = [];      // seated + exactly one RSVP row
-  const ambiguous = [];    // seated + more than one RSVP row of that name
-  const unmatched = [];    // seated + no RSVP row of that name
+  const matched = [];      // seated entry + the RSVP row(s) it confirms
+  const ambiguous = [];    // more than one candidate at the winning tier
+  const unmatched = [];    // nothing qualified at any tier
 
-  for (const s of seated) {
-    const rows = byName.get(normalise(s.name)) ?? [];
-    if (rows.length === 1) matched.push({ seated: s, row: rows[0] });
-    else if (rows.length > 1) ambiguous.push({ seated: s, rows });
-    else unmatched.push({ seated: s, candidates: candidatesFor(s.name, rsvpRows) });
+  for (const s2 of seated) {
+    const r = matchOne(s2.name, index);
+    if (r.matches.length) {
+      for (const m of r.matches) matched.push({ seated: s2, row: m.row, tier: m.tier, part: m.part });
+    } else if (r.ambiguity) {
+      ambiguous.push({ seated: s2, rows: r.ambiguity.rows, tier: r.ambiguity.tier });
+    } else {
+      unmatched.push({ seated: s2, candidates: candidatesFor(s2.name, rsvpRows) });
+    }
   }
 
   // Proposed recipients: seated, matched, reachable, de-duplicated by inbox.
@@ -177,10 +157,7 @@ export function reconcile(seated, rsvpRows) {
     const key = String(m.row.email).trim().toLowerCase();
     if (seen.has(key)) { duplicates.push({ ...m, firstSeen: seen.get(key) }); continue; }
     seen.set(key, m);
-    proposed.push({
-      ...m,
-      joining: parseTiers(m.row.approved_for).includes('JOINING'),
-    });
+    proposed.push({ ...m, joining: parseTiers(m.row.approved_for).includes('JOINING') });
   }
 
   return { matched, ambiguous, unmatched, proposed, seatedNoEmail, duplicates, seen };
@@ -279,18 +256,44 @@ async function main() {
   line('seated but unmatched — resolve before sending', r.unmatched.length, c.amber);
   line('seated but ambiguous — resolve before sending', r.ambiguous.length, c.amber);
 
-  console.log(`\n${c.bold('Change from today\'s list')}`);
-  const added = [...proposedEmails].filter(e => !currentEmails.has(e));
-  const removed = [...currentEmails].filter(e => !proposedEmails.has(e));
-  line('would be ADDED', added.length, c.green);
-  line('would be REMOVED', removed.length, c.red);
-  line('net', `${current.length} → ${r.proposed.length}`, c.bold);
+  console.log(`\n${c.bold('7 · Exact ADDED and REMOVED lists')}`);
 
-  for (const m of r.seatedNoEmail) {
-    console.log(`     ${c.red('✗')} ${c.dim(`${m.seated.name.padEnd(30)} seated at table ${m.seated.table}, no usable address`)}`);
+  const byEmail = new Map(r.proposed.map(p => [String(p.row.email).trim().toLowerCase(), p]));
+  const added = [...proposedEmails].filter(e => !currentEmails.has(e));
+  const removed = current.filter(row => !proposedEmails.has(String(row.email).trim().toLowerCase()));
+
+  console.log(`\n  ${c.green(c.bold(`ADDED — ${added.length}`))}  ${c.dim('seated, reachable, not on today\'s list')}`);
+  for (const e of added) {
+    const p = byEmail.get(e);
+    console.log(`    ${c.green('+')} ${String(p.row.full_name).padEnd(30)} ${String(p.row.email).padEnd(32)} ` +
+                `${c.dim(`table ${p.seated.table} · ${p.joining ? 'JOINING' : 'reception-only'} · matched ${p.tier}`)}`);
   }
-  for (const d of r.duplicates) {
-    console.log(`     ${c.dim(`${d.seated.name} shares ${d.row.email} with ${d.firstSeen.seated.name}`)}`);
+  if (!added.length) console.log(`    ${c.dim('(none)')}`);
+
+  console.log(`\n  ${c.red(c.bold(`REMOVED — ${removed.length}`))}  ${c.dim('on today\'s list, no seat found')}`);
+  for (const row of removed) {
+    console.log(`    ${c.red('-')} ${String(row.full_name).padEnd(30)} ${String(row.email).padEnd(32)} ` +
+                `${c.dim(row.approved_for ?? '')}`);
+  }
+  if (!removed.length) console.log(`    ${c.dim('(none)')}`);
+
+  console.log(`\n  ${c.bold(`NET  ${current.length} → ${r.proposed.length}`)}`);
+
+  /* ── How each match was made, so the fuzzy ones can be audited ─────────── */
+  const byTier = new Map();
+  for (const m of r.matched) byTier.set(m.tier, (byTier.get(m.tier) ?? 0) + 1);
+  console.log(`\n${c.bold('How the matches were made')}`);
+  for (const tier of ['exact', 'reordered', 'subset', 'typo']) {
+    line(`${tier}`, byTier.get(tier) ?? 0, tier === 'exact' ? c.green : c.amber);
+  }
+
+  const speculative = r.matched.filter(m => m.tier !== 'exact');
+  if (speculative.length) {
+    console.log(`\n  ${c.amber('Every non-exact match, for your review:')}`);
+    for (const m of speculative) {
+      console.log(`    ${c.amber('~')} seated "${m.seated.name}"`);
+      console.log(`      ${c.dim(`→ RSVP "${m.row.full_name}"  ${m.row.email ?? '(no email)'}  [${m.tier}]`)}`);
+    }
   }
 
   console.log(`\n${c.dim('Nothing was written. Nothing was sent. The published plan was not modified.')}\n`);

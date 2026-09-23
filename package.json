@@ -42,7 +42,8 @@
     "email:final-details:test": "node --env-file-if-exists=.env scripts/email/prepare-final-details.mjs --send --to",
     "email:final-details:send": "node --env-file-if-exists=.env scripts/email/prepare-final-details.mjs --send --confirm-send-all",
     "email:final-details:reconcile": "node --env-file-if-exists=.env scripts/email/reconcile-seating.mjs",
-    "test:email:reconcile": "node scripts/email/selftest-reconcile.mjs"
+    "test:email:reconcile": "node scripts/email/selftest-reconcile.mjs",
+    "test:email:name-match": "node scripts/email/selftest-name-match.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
