@@ -34,7 +34,9 @@
     "email:update": "node --env-file-if-exists=.env scripts/email/send-update.mjs",
     "test:renumber": "node scripts/seating/renumber-test.mjs",
     "test:seating-ui": "node scripts/seating/ui-test.mjs",
-    "test:vercel-build": "node scripts/seating/vercel-build-test.mjs"
+    "test:vercel-build": "node scripts/seating/vercel-build-test.mjs",
+    "test:camera-api": "node scripts/camera/api-test.mjs",
+    "test:camera-ui": "node scripts/camera/ui-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

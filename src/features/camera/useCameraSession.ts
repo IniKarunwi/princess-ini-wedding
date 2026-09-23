@@ -1,235 +1,154 @@
 /**
- * One disposable-camera sitting.
+ * One instant-camera sitting.
  *
- * ── Behavioural, not enforced ──────────────────────────────────────────────
- * The ten-photo cap is a shape for the experience, not a security boundary.
- * The brief is explicit that no device fingerprinting is wanted, so a guest
- * who deliberately reopens the page gets a fresh session and that is fine.
- * What matters is that the DEFAULT path is short and finite: take a few,
- * send them, put the phone down.
+ * ── One photograph at a time ───────────────────────────────────────────────
+ * Take → preview → retake or send → sent → take another. Each photograph is
+ * committed on its own, the moment the guest sends it. The earlier design
+ * held up to ten in memory and sent them as a batch, which meant a dropped
+ * connection at the marquee could cost nine photographs instead of one. On
+ * venue Wi-Fi that is the wrong shape.
+ *
+ * ── The camera is the phone's ──────────────────────────────────────────────
+ * There is no getUserMedia here. Capture is an <input capture="environment">
+ * that hands off to the OS camera app — see ThroughYourEyes.tsx. That is a
+ * deliberate reversal of the first implementation: getUserMedia fails
+ * outright inside the in-app browsers guests actually arrive in (WhatsApp,
+ * Instagram), and a denied camera permission is a dead end a guest cannot
+ * recover from while standing at a table. Handing off loses the custom
+ * viewfinder and keeps the photographs.
  *
  * ── Nothing persists ───────────────────────────────────────────────────────
- * Captures live in memory as Blobs for the length of the sitting. Nothing is
- * written to localStorage or IndexedDB. Close the tab and the photographs are
- * gone — which is the honest behaviour for something whose only destination
- * is Princess and IniOluwa.
+ * The photograph is a Blob in memory. No storage of any kind, so closing the
+ * tab loses it — which is honest for something whose only destination is the
+ * couple.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { downscale, submitPhotos, type CapturedPhoto } from './photoService';
-
-export const MAX_PHOTOS = 10;
+import {
+  newId, preparePhoto, releasePhoto, sendPhoto, type PreparedPhoto,
+} from './photoService';
 
 export type Stage =
-  | 'intro'        // the explanation, before any permission is asked for
-  | 'live'         // camera running, ready to shoot
-  | 'review'       // one capture held for keep/retake
-  | 'sending'
-  | 'done'
-  | 'denied'       // permission refused
-  | 'unavailable'; // no camera, or the browser cannot do this
+  | 'intro'      // before anything has been taken
+  | 'working'    // decoding and downscaling what the camera returned
+  | 'preview'    // one photograph, held for retake or send
+  | 'sending'    // upload in flight; Send is disabled
+  | 'done';      // that photograph is safely away
 
 export interface CameraSession {
   stage: Stage;
-  photos: CapturedPhoto[];
-  pending: CapturedPhoto | null;
-  remaining: number;
-  atLimit: boolean;
+  photo: PreparedPhoto | null;
+  /** How many have been sent in this sitting. Shown quietly on the way out. */
+  sent: number;
   error: string | null;
   detail: string | null;
-  sent: number;
-  progress: { done: number; total: number } | null;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  /** True once a send has failed — the button becomes TRY AGAIN. */
+  failed: boolean;
 
-  open(): Promise<void>;
-  capture(): Promise<void>;
-  keep(): void;
+  /** Called with whatever the file input produced. */
+  accept(file: File | null | undefined): Promise<void>;
+  send(): Promise<void>;
   retake(): void;
-  submit(): Promise<void>;
-  reset(): void;
+  again(): void;
 }
 
 export function useCameraSession(): CameraSession {
   const [stage, setStage] = useState<Stage>('intro');
-  const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
-  const [pending, setPending] = useState<CapturedPhoto | null>(null);
+  const [photo, setPhoto] = useState<PreparedPhoto | null>(null);
+  const [sent, setSent] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
-  const [sent, setSent] = useState(0);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const sessionId = useRef<string>(crypto.randomUUID());
-
-  const stopStream = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-  }, []);
+  /** Groups this sitting's photographs. Identifies a session, never a person. */
+  const sessionId = useRef<string>(newId());
 
   /**
-   * Release the camera and every object URL when the guest leaves. A phone
-   * that keeps its camera light on after someone has walked away from the
-   * page is alarming, and at a no-phone wedding doubly so.
+   * Guards against a second send while the first is in flight.
    *
-   * ── Why the live values are read through a ref ────────────────────────
-   * This MUST run only on unmount. Written with `photos` and `pending` in
-   * the dependency array it also ran on every change to them — so React
-   * fired the cleanup the moment the first photo was kept, stopping the
-   * camera track and revoking the previews mid-session. The track went to
-   * "ended" after photo one and every later shot was a frozen frame from a
-   * dead stream, with the phone's camera light going out. Empty deps plus
-   * a ref keeps the teardown correct without resurrecting that.
+   * The button is disabled too, but state updates are asynchronous and a
+   * double tap on a slow phone can land both presses before React re-renders.
+   * A ref is checked synchronously, so the second press cannot get through.
    */
-  const latest = useRef({ photos, pending });
-  latest.current = { photos, pending };
+  const inFlight = useRef(false);
 
-  useEffect(() => () => {
-    stopStream();
-    latest.current.photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-    if (latest.current.pending) URL.revokeObjectURL(latest.current.pending.previewUrl);
-  }, [stopStream]);
+  /**
+   * Released on unmount only. Read through a ref so the effect does not
+   * re-run — and revoke a live preview — every time the photograph changes.
+   */
+  const latest = useRef<PreparedPhoto | null>(photo);
+  latest.current = photo;
+  useEffect(() => () => { releasePhoto(latest.current); }, []);
 
-  const open = useCallback(async () => {
+  const accept = useCallback(async (file: File | null | undefined) => {
+    // No file means the guest opened the camera and backed out. That is not
+    // an error and must not look like one.
+    if (!file) return;
+
     setError(null);
     setDetail(null);
+    setFailed(false);
+    setStage('working');
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setStage('unavailable');
-      setError('This browser cannot open the camera.');
-      setDetail('You may be in a private window, or on an older browser. Safari and Chrome on a phone both work.');
+    const result = await preparePhoto(file);
+    if (!result.ok) {
+      setError(result.reason);
+      setDetail(result.detail ?? null);
+      setStage('intro');
       return;
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        // The rear camera, where there is a choice. "environment" is a
-        // preference, not a guarantee — a laptop simply ignores it.
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      // The <video> does not exist yet — it is rendered by the 'live' stage.
-      // Attaching the stream is done by the effect below, once React has
-      // actually committed that element. queueMicrotask was not enough: it
-      // runs before the render, so videoRef.current was still null, the
-      // stream was never attached, videoWidth stayed 0 and the shutter
-      // silently did nothing.
-      setStage('live');
-    } catch (e) {
-      const name = (e as DOMException)?.name ?? '';
-      if (name === 'NotAllowedError' || name === 'SecurityError') {
-        setStage('denied');
-        setError('The camera is blocked.');
-        setDetail('Tap the icon in your browser’s address bar and allow the camera, then try again. On iPhone: Settings → Safari → Camera → Ask or Allow.');
-      } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-        setStage('unavailable');
-        setError('No camera found on this device.');
-      } else {
-        setStage('unavailable');
-        setError('The camera could not be opened.');
-        setDetail(name || String(e));
-      }
-    }
+    // Replacing an un-sent photograph: release the old preview first.
+    releasePhoto(latest.current);
+    setPhoto(result.photo);
+    setStage('preview');
   }, []);
 
-  /**
-   * Binds the live stream to the <video> once React has rendered it.
-   *
-   * Runs on every entry to 'live', which also covers returning from a
-   * review — the element is remounted by the stage switch and would
-   * otherwise come back blank.
-   */
-  useEffect(() => {
-    if (stage !== 'live') return;
-    const video = videoRef.current;
-    const stream = streamRef.current;
-    if (!video || !stream) return;
-    if (video.srcObject !== stream) video.srcObject = stream;
-    void video.play().catch(() => { /* autoplay guard — the frame still paints */ });
-  }, [stage]);
+  const send = useCallback(async () => {
+    if (inFlight.current) return;
+    const current = latest.current;
+    if (!current) return;
 
-  const capture = useCallback(async () => {
-    const video = videoRef.current;
-    if (!video || !video.videoWidth) {
-      // Never let the shutter be a dead tap. If the first frame has not
-      // arrived yet, say so rather than appearing to do nothing.
-      setError('The camera is still waking up — try that again in a second.');
+    inFlight.current = true;
+    setError(null);
+    setDetail(null);
+    setStage('sending');
+
+    const result = await sendPhoto(sessionId.current, current);
+    inFlight.current = false;
+
+    if (result.ok) {
+      // Only now is the photograph finished with.
+      releasePhoto(current);
+      setPhoto(null);
+      setSent((n) => n + 1);
+      setFailed(false);
+      setStage('done');
       return;
     }
 
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')?.drawImage(video, 0, 0);
-
-    const raw: Blob | null = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.95));
-    if (!raw) { setError('That photo did not come out. Try again.'); return; }
-
-    try {
-      setPending(await downscale(raw));
-      setStage('review');
-    } catch {
-      setError('That photo could not be saved. Try again.');
-    }
+    // Keep the photograph. The guest retries the send, never the picture.
+    setError(result.reason);
+    setDetail(result.detail ?? null);
+    setFailed(true);
+    setStage('preview');
   }, []);
-
-  const keep = useCallback(() => {
-    if (!pending) return;
-    setPhotos((p) => [...p, pending]);
-    setPending(null);
-    setStage('live');
-  }, [pending]);
 
   const retake = useCallback(() => {
-    if (pending) URL.revokeObjectURL(pending.previewUrl);
-    setPending(null);
-    setStage('live');
-  }, [pending]);
-
-  const submit = useCallback(async () => {
-    if (photos.length === 0) return;
-    setStage('sending');
-    setError(null);
-    setProgress({ done: 0, total: photos.length });
-
-    const res = await submitPhotos(sessionId.current, photos, (done, total) =>
-      setProgress({ done, total }));
-
-    if (res.ok) {
-      setSent(res.count);
-      // The sitting is over: camera off, previews released.
-      stopStream();
-      photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-      setPhotos([]);
-      setStage('done');
-    } else {
-      setError(res.reason);
-      setDetail(res.detail ?? null);
-      // Back to live so nothing captured is lost — they can retry.
-      setStage(streamRef.current ? 'live' : 'intro');
-    }
-    setProgress(null);
-  }, [photos, stopStream]);
-
-  const reset = useCallback(() => {
-    stopStream();
-    photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-    if (pending) URL.revokeObjectURL(pending.previewUrl);
-    setPhotos([]);
-    setPending(null);
+    releasePhoto(latest.current);
+    setPhoto(null);
     setError(null);
     setDetail(null);
-    setSent(0);
-    sessionId.current = crypto.randomUUID();
+    setFailed(false);
     setStage('intro');
-  }, [photos, pending, stopStream]);
+  }, []);
 
-  return {
-    stage, photos, pending,
-    remaining: Math.max(0, MAX_PHOTOS - photos.length),
-    atLimit: photos.length >= MAX_PHOTOS,
-    error, detail, sent, progress, videoRef,
-    open, capture, keep, retake, submit, reset,
-  };
+  const again = useCallback(() => {
+    setError(null);
+    setDetail(null);
+    setFailed(false);
+    setStage('intro');
+  }, []);
+
+  return { stage, photo, sent, error, detail, failed, accept, send, retake, again };
 }

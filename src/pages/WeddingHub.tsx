@@ -37,9 +37,13 @@ const ACTIONS: Action[] = [
   { to: '/menu',   title: 'Food Menu', note: 'See what’s being served' },
   // Shown either way so the concept reads whole on the card, but inert until
   // photographs have somewhere to go. See features/weddingday/phase.ts.
+  //
+  // "Instant Camera" here, "The Wedding Through Your Eyes" on the page
+  // itself: this row is a thing to tap, at a table, in two seconds, and the
+  // longer title is the greeting once you are there.
   CAMERA_ENABLED
-    ? { to: '/wedding/camera', title: 'The Wedding Through Your Eyes', note: 'Capture a few moments for us' }
-    : { title: 'The Wedding Through Your Eyes', note: 'Capture a few moments for us', soon: true },
+    ? { to: '/wedding/camera', title: 'Instant Camera', note: 'Capture a few moments for us' }
+    : { title: 'Instant Camera', note: 'Capture a few moments for us', soon: true },
   { to: '/program', title: 'Wedding Programme', note: 'Follow the service' },
 ];
 

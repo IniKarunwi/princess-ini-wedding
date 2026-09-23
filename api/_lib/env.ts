@@ -65,3 +65,25 @@ export function readEnv(): PlannerEnv {
     sessionSecret: need('PLANNER_SESSION_SECRET'),
   };
 }
+
+/** Just enough to reach Supabase. */
+export interface StorageEnv {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+}
+
+/**
+ * Configuration for the guest camera.
+ *
+ * Deliberately NOT readEnv(). The camera needs the project URL and the
+ * service-role key and nothing else — it has no PIN and no session. Calling
+ * readEnv() here would make a guest's upload fail with "PLANNER_PIN_HASH is
+ * not set" on a project where the planner simply is not configured, which is
+ * a confusing way to couple two features that share nothing.
+ */
+export function readStorageEnv(): StorageEnv {
+  return {
+    supabaseUrl: normaliseSupabaseUrl(need('SUPABASE_URL')),
+    serviceRoleKey: need('SUPABASE_SERVICE_ROLE_KEY').trim(),
+  };
+}
