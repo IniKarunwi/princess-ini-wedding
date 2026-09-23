@@ -252,8 +252,12 @@ ${camera ? `
              block is absent from the HTML and the plain text. -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
           ${eyebrow('Five')}
+          <!-- The camera sits ABOVE the heading, on its own line, rather than
+               beside it. Set apart it reads as an icon and says "photography"
+               before a word is read; inline it was just punctuation. -->
+          <p style="margin:0 0 6px;font-size:30px;line-height:1;" aria-hidden="true">&#128247;</p>
           <h2 style="margin:0 0 14px;font:700 26px/1.25 ${SERIF};color:${P.green};">
-            The Wedding Through Your Eyes <span aria-hidden="true">&#129293;</span>
+            The Wedding Through Your Eyes
           </h2>
           ${para(`While we want you to be present, we also want to experience our
                   wedding through your eyes.`)}

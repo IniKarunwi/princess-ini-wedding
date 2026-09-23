@@ -295,12 +295,16 @@ console.log('\nThe venue is a link to the map');
   ok('to the shared MAP_URL', r.html.includes(MAP_URL.replace(/&/g, '&amp;')) || r.html.includes(MAP_URL));
 }
 
-console.log('\nThe heart beside the camera section');
+console.log('\nThe camera above the camera section');
 {
   const r = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
-  ok('the white heart is there', r.html.includes('&#129293;'));
-  ok('next to the heading', /Through Your Eyes <span aria-hidden="true">&#129293;/.test(r.html));
-  ok('and hidden from screen readers', /aria-hidden="true">&#129293;/.test(r.html));
+  ok('the camera glyph is there', r.html.includes('&#128247;'));
+  ok('it sits ABOVE the heading, on its own line',
+     /aria-hidden="true">&#128247;<\/p>\s*<h2[^>]*>\s*The Wedding Through Your Eyes/.test(r.html));
+  ok('at icon size, not body size', /font-size:30px[^"]*"\s*aria-hidden/.test(r.html));
+  ok('hidden from screen readers', /aria-hidden="true">&#128247;/.test(r.html));
+  ok('the heading itself is clean text', /The Wedding Through Your Eyes\s*<\/h2>/.test(r.html));
+  ok('no white heart left behind', !r.html.includes('&#129293;'));
 }
 
 console.log('\nIt is the next letter in the same series');
