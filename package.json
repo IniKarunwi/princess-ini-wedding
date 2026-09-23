@@ -36,7 +36,11 @@
     "test:seating-ui": "node scripts/seating/ui-test.mjs",
     "test:vercel-build": "node scripts/seating/vercel-build-test.mjs",
     "email:final-details": "node --env-file-if-exists=.env scripts/email/prepare-final-details.mjs",
-    "test:email:final-details": "node scripts/email/selftest-final-details.mjs"
+    "test:email:final-details": "node scripts/email/selftest-final-details.mjs",
+    "email:final-details:check": "node scripts/email/selftest-final-details.mjs && node scripts/email/prepare-final-details.mjs",
+    "email:final-details:audit": "node --env-file-if-exists=.env scripts/email/prepare-final-details.mjs --audit",
+    "email:final-details:test": "node --env-file-if-exists=.env scripts/email/prepare-final-details.mjs --send --to",
+    "email:final-details:send": "node --env-file-if-exists=.env scripts/email/prepare-final-details.mjs --send --confirm-send-all"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

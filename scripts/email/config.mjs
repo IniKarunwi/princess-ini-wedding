@@ -399,8 +399,14 @@ export function subjectFinal(days) {
 /** Where a guest finds their table before the day. */
 export const SEATING_URL = 'https://www.princessandini.com/seating-chart';
 
-/** Where the Instant Camera lives, if and when it is switched on. */
-export const CAMERA_URL = 'https://princessandini.com/wedding';
+/**
+ * Where the Instant Camera lives.
+ *
+ * The www. form, matching SEATING_URL. Both hosts resolve, but a guest who
+ * long-presses a link sees the href, and two spellings of the same domain in
+ * one email looks like one of them is wrong.
+ */
+export const CAMERA_URL = 'https://www.princessandini.com/wedding';
 
 /**
  * The Instant Camera section.
@@ -428,39 +434,14 @@ export const CAMERA = {
 };
 
 /**
- * Dress code — COPIED from src/lib/wedding.ts, not invented here.
+ * Dress code.
  *
- * The email scripts are .mjs and the site's data is .ts, so there is no import
- * that works in both. The established pattern in this file is to duplicate
- * (see STAY), and the risk of duplication is drift.
- *
- * selftest-final-details.mjs parses src/lib/wedding.ts and asserts this matches
- * it exactly — title, invitation, and all nine swatches in order, names and
- * hexes. Change the site and this fails until it is brought back into line,
- * which is the only reason it is safe to copy at all.
+ * Moved to its own file — scripts/email/dress-code.mjs — because it is the one
+ * thing likely to change between now and the send, and it should not require
+ * opening a 500-line config to do it. Re-exported here so every existing
+ * import keeps working.
  */
-export const DRESS = {
-  title: 'Eden in Full Bloom',
-  invitation: 'We invite you to wear colours you would find in a garden.',
-  /**
-   * Formality, which the swatches alone do not convey. Not from the site —
-   * the site's dress section is about colour, and a guest reading only a
-   * palette could reasonably arrive in a garden-green sundress. Written for
-   * the email and asserted in the selftest so it cannot drift silently.
-   */
-  formality: 'Formal dresses and elegant gowns, in the colours below.',
-  swatches: [
-    ['#1b4332', 'Emerald'],
-    ['#2d6a4f', 'Garden Green'],
-    ['#52b788', 'Leaf'],
-    ['#95c9a5', 'Sage'],
-    ['#c9e4d0', 'Morning Mist'],
-    ['#f6f1e4', 'Ivory'],
-    ['#e3cf9a', 'Champagne'],
-    ['#e8b7a6', 'Garden Blush'],
-    ['#7b5236', 'Terracotta'],
-  ],
-};
+export { DRESS } from './dress-code.mjs';
 
 /**
  * The subject line.

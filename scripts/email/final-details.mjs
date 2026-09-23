@@ -83,11 +83,19 @@ const swatch = ([hex, name]) => `
               text-transform:uppercase;color:${P.muted};">${esc(name)}</p>
   </td>`;
 
-/** Nine swatches, five then four, so neither row is an orphan. */
+/**
+ * Two centred rows, split as evenly as possible.
+ *
+ * Not hard-coded to five-and-four. The palette is the one thing likely to
+ * change before the send, and a fixed split would leave a single orphan chip
+ * on its own line the moment the count changed. Ceil-then-rest keeps the
+ * wider row on top, which is how the printed guide sets it.
+ */
 const swatchRows = () => {
   const s = DRESS.swatches;
-  const rows = [s.slice(0, 5), s.slice(5)];
-  return rows.map(r => `
+  const half = Math.ceil(s.length / 2);
+  const rows = s.length <= 5 ? [s] : [s.slice(0, half), s.slice(half)];
+  return rows.filter(r => r.length).map(r => `
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"
            style="margin:0 auto;">
       <tr>${r.map(swatch).join('')}</tr>

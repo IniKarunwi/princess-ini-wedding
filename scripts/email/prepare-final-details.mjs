@@ -39,9 +39,10 @@ import {
   TABLE, subjectFinal, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO,
   WEDDING, CAMERA, assetUrls, ASSET_FILES,
 } from './config.mjs';
-import { selectForFinalDetails, tierBreakdown } from './final-details-recipients.mjs';
+import { selectForFinalDetails, tierBreakdown, ceremonyCount } from './final-details-recipients.mjs';
+import { validateDress } from './dress-code.mjs';
 import { renderFinalDetails } from './final-details.mjs';
-import { daysUntil } from './events.mjs';
+import { daysUntil, eventsForGuest } from './events.mjs';
 import { sendWithRetry, sleep, SendError } from './resend.mjs';
 
 /** Bump if this campaign is ever legitimately re-sent to the same people. */
@@ -60,7 +61,7 @@ const HELP = `
 Wedding Update #3 — final details
 
   (no flags)           Render previews to scratch/. Sends nothing. Default.
-  --dry-run            Show recipients and exclusions. Sends nothing.
+  --audit, --dry-run   Show recipients and every exclusion. Sends nothing.
   --to <address>       Send one copy to a single address, for checking.
   --limit <n>          Send to the first n recipients (a pilot).
   --confirm-send-all   Required to send to everyone. Never implied.
@@ -71,7 +72,8 @@ Wedding Update #3 — final details
                        matters for previewing when that has been switched off.
   --preview-tier <T>   JOINING | RECEPTION | AFTERPARTY — which guest the
                        preview is rendered for. Default: JOINING and RECEPTION.
-  --yes                Skip the typed confirmation.
+  --yes                Skip the typed confirmation for a pilot. It does NOT
+                       skip it for --confirm-send-all.
   -h, --help           This message
 
 Writes nothing to the database, and never reads seating data.
@@ -87,7 +89,7 @@ function parseArgs(argv) {
     switch (a) {
       case '--send': args.send = true; break;
       case '--send-test': args.send = true; break;      // alias; still needs --to
-      case '--dry-run': args.dryRun = true; break;
+      case '--dry-run': case '--audit': args.dryRun = true; break;
       case '--confirm-send-all': args.all = true; break;
       case '--camera-ready': args.cameraReady = true; break;
       case '--yes': case '-y': args.yes = true; break;
@@ -193,24 +195,55 @@ function writePreviews({ cameraReady, tier }) {
 
 /* ── Report ──────────────────────────────────────────────────────────────── */
 
-function report({ recipients, excluded, duplicates }) {
-  console.log(`\n${c.bold('Recipients')}  ${c.green(String(recipients.length))}`);
-  for (const [tier, n] of tierBreakdown(recipients)) {
-    console.log(`  ${String(n).padStart(4)}  ${tier}`);
-  }
+const BUCKET_LABEL = {
+  'not-approved':       'not approved / invitation still pending',
+  'no-rsvp':            "has not RSVP'd — no seat to confirm",
+  'not-attending':      "RSVP'd no — not attending",
+  'no-tier':            'approved but no usable tier',
+  'no-reception':       'Reception not among their approved events',
+  'plus-one-undecided': 'plus-one status unresolved',
+  'no-email':           'missing or unusable email address',
+};
 
+function report({ recipients, excluded, duplicates }, rows) {
   const byBucket = new Map();
   for (const e of excluded) {
     if (!byBucket.has(e.bucket)) byBucket.set(e.bucket, []);
     byBucket.get(e.bucket).push(e);
   }
-  console.log(`\n${c.bold('Excluded')}  ${c.amber(String(excluded.length))}`);
+  const n = (b) => (byBucket.get(b) ?? []).length;
+
+  const joining = recipients.filter(r => eventsForGuest(r).some(e => e.key === 'JOINING'));
+  const receptionOnly = recipients.filter(r => {
+    const ev = eventsForGuest(r).map(e => e.key);
+    return ev.includes('RECEPTION') && !ev.includes('JOINING');
+  });
+
+  console.log(`\n${c.bold('═══ RECIPIENT AUDIT ═══')}`);
+  console.log(`  ${c.dim(`source: the ${TABLE} table. Seating data is not consulted.`)}`);
+  console.log(`\n  rows read from ${TABLE} ............ ${String(rows.length).padStart(5)}`);
+  console.log(`  ${c.bold('ELIGIBLE RECIPIENTS')} ............. ${c.green(String(recipients.length).padStart(5))}`);
+  console.log(`      of which JOINING (ceremony) ... ${String(joining.length).padStart(5)}   ${c.dim('← see the phones note')}`);
+  console.log(`      of which RECEPTION-only ....... ${String(receptionOnly.length).padStart(5)}   ${c.dim('← do not')}`);
+  console.log(`  duplicate addresses removed ....... ${String(duplicates.length).padStart(5)}`);
+  console.log(`  ${c.bold('EXCLUDED')} ....................... ${c.amber(String(excluded.length).padStart(5))}`);
+  for (const [bucket, label] of Object.entries(BUCKET_LABEL)) {
+    console.log(`      ${label.padEnd(42, '.')} ${String(n(bucket)).padStart(5)}`);
+  }
+  const accounted = recipients.length + duplicates.length + excluded.length;
+  console.log(`  ${accounted === rows.length ? c.green('✓') : c.red('✗')} every row accounted for: ` +
+              `${recipients.length} + ${duplicates.length} + ${excluded.length} = ${accounted} of ${rows.length}`);
+
+  console.log(`\n${c.bold('Tier breakdown of recipients')}`);
+  for (const [tier, count] of tierBreakdown(recipients)) {
+    console.log(`  ${String(count).padStart(5)}  ${tier}`);
+  }
+
   for (const [bucket, list] of [...byBucket].sort((a, b) => b[1].length - a[1].length)) {
-    console.log(`  ${String(list.length).padStart(4)}  ${bucket}`);
-    for (const e of list.slice(0, 3)) {
-      console.log(`        ${c.dim(`${e.row.full_name ?? '(no name)'} — ${e.reason}`)}`);
+    console.log(`\n${c.bold(BUCKET_LABEL[bucket] ?? bucket)}  ${c.amber(String(list.length))}`);
+    for (const e of list) {
+      console.log(`  ${c.dim(`${(e.row.full_name ?? '(no name)').padEnd(28)} ${e.reason}`)}`);
     }
-    if (list.length > 3) console.log(`        ${c.dim(`… and ${list.length - 3} more`)}`);
   }
 
   if (duplicates.length) {
@@ -219,6 +252,32 @@ function report({ recipients, excluded, duplicates }) {
       console.log(`  ${c.dim(`${d.row.full_name} shares ${d.row.email} with ${d.firstSeen.full_name}`)}`);
     }
   }
+
+  /* ── Things worth a human look, flagged not fixed ───────────────────────
+     None of these change who is emailed. They are the rows where the data
+     looks like somebody meant something else, and quietly "correcting" them
+     would be guessing about a real guest's invitation. */
+  const suspicious = [];
+  for (const row of recipients) {
+    const email = String(row.email ?? '');
+    if (/\+\s*\d+\s*$/.test(String(row.full_name ?? ''))) {
+      suspicious.push(`${row.full_name} — name carries a "+N" seat count; only one email is sent`);
+    }
+    if (/^(test|example|noreply|no-reply)/i.test(email)) {
+      suspicious.push(`${row.full_name} — address looks like a placeholder: ${email}`);
+    }
+    if (row.plus_one_requested === true && !row.plus_one_status) {
+      suspicious.push(`${row.full_name} — plus_one_requested with no status, yet included`);
+    }
+  }
+  for (const e of excluded) {
+    if (e.bucket === 'no-email' && String(e.row.email ?? '').includes('@')) {
+      suspicious.push(`${e.row.full_name} — has an @ but was rejected: ${e.row.email}`);
+    }
+  }
+  console.log(`\n${c.bold('Flagged for a human')}  ${suspicious.length ? c.amber(String(suspicious.length)) : c.green('0')}`);
+  for (const line of suspicious) console.log(`  ${c.amber('⚠')} ${line}`);
+  if (!suspicious.length) console.log(`  ${c.dim('nothing looks odd')}`);
 }
 
 /* ── Sending ─────────────────────────────────────────────────────────────── */
@@ -271,6 +330,13 @@ async function main() {
   console.log(`  ${c.dim(`Instant Camera section: ${(args.cameraReady || CAMERA.enabled) ? 'included' : c.amber('OMITTED')}`)}`);
 
   // Previews always. They cost nothing and they are the artefact worth having.
+  const dressProblems = validateDress();
+  if (dressProblems.length) {
+    throw new Error(
+      'The dress code in scripts/email/dress-code.mjs is not valid:\n  · ' +
+      dressProblems.join('\n  · '));
+  }
+
   const { outDir, written } = writePreviews({ cameraReady: args.cameraReady, tier: args.previewTier });
   console.log(`\n${c.bold('Previews')}  ${c.dim(outDir)}`);
   for (const w of written) {
@@ -285,7 +351,7 @@ async function main() {
 
   const rows = await fetchRows();
   const selection = selectForFinalDetails(rows);
-  report(selection);
+  report(selection, rows);
 
   if (!args.send) {
     console.log(`\n${c.dim('Dry run. Nothing was sent.')}`);
@@ -316,8 +382,25 @@ async function main() {
   }
 
   const targets = args.limit ? selection.recipients.slice(0, args.limit) : selection.recipients;
-  const phrase = args.all ? `SEND TO ALL ${targets.length}` : `SEND ${targets.length}`;
-  if (!args.yes && !(await confirm(phrase))) {
+
+  // The phrase carries the COUNT, so it cannot be typed from memory or copied
+  // from a previous run — you have to have read the number above it.
+  const phrase = args.all
+    ? `SEND FINAL DETAILS TO ALL ${targets.length} GUESTS`
+    : `SEND ${targets.length}`;
+
+  if (args.all) {
+    console.log(`\n${c.red(c.bold('  ────────────────────────────────────────────────────'))}`);
+    console.log(`${c.red(c.bold(`   THIS SENDS TO ${targets.length} REAL GUESTS. IT CANNOT BE UNDONE.`))}`);
+    console.log(`${c.red(c.bold('  ────────────────────────────────────────────────────'))}`);
+    console.log(`  ${c.dim(`subject: ${subjectFinal(daysUntil(WEDDING.date, new Date()))}`)}`);
+    console.log(`  ${c.dim(`from:    ${process.env.INVITE_FROM || DEFAULT_FROM}`)}`);
+    console.log(`  ${c.dim(`camera section: ${(args.cameraReady || CAMERA.enabled) ? 'INCLUDED' : 'omitted'}`)}`);
+  }
+  // --yes skips a pilot's confirmation but NEVER the full send's. A flag that
+  // can turn a 120-person send into one keystroke is a flag that will.
+  const mustType = args.all || !args.yes;
+  if (mustType && !(await confirm(phrase))) {
     console.log(c.dim('Not confirmed. Nothing sent.'));
     return;
   }

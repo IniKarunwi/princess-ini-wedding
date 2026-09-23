@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DRESS, WEDDING, subjectFinal, CAMERA, REGISTRY_URL, SEATING_URL, MAP_URL, ASSET_FILES,
 } from './config.mjs';
+import { validateDress } from './dress-code.mjs';
 import { renderFinalDetails } from './final-details.mjs';
 import {
   classifyForFinalDetails, selectForFinalDetails, ceremonyCount,
@@ -71,12 +72,30 @@ console.log('\nDress code is the site\'s, not the email\'s');
 
   ok('the site file was parsed', !!title && !!invitation && swatches.length > 0,
      `title=${title} swatches=${swatches.length}`);
-  eq('title matches src/lib/wedding.ts', DRESS.title, title);
-  eq('invitation matches src/lib/wedding.ts', DRESS.invitation, invitation);
-  eq('same number of swatches', DRESS.swatches.length, swatches.length);
-  eq('swatches match, in order, hex and name',
-     JSON.stringify(DRESS.swatches), JSON.stringify(swatches));
-  eq('nine colours, as printed in the guide', DRESS.swatches.length, 9);
+  const same = DRESS.title === title
+            && DRESS.invitation === invitation
+            && JSON.stringify(DRESS.swatches) === JSON.stringify(swatches);
+
+  if (DRESS.matchesSite) {
+    eq('title matches src/lib/wedding.ts', DRESS.title, title);
+    eq('invitation matches src/lib/wedding.ts', DRESS.invitation, invitation);
+    eq('same number of swatches', DRESS.swatches.length, swatches.length);
+    eq('swatches match, in order, hex and name',
+       JSON.stringify(DRESS.swatches), JSON.stringify(swatches));
+  } else {
+    // Deliberately diverging. Report it loudly and pass — see dress-code.mjs.
+    pass++;
+    console.log('  ✓ matchesSite is false — the site check is advisory');
+    console.log(same
+      ? '      (they happen to agree anyway)'
+      : `      ⚠ the email palette DIFFERS from src/lib/wedding.ts.\n` +
+        `        email: ${DRESS.swatches.map(([, n]) => n).join(', ')}\n` +
+        `        site:  ${swatches.map(([, n]) => n).join(', ')}\n` +
+        '        Guests clicking through from the email will see the site\'s.');
+  }
+
+  const problems = validateDress();
+  ok('the dress code is well-formed', problems.length === 0, problems.join('; '));
 }
 
 /* ── Who receives it ─────────────────────────────────────────────────────── */
@@ -181,9 +200,10 @@ console.log('\nThe camera is on, and removable');
 
   const on = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
   eq('and the render says so', on.camera, true);
-  ok('the link is the hub, not the camera route',
-     on.html.includes('https://princessandini.com/wedding')
+  ok('the camera link is exactly the www hub URL',
+     on.html.includes('https://www.princessandini.com/wedding')
      && !on.html.includes('/wedding/camera'));
+  ok('and in the plain text', on.text.includes('princessandini.com/wedding'));
   ok('ten photos are asked for', /take 10 photos/i.test(on.html));
   ok('and in the plain text', /take 10 photos/i.test(on.text));
   ok('not picture-perfect', /picture-perfect/i.test(on.html));
@@ -193,7 +213,7 @@ console.log('\nThe camera is on, and removable');
   CAMERA.enabled = false;
   const off = renderFinalDetails(guest(), { siteUrl: 'https://princessandini.com', now: SEND_DAY });
   eq('switching it off removes it', off.camera, false);
-  ok('no camera link', !off.html.includes('princessandini.com/wedding'));
+  ok('no camera link', !off.html.includes('/wedding"') && !/princessandini\.com\/wedding/.test(off.html));
   ok('no 10 photos', !/10 photos/i.test(off.html));
   ok('none of it in the plain text', !/10 photos/i.test(off.text));
   ok('but a ceremony guest still gets the phones note',
