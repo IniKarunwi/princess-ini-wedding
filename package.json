@@ -36,7 +36,9 @@
     "test:seating-ui": "node scripts/seating/ui-test.mjs",
     "test:vercel-build": "node scripts/seating/vercel-build-test.mjs",
     "test:camera-api": "node scripts/camera/api-test.mjs",
-    "test:camera-ui": "node scripts/camera/ui-test.mjs"
+    "test:camera-ui": "node scripts/camera/ui-test.mjs",
+    "test:camera-send": "node scripts/camera/send-test.mjs",
+    "test:camera-roundtrip": "node scripts/camera/roundtrip-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

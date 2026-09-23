@@ -175,9 +175,56 @@ export function releasePhoto(photo: PreparedPhoto | null): void {
 
 /* ── Sending ──────────────────────────────────────────────────────────────── */
 
+/**
+ * What actually went wrong, in terms a person can act on.
+ *
+ * ── Why this exists ────────────────────────────────────────────────────────
+ * Every failure used to arrive at the guest as "The connection dropped." —
+ * including the ones that were nothing of the kind. A 503 from our own
+ * function because an environment variable is unset, a 502 because Supabase
+ * refused the service-role key, a 400 from Storage because the bucket does
+ * not accept the type: all of them are >= 500 or a thrown fetch, all of them
+ * were classified the same, and the server's own explanation was read and
+ * discarded.
+ *
+ * That is fine for the guest, who can only ever try again. It is useless on
+ * a phone at a wedding where nobody can open a console. So the category, the
+ * stage and the HTTP status are kept and shown, small and plain.
+ *
+ * ── What may appear here ───────────────────────────────────────────────────
+ * Only a stage name, an HTTP status, and the machine-readable `error` field
+ * our own API returns (`not_configured`, `upstream`, `rate_limited`…). Never
+ * a URL, never a token, never a header, and never the body of a Storage
+ * error. The signed URL contains a credential in its query string and is
+ * deliberately never rendered or logged.
+ */
+export interface SendDiagnostic {
+  /** Which half of the send failed. */
+  stage: 'sign' | 'upload';
+  /**
+   * network  the request never completed — offline, DNS, TLS, cancelled
+   * timeout  it completed nothing within 60s
+   * server   a 5xx: our function or Supabase answered, unhappily
+   * refused  a 4xx: the request was understood and declined
+   */
+  kind: 'network' | 'timeout' | 'server' | 'refused';
+  /** HTTP status, or 0 when the request never got one. */
+  status: number;
+  /** Our API's own `error` field, when it sent one. */
+  code?: string;
+  attempts: number;
+}
+
+/** One line, short enough to read off a phone and repeat down a phone. */
+export function diagnosticLine(d: SendDiagnostic): string {
+  const bits = [d.stage, d.kind, d.status ? `HTTP ${d.status}` : null, d.code,
+                d.attempts > 1 ? `${d.attempts} attempts` : null];
+  return bits.filter(Boolean).join(' · ');
+}
+
 export type SendResult =
   | { ok: true; path: string }
-  | { ok: false; reason: string; detail?: string };
+  | { ok: false; reason: string; detail?: string; diagnostic?: SendDiagnostic };
 
 const TIMEOUT_MS = 60_000;
 /** Two retries, then the guest gets a button rather than more waiting. */
@@ -185,25 +232,63 @@ const RETRY_BACKOFF_MS = [2000, 6000];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** A failure worth trying again by itself: the network, a timeout, or a 5xx. */
-class Transient extends Error {}
+/**
+ * A failure worth trying again by itself: the network, a timeout, or a 5xx.
+ *
+ * It now carries WHY, because a 503 saying "SUPABASE_URL is not set" will not
+ * fix itself on the third attempt, and the guest deserves to be told
+ * something truer than "the connection dropped" once we stop trying.
+ */
+class Transient extends Error {
+  readonly info: Omit<SendDiagnostic, 'attempts'>;
+  constructor(info: Omit<SendDiagnostic, 'attempts'>) {
+    super(diagnosticLine({ ...info, attempts: 1 }));
+    this.info = info;
+  }
+}
 
 /** The server has decided. Repeating the question changes nothing. */
 class Permanent extends Error {
-  readonly status: number;
-  constructor(message: string, status: number) {
+  readonly info: Omit<SendDiagnostic, 'attempts'>;
+  constructor(message: string, info: Omit<SendDiagnostic, 'attempts'>) {
     super(message);
-    this.status = status;
+    this.info = info;
   }
 }
 
 async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, TIMEOUT_MS);
   try {
     return await run(ctrl.signal);
   } finally {
     clearTimeout(timer);
+    // Read by the fetch catch blocks below: an AbortError means the 60s ran
+    // out, which is a different thing from the network refusing, and the
+    // difference is the whole point of showing a category at all.
+    (withTimeout as { lastTimedOut?: boolean }).lastTimedOut = timedOut;
+  }
+}
+
+/** Distinguishes "we gave up waiting" from "it never connected". */
+const netKind = (e: unknown): 'timeout' | 'network' =>
+  (e as { name?: string })?.name === 'AbortError' ? 'timeout' : 'network';
+
+/**
+ * The machine-readable code our own API sends, if it sent one.
+ *
+ * Only `error` is read — never `detail`, which for a configuration failure
+ * names an environment variable. The name of an unset variable is not a
+ * secret, but it is not a thing to paint on a guest's screen either. It stays
+ * in the server's own logs, where it was already being written.
+ */
+async function codeFrom(res: Response): Promise<string | undefined> {
+  try {
+    const body = await res.json() as Record<string, unknown>;
+    return typeof body.error === 'string' ? body.error : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -233,15 +318,24 @@ async function attempt(sessionId: string, photo: PreparedPhoto): Promise<string>
         signal,
       });
     } catch (e) {
-      throw new Transient(String(e));
+      throw new Transient({ stage: 'sign', kind: netKind(e), status: 0 });
     }
 
-    if (res.status >= 500) throw new Transient(`sign ${res.status}`);
+    // A 5xx is still retried — a cold function or a blip is real. What has
+    // changed is that its status and code survive the retries, so the final
+    // message can say "the photo service answered 503" rather than inventing
+    // a dropped connection.
+    if (res.status >= 500) {
+      throw new Transient({
+        stage: 'sign', kind: 'server', status: res.status, code: await codeFrom(res),
+      });
+    }
     if (!res.ok) {
       const body = await res.json().catch(() => ({} as Record<string, unknown>));
       throw new Permanent(
         typeof body.detail === 'string' ? body.detail : 'That photo was not accepted.',
-        res.status,
+        { stage: 'sign', kind: 'refused', status: res.status,
+          code: typeof body.error === 'string' ? body.error : undefined },
       );
     }
     return (await res.json()) as { uploadUrl: string; path: string };
@@ -257,11 +351,20 @@ async function attempt(sessionId: string, photo: PreparedPhoto): Promise<string>
         signal,
       });
     } catch (e) {
-      throw new Transient(String(e));
+      // A CORS rejection, a DNS failure and being offline are indistinguishable
+      // to fetch — all of them arrive here as an opaque TypeError. The stage
+      // is what narrows it: failing HERE and not at sign means our own API was
+      // reachable and Supabase was not.
+      throw new Transient({ stage: 'upload', kind: netKind(e), status: 0 });
     }
 
-    if (res.status >= 500) throw new Transient(`upload ${res.status}`);
-    if (!res.ok) throw new Permanent('The photo could not be stored.', res.status);
+    if (res.status >= 500) {
+      throw new Transient({ stage: 'upload', kind: 'server', status: res.status });
+    }
+    if (!res.ok) {
+      throw new Permanent('The photo could not be stored.',
+        { stage: 'upload', kind: 'refused', status: res.status });
+    }
   });
 
   return signed.path;
@@ -276,20 +379,35 @@ async function attempt(sessionId: string, photo: PreparedPhoto): Promise<string>
 export async function sendPhoto(
   sessionId: string, photo: PreparedPhoto,
 ): Promise<SendResult> {
+  let last: Omit<SendDiagnostic, 'attempts'> | null = null;
+  let attempts = 0;
+
   for (let i = 0; i <= RETRY_BACKOFF_MS.length; i++) {
+    attempts++;
     try {
       return { ok: true, path: await attempt(sessionId, photo) };
     } catch (e) {
-      if (e instanceof Permanent) return { ok: false, reason: e.message };
+      if (e instanceof Permanent) {
+        return { ok: false, reason: e.message, diagnostic: { ...e.info, attempts } };
+      }
+      if (e instanceof Transient) last = e.info;
       if (i < RETRY_BACKOFF_MS.length) await sleep(RETRY_BACKOFF_MS[i]);
     }
   }
 
-  return {
-    ok: false,
-    reason: 'That did not send.',
-    detail: 'The connection dropped. Your photo is still here — try again.',
-  };
+  const diagnostic: SendDiagnostic = { ...(last ?? { stage: 'sign', kind: 'network', status: 0 }), attempts };
+
+  // Say what happened. "The connection dropped" is a specific claim, and it
+  // was being made about failures where the server answered perfectly
+  // promptly with an error.
+  const detail = diagnostic.kind === 'server'
+    ? `The photo service answered with an error (${diagnostic.status}). `
+      + 'Your photo is still here — try again.'
+    : diagnostic.kind === 'timeout'
+      ? 'It took too long to send. Your photo is still here — try again.'
+      : 'The connection dropped. Your photo is still here — try again.';
+
+  return { ok: false, reason: 'That did not send.', detail, diagnostic };
 }
 
 /* ── Ids ──────────────────────────────────────────────────────────────────── */

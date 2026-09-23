@@ -25,7 +25,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  newId, preparePhoto, releasePhoto, sendPhoto, type PreparedPhoto,
+  newId, preparePhoto, releasePhoto, sendPhoto, diagnosticLine,
+  type PreparedPhoto, type SendDiagnostic,
 } from './photoService';
 
 export type Stage =
@@ -48,6 +49,8 @@ export interface CameraSession {
   /** Called with whatever the file input produced. */
   accept(file: File | null | undefined): Promise<void>;
   send(): Promise<void>;
+  /** Set only after a failed send. See SendDiagnostic. */
+  diagnostic: SendDiagnostic | null;
   retake(): void;
   again(): void;
 }
@@ -59,6 +62,7 @@ export function useCameraSession(): CameraSession {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [diagnostic, setDiagnostic] = useState<SendDiagnostic | null>(null);
 
   /** Groups this sitting's photographs. Identifies a session, never a person. */
   const sessionId = useRef<string>(newId());
@@ -88,6 +92,7 @@ export function useCameraSession(): CameraSession {
     setError(null);
     setDetail(null);
     setFailed(false);
+    setDiagnostic(null);
     setStage('working');
 
     const result = await preparePhoto(file);
@@ -112,6 +117,7 @@ export function useCameraSession(): CameraSession {
     inFlight.current = true;
     setError(null);
     setDetail(null);
+    setDiagnostic(null);
     setStage('sending');
 
     const result = await sendPhoto(sessionId.current, current);
@@ -123,6 +129,7 @@ export function useCameraSession(): CameraSession {
       setPhoto(null);
       setSent((n) => n + 1);
       setFailed(false);
+      setDiagnostic(null);
       setStage('done');
       return;
     }
@@ -130,8 +137,16 @@ export function useCameraSession(): CameraSession {
     // Keep the photograph. The guest retries the send, never the picture.
     setError(result.reason);
     setDetail(result.detail ?? null);
+    setDiagnostic(result.diagnostic ?? null);
     setFailed(true);
     setStage('preview');
+
+    // Also to the console, where a laptop debugging a phone over Web
+    // Inspector can read it. Nothing here identifies the object or carries a
+    // credential — see SendDiagnostic.
+    if (result.diagnostic) {
+      console.warn('[camera] send failed:', diagnosticLine(result.diagnostic));
+    }
   }, []);
 
   const retake = useCallback(() => {
@@ -140,6 +155,7 @@ export function useCameraSession(): CameraSession {
     setError(null);
     setDetail(null);
     setFailed(false);
+    setDiagnostic(null);
     setStage('intro');
   }, []);
 
@@ -147,8 +163,9 @@ export function useCameraSession(): CameraSession {
     setError(null);
     setDetail(null);
     setFailed(false);
+    setDiagnostic(null);
     setStage('intro');
   }, []);
 
-  return { stage, photo, sent, error, detail, failed, accept, send, retake, again };
+  return { stage, photo, sent, error, detail, failed, diagnostic, accept, send, retake, again };
 }

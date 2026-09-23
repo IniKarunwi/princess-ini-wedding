@@ -31,6 +31,7 @@ import { C, F, GUTTER } from '@/lib/design';
 import { Reveal } from '@/components/site/primitives';
 import { BackToWedding } from './MenuPage';
 import { useCameraSession } from '@/features/camera/useCameraSession';
+import { diagnosticLine } from '@/features/camera/photoService';
 
 export default function ThroughYourEyes() {
   const cam = useCameraSession();
@@ -257,6 +258,29 @@ function Preview({ cam, onRetake }: { cam: Cam; onRetake: () => void }) {
             textAlign: 'center', margin: '0 0 1rem', lineHeight: 1.6,
           }}>
             {cam.detail}
+          </p>
+        )}
+        {/*
+          The stage, the category and the status, on the screen the failure
+          happened on. A guest at a wedding cannot open a console, and
+          "connection error" is the same four words whether the network is
+          down or an environment variable is unset. This is small, grey and
+          ignorable if you do not know what it means — and the only way to
+          tell those two apart from a phone if you do.
+
+          It carries no URL, no token and no variable name. See
+          SendDiagnostic in photoService.ts for what may appear here.
+        */}
+        {cam.diagnostic && (
+          <p
+            data-testid="send-diagnostic"
+            style={{
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              fontSize: '0.62rem', color: 'rgba(255,255,255,0.34)',
+              textAlign: 'center', margin: '0 0 1rem', letterSpacing: '0.02em',
+            }}
+          >
+            {diagnosticLine(cam.diagnostic)}
           </p>
         )}
 
