@@ -16,7 +16,7 @@
  * ── The one rule that still applies ────────────────────────────────────────
  * A guest is shown only the events they are invited to. This letter does not
  * enumerate the day, and — deliberately — the phones paragraph names no part
- * of it. It says "a no-phones event" and "our media team", never "ceremony"
+ * of it. It says "a no-phones event" and "our photographers", never "ceremony"
  * or "service", so a reception-only guest reads it without learning that a
  * service they were not invited to exists. An earlier draft said "ceremony"
  * and had to be gated on the JOINING tier; wording it this way removes the
@@ -135,8 +135,8 @@ export function renderFinalDetails(row, {
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
           ${para(`Dear ${esc(name)},`)}
           ${para(`It&rsquo;s ${esc(countdown)} to our wedding, and we&rsquo;re so excited to
-                  have you celebrate with us! Here&rsquo;s a refresher on everything
-                  you need for the day.`, '0')}
+                  have you celebrate with us! Here&rsquo;s everything you need for
+                  Saturday.`, '0')}
         </td></tr>
 
         ${divider()}
@@ -193,7 +193,7 @@ ${shot ? `
              against it by selftest-final-details.mjs. Nothing here is written
              fresh for the email. -->
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
-          ${eyebrow('Third')}
+          ${eyebrow('Third · What to wear')}
           ${heading(DRESS.title, '14px')}
           ${para(esc(DRESS.invitation), '6px')}
           ${para(`<em>${esc(DRESS.formality)}</em>`, '22px')}
@@ -227,13 +227,14 @@ ${camera ? `
           <h2 style="margin:0 0 14px;font:700 26px/1.25 ${SERIF};color:${P.green};">
             <span aria-hidden="true">&#128247;</span> Through Your Eyes
           </h2>
-          ${para(`It&rsquo;s a no-phones event &mdash; we&rsquo;d love our media team to have
-                  no restrictions as they capture our special moments.`)}
+          ${para(`It&rsquo;s a no-phones event &mdash; we&rsquo;d love our photographers to
+                  capture the day without a sea of phones in the way.`)}
           ${para(`But we&rsquo;d also love to experience our wedding through your eyes.
                   Please take ${CAMERA.moments} pictures for us at
                   <a href="${esc(CAMERA_URL)}" style="color:${P.green};text-decoration:underline;">${SITE}/wedding</a>.`)}
-          ${para(`They don&rsquo;t have to be picture-perfect &mdash; just the cute and
-                  interesting moments we might otherwise never get to see.`, '0')}
+          ${para(`They don&rsquo;t have to be picture-perfect &mdash; just the laughs, the
+                  hugs, the dancing, the little moments we might otherwise never get
+                  to see.`, '0')}
         </td></tr>` : `
         ${divider()}
 
@@ -241,8 +242,8 @@ ${camera ? `
         <tr><td class="pad" style="padding:0 56px 8px;text-align:center;">
           ${eyebrow('Finally')}
           ${heading('A No-Phones Celebration', '14px')}
-          ${para(`It&rsquo;s a no-phones event &mdash; we&rsquo;d love our media team to have
-                  no restrictions as they capture our special moments, and we&rsquo;d love
+          ${para(`It&rsquo;s a no-phones event &mdash; we&rsquo;d love our photographers to
+                  capture the day without a sea of phones in the way, and we&rsquo;d love
                   you to be fully present with us.`, '0')}
         </td></tr>`}
 
@@ -250,6 +251,8 @@ ${camera ? `
 
         <!-- ── CLOSING ───────────────────────────────────────────────────── -->
         <tr><td class="pad" style="padding:0 56px 52px;text-align:center;">
+          ${para(`Thank you for the love and the prayers that have carried us to this
+                  week. It means more to us than we can say.`, '14px')}
           <p style="margin:0 0 26px;font:italic 400 18px/1.7 ${SERIF};color:${P.greenMid};">
             We look forward to having you. &#10084;&#65039;
           </p>
@@ -289,7 +292,7 @@ ${camera ? `
     `Dear ${name},`,
     '',
     `It's ${countdown} to our wedding, and we're so excited to have you`,
-    "celebrate with us! Here's a refresher on everything you need for the day.",
+    "celebrate with us! Here's everything you need for Saturday.",
     '',
     'FIRST — EVERYTHING IS ON OUR WEBSITE',
     `  Our website is up at ${SITE}. If you're ever in doubt about any detail,`,
@@ -304,7 +307,7 @@ ${camera ? `
     '  seat right now.',
     `  ${SEATING_URL}`,
     '',
-    `THIRD — ${DRESS.title.toUpperCase()}`,
+    `THIRD — WHAT TO WEAR — ${DRESS.title.toUpperCase()}`,
     `  ${DRESS.invitation}`,
     `  ${DRESS.formality}`,
     `  ${DRESS.swatches.map(([, n]) => n).join(' · ')}`,
@@ -315,20 +318,23 @@ ${camera ? `
     '',
     ...(camera ? [
       'FINALLY — THROUGH YOUR EYES',
-      "  It's a no-phones event — we'd love our media team to have no",
-      '  restrictions as they capture our special moments.',
+      "  It's a no-phones event — we'd love our photographers to capture the",
+      '  day without a sea of phones in the way.',
       "  But we'd also love to experience our wedding through your eyes.",
       `  Please take ${CAMERA.moments} pictures for us at ${SITE}/wedding.`,
-      "  They don't have to be picture-perfect — just the cute and interesting",
-      '  moments we might otherwise never get to see.',
+      "  They don't have to be picture-perfect — just the laughs, the hugs, the",
+      '  dancing, the little moments we might otherwise never get to see.',
       '',
     ] : [
       'FINALLY — A NO-PHONES CELEBRATION',
-      "  It's a no-phones event — we'd love our media team to have no",
-      "  restrictions as they capture our special moments, and we'd love you to",
-      '  be fully present with us.',
+      "  It's a no-phones event — we'd love our photographers to capture the",
+      "  day without a sea of phones in the way, and we'd love you to be fully",
+      '  present with us.',
       '',
     ]),
+    'Thank you for the love and the prayers that have carried us to this week.',
+    'It means more to us than we can say.',
+    '',
     'We look forward to having you.',
     '',
     'With love,',

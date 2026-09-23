@@ -211,7 +211,7 @@ console.log('\nEvery promised element is present');
   ok('the opening line, with the countdown computed',
      /It&rsquo;s 3 days to our wedding/.test(r.html), r.html.match(/It&rsquo;s [^,]*/)?.[0]);
   ok('and in plain text', r.text.includes("It's 3 days to our wedding"));
-  ok('a refresher, not an announcement', /refresher on everything/i.test(r.html));
+  ok('it says what it is for', /everything you need for\s+Saturday/i.test(r.html));
 
   ok('first, the website', /First/.test(r.html) && r.html.includes('princessandini.com'));
   ok('in doubt, go there', /in doubt about any detail/i.test(r.html));
@@ -224,14 +224,19 @@ console.log('\nEvery promised element is present');
   ok("and you don't have to wait", /don&rsquo;t have to wait until Saturday/i.test(r.html));
   ok('the seating-chart link', r.html.includes(SEATING_URL));
 
-  ok('third, the dress code', /Third/.test(r.html) && r.html.includes(DRESS.title));
+  ok('third, the dress code', /Third · What to wear/.test(r.html) && r.html.includes(DRESS.title));
   ok('every swatch hex is rendered', DRESS.swatches.every(([hex]) => r.html.includes(hex)));
   ok('every swatch name is rendered', DRESS.swatches.every(([, n]) => r.html.includes(n)));
 
   ok('the location', r.html.includes(WEDDING.venueName) && r.html.includes(WEDDING.venueArea));
 
   ok('finally, the phones and the camera', /Finally/.test(r.html));
-  ok('the media team is named', /media team/i.test(r.html));
+  ok('the photographers are named', /photographers/i.test(r.html));
+  ok('the vivid list survived — it is what makes someone take a photo',
+     /laughs, the\s+hugs, the dancing/i.test(r.html));
+  ok('the closing thanks them before signing off',
+     /carried us to this\s+week/i.test(r.html));
+  ok('and in the plain text', /carried us to this week/i.test(r.text));
 
   ok('we look forward to having you', /look forward to having you/i.test(r.html));
   ok('signed by the couple',
