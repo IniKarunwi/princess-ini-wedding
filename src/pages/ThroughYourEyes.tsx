@@ -155,7 +155,13 @@ function Intro({ cam, onTake }: { cam: Cam; onTake: () => void }) {
               width: 84, height: 84, borderRadius: '50%',
               border: `2px solid ${C.green}`, background: 'transparent',
               cursor: busy ? 'default' : 'pointer',
-              display: 'grid', placeItems: 'center', padding: 0,
+              // inline-grid, not grid. `display: grid` makes the button a
+              // BLOCK-level box, and text-align on the parent does not centre
+              // a block-level box — so the shutter sat hard against the left
+              // gutter at every width while its label stayed centred.
+              // inline-grid keeps placeItems centring the inner disc and lets
+              // the parent's text-align centre the button itself.
+              display: 'inline-grid', placeItems: 'center', padding: 0,
               opacity: busy ? 0.45 : 1, transition: 'opacity .25s ease',
             }}
           >

@@ -165,6 +165,31 @@ await page.waitForSelector('[data-testid="take-photo"]');
   ok('no preview yet', !(await page.isVisible('[data-testid="preview-image"]')));
   ok('no video element — getUserMedia is gone',
      (await page.locator('video').count()) === 0);
+
+  // The shutter, its label and its hint must read as one centred unit.
+  // `display: grid` made the button a block-level box, which text-align
+  // cannot centre, so it sat against the left gutter at every width while
+  // the label stayed centred. Measured, not eyeballed — this shipped to a
+  // real phone precisely because nobody measured it.
+  const centres = await page.evaluate(() => {
+    const mid = (el) => { const r = el.getBoundingClientRect(); return r.left + r.width / 2; };
+    const byText = (re) => [...document.querySelectorAll('p')].find((n) => re.test(n.textContent));
+    return {
+      shutter: mid(document.querySelector('[data-testid="take-photo"]')),
+      label: mid(byText(/take a photo/i)),
+      hint: mid(byText(/camera will open/i)),
+      page: window.innerWidth / 2,
+    };
+  });
+  ok('the shutter is centred in the viewport',
+     Math.abs(centres.shutter - centres.page) <= 1,
+     `shutter at ${Math.round(centres.shutter)}, centre is ${Math.round(centres.page)}`);
+  ok('the label sits on the same axis',
+     Math.abs(centres.shutter - centres.label) <= 1,
+     `shutter ${Math.round(centres.shutter)} vs label ${Math.round(centres.label)}`);
+  ok('and so does the hint',
+     Math.abs(centres.shutter - centres.hint) <= 1,
+     `shutter ${Math.round(centres.shutter)} vs hint ${Math.round(centres.hint)}`);
 }
 
 /* ── Capture → preview ───────────────────────────────────────────────────── */
