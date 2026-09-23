@@ -215,7 +215,27 @@ export function renderFinalDetails(row, {
           ${heading(DRESS.title, '14px')}
           ${para(esc(DRESS.invitation), '22px')}
           ${swatchRows()}
-          ${para(`You can see the full colour palette and dress inspiration on
+
+          <!-- The formality, which the colours do not convey. Two stacked
+               blocks rather than side-by-side columns: Outlook's table model
+               makes two equal columns of unequal text unreliable, and on a
+               phone they would stack anyway. -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                 style="margin:22px 0 0;">
+            ${[DRESS.gentlemen, DRESS.ladies].map((side, i) => `
+            <tr><td style="padding:${i ? '16px' : '0'} 0 0;">
+              <p style="margin:0 0 6px;font:700 10px/1.6 ${SANS};letter-spacing:2.5px;
+                        text-transform:uppercase;color:${P.gold};text-align:center;">
+                ${esc(side.label)}
+              </p>
+              ${side.notes.map(n => `
+              <p style="margin:0 0 4px;font:400 14px/1.7 ${SANS};color:${P.muted};text-align:center;">
+                ${esc(n)}
+              </p>`).join('')}
+            </td></tr>`).join('')}
+          </table>
+
+          ${para(`You can see the full dress guide on
                   <a href="${esc(siteUrl)}" style="color:${P.green};text-decoration:underline;">${SITE}</a>.`,
                   '0')}
         </td></tr>
@@ -339,7 +359,13 @@ ${camera ? `
     `THREE — DRESS CODE REFRESHER — ${DRESS.title.toUpperCase()}`,
     `  ${DRESS.invitation}`,
     `  ${DRESS.swatches.map(([, n]) => n).join(' · ')}`,
-    `  You can see the full colour palette and dress inspiration on ${SITE}.`,
+    '',
+    `  ${DRESS.gentlemen.label.toUpperCase()}`,
+    ...DRESS.gentlemen.notes.map(n => `    ${n}`),
+    `  ${DRESS.ladies.label.toUpperCase()}`,
+    ...DRESS.ladies.notes.map(n => `    ${n}`),
+    '',
+    `  You can see the full dress guide on ${SITE}.`,
     '',
     'FOUR — THE LOCATION',
     `  We'll be celebrating at ${WEDDING.venueName}, ${WEDDING.venueArea}.`,

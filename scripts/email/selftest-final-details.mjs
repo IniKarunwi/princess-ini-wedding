@@ -257,8 +257,15 @@ console.log('\nEvery promised element is present');
   ok('the palette name', r.html.includes(DRESS.title));
   ok('every swatch hex is rendered', DRESS.swatches.every(([hex]) => r.html.includes(hex)));
   ok('every swatch name is rendered', DRESS.swatches.every(([, n]) => r.html.includes(n)));
-  ok('and a pointer to the full palette',
-     /full colour palette and dress inspiration/i.test(r.html));
+  ok('and a pointer to the full guide', /full dress guide/i.test(r.html));
+  ok('the formality is stated, not just the colours',
+     /English Formal/i.test(r.html) && /Royal Garden Elegance/i.test(r.html));
+  ok('black tie is named', /Black tie or formal tuxedos/i.test(r.html));
+  ok('and the native-attire note', /traditional\/native attire/i.test(r.html));
+  ok('fascinators are welcomed', /Fascinators/i.test(r.html));
+  ok('all of it in the plain text too',
+     /ENGLISH FORMAL/.test(r.text) && /ROYAL GARDEN ELEGANCE/.test(r.text)
+     && /Black tie/.test(r.text));
 
   ok('four — the location', /We&rsquo;ll be celebrating at/i.test(r.html));
   ok('the venue and area', r.html.includes(WEDDING.venueName) && r.html.includes(WEDDING.venueArea));

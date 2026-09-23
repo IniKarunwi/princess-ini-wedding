@@ -112,25 +112,61 @@ export const hotelMapUrl = (name: string, area: string) =>
 /**
  * Dress code, from the printed guide.
  *
- * The swatch hexes are the ones drawn in the guide's colour-palette page, so
- * the circles on screen match the circles guests were posted.
+ * ── Corrected against public/email/dress-guide.jpg ─────────────────────────
+ * This previously held nine greens and neutrals — Garden Green, Morning Mist,
+ * Champagne, Terracotta — which were not the wedding's palette at all. The
+ * real guide, the one guests were posted and the one already deployed at
+ * /email/dress-guide.jpg, is a garden palette in the literal sense: magenta,
+ * coral, burnt orange, yellow, sky blue, lavender, and three greens.
+ *
+ * The hexes below were sampled from that file rather than eyeballed — the
+ * median of the centre of each printed circle, so an antialiased rim cannot
+ * shift them.
  */
 export const DRESS = {
   title: 'Eden in Full Bloom',
   intro:
     'Our celebration is inspired by the beauty of a flourishing garden — where vibrant blooms, rich foliage and timeless elegance come together in perfect harmony.',
-  invitation: 'We invite you to wear colours you would find in a garden.',
+  invitation: 'We invite you to wear colours you’d find in a garden.',
   swatches: [
-    ['#1b4332', 'Emerald'],
-    ['#2d6a4f', 'Garden Green'],
-    ['#52b788', 'Leaf'],
-    ['#95c9a5', 'Sage'],
-    ['#c9e4d0', 'Morning Mist'],
-    ['#f6f1e4', 'Ivory'],
-    ['#e3cf9a', 'Champagne'],
-    ['#e8b7a6', 'Garden Blush'],
-    ['#7b5236', 'Terracotta'],
+    ['#9f1c48', 'Magenta'],
+    ['#ec8475', 'Coral Pink'],
+    ['#dc7331', 'Burnt Orange'],
+    ['#826927', 'Golden Cypress'],
+    ['#8ca389', 'Sage'],
+    ['#ebc769', 'Butter Yellow'],
+    ['#8ab7de', 'Sky Blue'],
+    ['#9681ba', 'Lavender'],
+    ['#1d5c3f', 'Emerald'],
   ],
+
+  /**
+   * The two halves of the printed guide, transcribed. Not summarised — a
+   * guest deciding what to wear on Friday night needs the actual list, and
+   * "smart garden formal" is not an instruction anyone can act on.
+   */
+  gentlemen: {
+    heading: 'For the Gentlemen',
+    label: 'English Formal',
+    notes: [
+      'Black tie or formal tuxedos are preferred.',
+      'Tailored dark or neutral suits are also welcome.',
+      'Crisp dress shirts, polished shoes and elegant accessories are encouraged.',
+      'Kindly refrain from wearing traditional/native attire.',
+    ],
+    close: 'Timeless sophistication is the desired look.',
+  },
+  ladies: {
+    heading: 'For the Ladies',
+    label: 'Royal Garden Elegance',
+    notes: [
+      'Floor-length gowns or elegant cocktail and midi dresses are welcome.',
+      'Luxurious fabrics such as silk, satin, chiffon, organza, lace or crepe are encouraged.',
+      'Fascinators, statement hats or refined headpieces are warmly welcomed.',
+      'Finish your look with elegant heels, delicate jewellery and classic accessories.',
+    ],
+    close: 'Think polished, feminine and effortlessly elegant.',
+  },
 } as const;
 
 /** Where the navigation can go. Seating chart is built by another workstream. */

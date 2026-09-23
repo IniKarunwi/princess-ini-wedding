@@ -690,8 +690,9 @@ export default function Home() {
             {DRESS.swatches.map(([, name]) => name.replace(/ /g, ' ')).join('  ·  ')}
           </p>
         </Reveal>
-        {/* Directly under the palette, because it is an answer to it: the
-            colours, and then one reading of the colours. */}
+        {/* Directly under the palette, because it answers the question the
+            palette raises. Nine circles say which colours; these say how
+            formal, which is the half a guest cannot infer. */}
         <Reveal delay={280}>
           <DressInspiration />
         </Reveal>

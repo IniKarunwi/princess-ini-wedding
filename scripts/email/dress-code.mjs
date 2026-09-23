@@ -47,19 +47,48 @@ export const DRESS = {
 
   title: 'Eden in Full Bloom',
 
-  invitation: 'We invite you to wear colours you would find in a garden.',
+  invitation: 'We invite you to wear colours you’d find in a garden.',
 
+  /**
+   * Sampled from public/email/dress-guide.jpg — the printed sheet — rather
+   * than eyeballed: the median of the centre of each circle, so an
+   * antialiased rim cannot shift the value.
+   */
   swatches: [
-    ['#1b4332', 'Emerald'],
-    ['#2d6a4f', 'Garden Green'],
-    ['#52b788', 'Leaf'],
-    ['#95c9a5', 'Sage'],
-    ['#c9e4d0', 'Morning Mist'],
-    ['#f6f1e4', 'Ivory'],
-    ['#e3cf9a', 'Champagne'],
-    ['#e8b7a6', 'Garden Blush'],
-    ['#7b5236', 'Terracotta'],
+    ['#9f1c48', 'Magenta'],
+    ['#ec8475', 'Coral Pink'],
+    ['#dc7331', 'Burnt Orange'],
+    ['#826927', 'Golden Cypress'],
+    ['#8ca389', 'Sage'],
+    ['#ebc769', 'Butter Yellow'],
+    ['#8ab7de', 'Sky Blue'],
+    ['#9681ba', 'Lavender'],
+    ['#1d5c3f', 'Emerald'],
   ],
+
+  /**
+   * The formality, in the guide's own words. The colours alone do not say
+   * black tie, and "kindly refrain from traditional/native attire" is the one
+   * line a guest would be embarrassed to discover on the day.
+   *
+   * Two short lists rather than the full sheet: the email points at the
+   * website for the rest.
+   */
+  gentlemen: {
+    label: 'English Formal',
+    notes: [
+      'Black tie or formal tuxedos are preferred.',
+      'Tailored dark or neutral suits are also welcome.',
+      'Kindly refrain from wearing traditional/native attire.',
+    ],
+  },
+  ladies: {
+    label: 'Royal Garden Elegance',
+    notes: [
+      'Floor-length gowns or elegant cocktail and midi dresses.',
+      'Fascinators, statement hats or refined headpieces are warmly welcomed.',
+    ],
+  },
 };
 
 /**
