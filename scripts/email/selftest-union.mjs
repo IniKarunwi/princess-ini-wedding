@@ -14,9 +14,10 @@
  *   4. the withheld name is held back and reported, not silently dropped
  */
 
-import { unionAudience, WITHHELD } from './union-audience.mjs';
+import { unionAudience, eventsForRecipient, WITHHELD } from './union-audience.mjs';
 import { seatedFrom } from './reconcile-seating.mjs';
 import { classifyForFinalDetails } from './final-details-recipients.mjs';
+import { eventsForGuest } from './events.mjs';
 
 let pass = 0;
 const failures = [];
@@ -187,6 +188,52 @@ console.log('\nJOINING is read from approved_for and nowhere else');
   const u = unionAudience(rows, seats(['Late Arrival']));
   eq('added by the seat', u.additions.length, 1);
   eq('but not to the ceremony', u.additions[0].joining, false);
+}
+
+console.log('\nWhat a seat grants, and what it can never grant');
+{
+  const rows = [
+    rsvp({ id: 1, full_name: 'After Party Only', email: 'ap@example.com',
+           approved_for: 'AFTERPARTY', attending: null }),
+    rsvp({ id: 2, full_name: 'Ceremony Guest', email: 'j@example.com',
+           approved_for: 'JOINING', attending: null }),
+    rsvp({ id: 3, full_name: 'Rule A Guest', email: 'a@example.com',
+           approved_for: 'RECEPTION' }),
+  ];
+  const u = unionAudience(rows, seats(['After Party Only', 'Ceremony Guest', 'Rule A Guest']));
+  const keysFor = (id) => eventsForRecipient(
+    u.audience.find(e => e.row.id === id)).map(e => e.key);
+
+  // The seat is the evidence that they are coming to lunch, so the letter
+  // about lunch has to say so.
+  ok('a seat grants RECEPTION to an after-party tier',
+     keysFor(1).includes('RECEPTION'), keysFor(1).join('+'));
+  ok('and does not take away what they already had',
+     keysFor(1).includes('AFTERPARTY'));
+  ok('but it does NOT grant the ceremony',
+     !keysFor(1).includes('JOINING'), keysFor(1).join('+'));
+
+  ok('a JOINING tier keeps the ceremony — from approved_for, not the seat',
+     keysFor(2).includes('JOINING'));
+
+  // A rule A recipient's letter must be exactly what it was before any of
+  // this existed.
+  const entry = u.audience.find(e => e.row.id === 3);
+  eq('a rule A recipient is untouched by seating',
+     eventsForRecipient(entry).map(e => e.key).join('+'),
+     eventsForGuest(entry.row).map(e => e.key).join('+'));
+}
+{
+  // Exhaustive: no tier, seated, can ever come out holding JOINING.
+  for (const tier of ['RECEPTION', 'AFTERPARTY', 'Reception + After Party', null, 'nonsense']) {
+    const rows = [rsvp({ id: 1, full_name: 'Seated Guest', email: 's@example.com',
+                         approved_for: tier, attending: null })];
+    const u = unionAudience(rows, seats(['Seated Guest']));
+    const added = u.additions[0];
+    ok(`a seat + tier "${tier}" never yields JOINING`,
+       !added || !eventsForRecipient(added).some(e => e.key === 'JOINING'));
+    if (added) ok(`  …and is counted reception-only`, added.joining === false);
+  }
 }
 
 /* ── 4 · The withheld name ───────────────────────────────────────────────── */

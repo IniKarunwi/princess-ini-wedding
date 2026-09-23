@@ -58,7 +58,7 @@
  */
 
 import { TABLE } from './config.mjs';
-import { parseTiers } from './events.mjs';
+import { EVENTS, EVENT_ORDER, eventsForGuest, parseTiers } from './events.mjs';
 import { isSendableEmail } from './recipients.mjs';
 import { classifyForFinalDetails } from './final-details-recipients.mjs';
 import { seatedFrom, reconcile } from './reconcile-seating.mjs';
@@ -198,6 +198,32 @@ function isJoining(row) {
   return parseTiers(row.approved_for).includes('JOINING');
 }
 
+/**
+ * Which parts of the day one recipient's letter shows.
+ *
+ * For a Set A recipient this is exactly `eventsForGuest` — their RSVP tier,
+ * untouched, so nothing about the letter they were always going to receive
+ * changes.
+ *
+ * For a Set B addition the seat grants RECEPTION and nothing else. Some of
+ * them hold a tier that does not name it — an after-party guest who has since
+ * been seated at lunch — and a letter about a reception seat that does not
+ * mention the reception would be incoherent. The seat is the evidence.
+ *
+ * JOINING is never added here. If a Set B addition's letter carries the
+ * ceremony section it is because `approved_for` says JOINING, which is a fact
+ * about their invitation and not about their chair. A test asserts this for
+ * every tier.
+ */
+export function eventsForRecipient(entry) {
+  const base = eventsForGuest(entry.row);
+  if (entry.source !== 'seating') return base;
+
+  const keys = new Set(base.map(e => e.key));
+  keys.add('RECEPTION');          // the seat, and only ever this one
+  return EVENT_ORDER.filter(k => keys.has(k)).map(k => EVENTS[k]);
+}
+
 /* ── Report ──────────────────────────────────────────────────────────────── */
 
 const c = {
@@ -232,20 +258,29 @@ async function get(path) {
   return res.json();
 }
 
-async function main() {
+/**
+ * Reads the two tables the rule needs. Read-only: two GETs, no write verb in
+ * this file at all, and the published layout is never modified.
+ *
+ * Exported because the sender uses exactly this, so the audience it delivers
+ * to is built from the same data by the same code as the audit — not by a
+ * second implementation that could drift from it.
+ */
+export async function fetchUnionInputs() {
   const layouts = await get('seating_layouts?status=eq.published&select=version,payload,updated_at');
   if (!layouts.length) throw new Error('No PUBLISHED seating layout exists yet.');
   const published = layouts[0];
   const rsvpRows = await get(`${TABLE}?select=*`);
-  const seated = seatedFrom(published.payload);
+  return { published, rsvpRows, seated: seatedFrom(published.payload) };
+}
 
-  const u = unionAudience(rsvpRows, seated);
-
-  console.log(`\n${c.bold('═══ FINAL-DETAILS AUDIENCE — UNION RULE — DRY RUN ═══')}`);
+/** The audit. Printing only — it decides nothing. */
+export function printUnionReport(u, { published, rsvpRows, seated, heading }) {
+  console.log(`\n${c.bold(heading ?? '═══ FINAL-DETAILS AUDIENCE — UNION RULE — DRY RUN ═══')}`);
   console.log(`  ${c.dim(`published layout v${published.version}, updated ${published.updated_at}`)}`);
   console.log(`  ${c.dim(`${seated.length} seated entries · ${rsvpRows.length} RSVP rows`)}`);
-  console.log(`  ${c.dim('read-only: nothing written, nothing sent, seating not modified')}`);
-  console.log(`  ${c.dim('production send logic is NOT using this rule yet')}`);
+  console.log(`  ${c.dim('read-only: nothing written, seating not modified')}`);
+  console.log(`  ${c.dim('this IS the production audience — the sender delivers to exactly this list')}`);
 
   console.log(`\n${c.bold('1 · Original-rule recipients')}  ${c.dim('(unchanged, none removed)')}`);
   line('qualify under classifyForFinalDetails', u.original.length, c.cyan);
@@ -323,8 +358,14 @@ async function main() {
     }
   }
 
-  console.log(`\n${c.dim('Dry run. Nothing was written, nothing was sent, seating was not modified.')}`);
-  console.log(`${c.dim('The production sending rule is still final-details-recipients.mjs, unchanged.')}\n`);
+  console.log(`\n${c.dim('Nothing was written here, and the published plan was not modified.')}\n`);
+}
+
+async function main() {
+  const inputs = await fetchUnionInputs();
+  const u = unionAudience(inputs.rsvpRows, inputs.seated);
+  printUnionReport(u, inputs);
+  console.log(`${c.dim('Dry run. Nothing was sent.')}\n`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

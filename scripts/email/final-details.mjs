@@ -117,15 +117,24 @@ const swatchRows = () => {
  * `cameraReady` overrides CAMERA.enabled for a preview or a test — it lets the
  * copy be reviewed without committing the feature. It never persists anywhere.
  *
+ * `events` overrides which parts of the day this guest is shown. It exists for
+ * one case: a guest who holds a seat in the published plan but whose RSVP row
+ * does not name the Reception. The seat is the evidence that they are coming
+ * to the reception, and the sender grants that explicitly rather than this
+ * file guessing at it. The default is the RSVP tier, unchanged. It cannot be
+ * used to smuggle in a ceremony invitation: `ceremony` below still reads the
+ * JOINING key, and the only caller that passes this — unionAudience — never
+ * puts JOINING there.
+ *
  * Returns { html, text, events, days, ceremony, camera } — the extra fields so
  * the sender can assert what it is about to send rather than trusting this
  * function's word for it.
  */
 export function renderFinalDetails(row, {
-  siteUrl, now = new Date(), assets, cameraReady = false,
+  siteUrl, now = new Date(), assets, cameraReady = false, events: eventsOverride = null,
 } = {}) {
   const name = firstName(row);
-  const events = eventsForGuest(row);
+  const events = eventsOverride ?? eventsForGuest(row);
   const days = daysUntil(WEDDING.date, now);
   const backdrop = assets?.backdrop ?? null;
 

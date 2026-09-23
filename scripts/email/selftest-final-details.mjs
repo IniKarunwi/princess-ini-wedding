@@ -380,12 +380,14 @@ console.log('\nThe countdown');
      [3, 1, 0].map(subjectFinal).join(' | '));
 }
 
-/* ── Nothing here reaches the seating data ───────────────────────────────── */
+/* ── What may touch seating, and what it may do to it ────────────────────── */
 
 console.log('\nIsolation');
 {
-  const files = ['final-details.mjs', 'final-details-recipients.mjs', 'prepare-final-details.mjs'];
-  for (const f of files) {
+  // The letter and rule A stay entirely clear of seating. The union rule does
+  // read the published plan, but it reaches it through union-audience.mjs, so
+  // neither of these two has to know it exists.
+  for (const f of ['final-details.mjs', 'final-details-recipients.mjs']) {
     const src = readFileSync(join(ROOT, 'scripts/email', f), 'utf8');
     const imports = [...src.matchAll(/^import[\s\S]*?from\s+'([^']+)';/gm)].map(m => m[1]);
     ok(`${f} imports nothing from the seating feature`,
@@ -394,8 +396,27 @@ console.log('\nIsolation');
        !/seating_layouts|guest_photos|planner_settings/.test(src));
   }
   const rec = readFileSync(join(ROOT, 'scripts/email/final-details-recipients.mjs'), 'utf8');
-  ok('the recipient rules read the RSVP table only',
+  ok('rule A reads the RSVP table only',
      !/from '\.\/store|supabase\.storage/.test(rec));
+
+  // The two files that DO read seating may only read it. A write verb is the
+  // failure worth catching: this campaign must never be able to change where
+  // anybody sits, and the draft plan is not what guests were shown.
+  for (const f of ['prepare-final-details.mjs', 'union-audience.mjs']) {
+    const src = readFileSync(join(ROOT, 'scripts/email', f), 'utf8');
+    ok(`${f} never imports the planner or the seating feature`,
+       ![...src.matchAll(/^import[\s\S]*?from\s+'([^']+)';/gm)]
+         .some(m => /seating\/|planner|features\//i.test(m[1])));
+    ok(`${f} issues no write request`,
+       !/method:\s*['"](POST|PATCH|PUT|DELETE)['"]/i.test(src));
+    ok(`${f} never reads the draft layout`, !/status=eq\.draft/.test(src));
+  }
+  const prep = readFileSync(join(ROOT, 'scripts/email/prepare-final-details.mjs'), 'utf8');
+  ok('the sender delivers to the union audience',
+     /unionAudience\(/.test(prep) && /audience\.audience/.test(prep));
+  ok('and checks it before sending', /assertAudience\(audience\)/.test(prep));
+  ok('a --to test reads neither table',
+     prep.indexOf('args.send && args.to') < prep.indexOf('await fetchInputs()'));
 }
 
 /* ── Done ────────────────────────────────────────────────────────────────── */
