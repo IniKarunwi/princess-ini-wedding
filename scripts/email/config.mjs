@@ -448,7 +448,7 @@ export const DRESS = {
    * palette could reasonably arrive in a garden-green sundress. Written for
    * the email and asserted in the selftest so it cannot drift silently.
    */
-  formality: 'Formal dresses and elegant gowns, in the colours above.',
+  formality: 'Formal dresses and elegant gowns, in the colours below.',
   swatches: [
     ['#1b4332', 'Emerald'],
     ['#2d6a4f', 'Garden Green'],
