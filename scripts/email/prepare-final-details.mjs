@@ -63,9 +63,16 @@ import { validateDress } from './dress-code.mjs';
 import { renderFinalDetails } from './final-details.mjs';
 import { daysUntil, eventsForGuest } from './events.mjs';
 import { sendWithRetry, sleep, SendError } from './resend.mjs';
+import { idempotencyKey, newRunId } from './idempotency.mjs';
 
-/** Bump if this campaign is ever legitimately re-sent to the same people. */
-const CAMPAIGN = 'final-details-2026-09';
+/**
+ * One id for this invocation, used only by --to test sends.
+ *
+ * Module scope means once per process: every attempt in this run, retries
+ * included, shares it, and the next run gets a new one. See idempotency.mjs
+ * for why a test send needs that and a guest send must not have it.
+ */
+const RUN_ID = newRunId();
 
 const c = {
   dim:   s => `\x1b[2m${s}\x1b[0m`,
@@ -403,7 +410,15 @@ async function deliver(targets, { cameraReady, siteUrl, assets, key }) {
         subject: subjectFinal(daysUntil(WEDDING.date, new Date())),
         html: r.html,
         text: r.text,
-        idempotencyKey: `${CAMPAIGN}:${String(row.email).trim().toLowerCase()}`,
+        // A guest's key is the campaign and their address, unchanged — a
+        // second run must not email them twice. A test to your own address
+        // carries this run's id, so changing the letter and sending another
+        // one works instead of colliding with the first.
+        idempotencyKey: idempotencyKey({
+          email: row.email,
+          test: entry.source === 'test',
+          runId: entry.source === 'test' ? RUN_ID : null,
+        }),
       });
       sent++;
       console.log(`  ${c.green('✓')} ${row.email}`);

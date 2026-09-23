@@ -281,6 +281,23 @@ console.log('\nTunde Adeleke is held back, and reported');
 
 /* ── 5 · The union never shrinks the original ────────────────────────────── */
 
+console.log('\nNo real recipient is ever mistaken for a test send');
+{
+  // The sender decides between a stable guest idempotency key and a
+  // per-run test key on entry.source === 'test'. A guest carrying that
+  // source would get a key that changes every run, and a second run would
+  // email them a second time. Nothing here may produce it.
+  const rows = [
+    rsvp({ id: 1, full_name: 'Adaeze Okonkwo', email: 'a@example.com' }),
+    rsvp({ id: 2, full_name: 'Seated Guest', email: 's@example.com', attending: null }),
+  ];
+  const u = unionAudience(rows, seats(['Adaeze Okonkwo', 'Seated Guest']));
+  ok('every source is rsvp-rule or seating',
+     u.audience.every(e => e.source === 'rsvp-rule' || e.source === 'seating'),
+     u.audience.map(e => e.source).join(', '));
+  ok('none is "test"', !u.audience.some(e => e.source === 'test'));
+}
+
 console.log('\nThe invariant, stated as a test');
 {
   const rows = [

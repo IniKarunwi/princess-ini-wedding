@@ -30,7 +30,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-import { sendEmail, SendError } from './resend.mjs';
+import { sendEmail, sendWithRetry, SendError } from './resend.mjs';
+import { idempotencyKey, newRunId, CAMPAIGN } from './idempotency.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const FAKE_KEY = 're_selftest_not_a_real_key';
@@ -118,6 +119,8 @@ function runSender({ key, args }) {
         url: String(url),
         method: init?.method ?? 'GET',
         authorization: init?.headers?.Authorization ?? null,
+        idempotencyKey: init?.headers?.['Idempotency-Key'] ?? null,
+        bodyLength: typeof init?.body === 'string' ? init.body.length : null,
       });
       writeFileSync(${JSON.stringify(out)}, JSON.stringify(seen));
       if (String(url).includes('api.resend.com')) {
@@ -164,6 +167,94 @@ function runSender({ key, args }) {
   ok('no guest list or seating request was made',
      !r.seen.requests.some(q => /rest\/v1/.test(q.url)),
      r.seen.requests.map(q => q.url).join(' '));
+}
+
+/* ── Repeated test sends ─────────────────────────────────────────────────────
+ * The second test send failed with
+ *
+ *   HTTP 409: This idempotency key has been used with this HTTP method and
+ *   endpoint within the last 24 hours, but the request body was modified and
+ *   doesn't match the original request.
+ *
+ * because the key was the campaign and the address, which is exactly right
+ * for a guest and exactly wrong for a test. You send one, look at it, change
+ * the letter, send another — that is what a test send IS, and the old key
+ * made the second one indistinguishable from an accidental duplicate. */
+
+console.log('\nA second test send, after the letter changed');
+{
+  // Two separate invocations, with different content: the doodles on in one
+  // and off in the other, which is the shape of the change that caused the
+  // 409 in the first place.
+  const first  = runSender({ key: FAKE_KEY, args: ['--send', '--to', 'selftest@example.com', '--yes'] });
+  const second = runSender({ key: FAKE_KEY, args: ['--send', '--to', 'selftest@example.com', '--yes',
+                                                   '--preview-tier', 'RECEPTION'] });
+
+  const a = first.seen.requests.find(q => q.url.includes('api.resend.com'));
+  const b = second.seen.requests.find(q => q.url.includes('api.resend.com'));
+
+  ok('both runs reached Resend', !!a && !!b);
+  ok('the letters really were different', a?.bodyLength !== b?.bodyLength,
+     `${a?.bodyLength} vs ${b?.bodyLength}`);
+  ok('the two runs used DIFFERENT idempotency keys',
+     a?.idempotencyKey !== b?.idempotencyKey,
+     `both were ${a?.idempotencyKey}`);
+  ok('each key is marked as a test', /:test:/.test(a?.idempotencyKey ?? ''),
+     a?.idempotencyKey);
+  ok('and still carries the campaign and the address',
+     (a?.idempotencyKey ?? '').startsWith(`${CAMPAIGN}:test:`) &&
+     (a?.idempotencyKey ?? '').endsWith(':selftest@example.com'), a?.idempotencyKey);
+  eq('both runs succeeded', `${first.status}${second.status}`, '00');
+}
+
+console.log('\nWithin ONE run, a retry reuses the key');
+{
+  // The protection that must survive: a lost response must not deliver two
+  // copies. sendWithRetry is driven here directly, because a dropped
+  // connection cannot be produced from the command line.
+  const keys = [];
+  let attempts = 0;
+  const fetchImpl = async (url, init) => {
+    keys.push(init.headers['Idempotency-Key']);
+    attempts++;
+    if (attempts === 1) throw new Error('socket hang up');   // retryable
+    return new Response(JSON.stringify({ id: 'msg_retry' }), {
+      status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const key = idempotencyKey({ email: 'you@example.com', test: true, runId: 'abc123' });
+  const id = await sendWithRetry({
+    apiKey: FAKE_KEY, from: 'a@b.com', to: 'you@example.com',
+    subject: 's', html: 'h', text: 't', idempotencyKey: key, fetchImpl,
+  });
+  eq('it eventually sent', id, 'msg_retry');
+  eq('after two attempts', attempts, 2);
+  ok('both attempts carried the SAME key — Resend returns the first message',
+     keys.length === 2 && keys[0] === keys[1], keys.join(' vs '));
+}
+
+console.log('\nThe key rules themselves');
+{
+  const guest = (e) => idempotencyKey({ email: e });
+  eq('a guest key is the campaign and the address',
+     guest('Guest@Example.com '), `${CAMPAIGN}:guest@example.com`);
+  eq('and is stable across runs — a re-run cannot email them twice',
+     guest('g@example.com'), guest('g@example.com'));
+  ok('a guest key carries no run id', !/:test:/.test(guest('g@example.com')));
+
+  const t = (runId) => idempotencyKey({ email: 'you@example.com', test: true, runId });
+  ok('a test key is stable within a run', t('r1') === t('r1'));
+  ok('and different across runs', t('r1') !== t('r2'));
+  ok('a test key never collides with that guest\'s real key',
+     t('r1') !== idempotencyKey({ email: 'you@example.com' }));
+
+  let err = null;
+  try { idempotencyKey({ email: 'a@b.com', test: true }); } catch (e) { err = e; }
+  ok('a test key without a runId is refused, not silently generated',
+     /needs a runId/.test(err?.message ?? ''), err?.message);
+
+  // Two ids in a row must differ, or the whole scheme is decorative.
+  const ids = new Set(Array.from({ length: 200 }, () => newRunId()));
+  eq('run ids are unique', ids.size, 200);
 }
 
 console.log('\nWithout a key it refuses early, and says so in the right words');
