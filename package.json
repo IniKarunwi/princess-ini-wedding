@@ -47,7 +47,9 @@
     "email:final-details:union": "node --env-file-if-exists=.env scripts/email/union-audience.mjs",
     "test:email:union": "node scripts/email/selftest-union.mjs",
     "test:email:send-auth": "node scripts/email/selftest-send-auth.mjs",
-    "email:doodles": "node scripts/email/generate-doodles.mjs"
+    "email:doodles": "node scripts/email/generate-doodles.mjs",
+    "email:final-details:schedule": "node --env-file-if-exists=.env scripts/email/prepare-final-details.mjs --send --confirm-send-all --schedule",
+    "email:final-details:verify": "node --env-file-if-exists=.env scripts/email/verify-scheduled.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

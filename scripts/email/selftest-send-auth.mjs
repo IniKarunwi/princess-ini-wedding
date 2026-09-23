@@ -32,6 +32,8 @@ import { fileURLToPath } from 'node:url';
 
 import { sendEmail, sendWithRetry, SendError } from './resend.mjs';
 import { idempotencyKey, newRunId, CAMPAIGN } from './idempotency.mjs';
+import { parseSchedule, inWAT } from './schedule.mjs';
+import { verdictFor } from './verify-scheduled.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const FAKE_KEY = 're_selftest_not_a_real_key';
@@ -120,6 +122,9 @@ function runSender({ key, args }) {
         method: init?.method ?? 'GET',
         authorization: init?.headers?.Authorization ?? null,
         idempotencyKey: init?.headers?.['Idempotency-Key'] ?? null,
+        scheduledAt: (() => {
+          try { return JSON.parse(init?.body ?? '{}').scheduled_at ?? null; } catch { return null; }
+        })(),
         bodyLength: typeof init?.body === 'string' ? init.body.length : null,
       });
       writeFileSync(${JSON.stringify(out)}, JSON.stringify(seen));
@@ -255,6 +260,120 @@ console.log('\nThe key rules themselves');
   // Two ids in a row must differ, or the whole scheme is decorative.
   const ids = new Set(Array.from({ length: 200 }, () => newRunId()));
   eq('run ids are unique', ids.size, 200);
+}
+
+/* ── Scheduling ──────────────────────────────────────────────────────────── */
+
+console.log('\nThe schedule is parsed strictly, because an hour out is a disaster');
+{
+  const NOW = new Date('2026-09-24T09:00:00Z');
+  const s = parseSchedule('2026-09-24T11:00:00Z', { now: NOW });
+  eq('11:00 UTC goes on the wire as itself', s.iso, '2026-09-24T11:00:00.000Z');
+  eq('and is noon in Lagos', s.wat, '2026-09-24 12:00 WAT');
+
+  const wat = parseSchedule('2026-09-24T12:00:00+01:00', { now: NOW });
+  eq('the same instant written in WAT normalises to the same UTC', wat.iso, s.iso);
+
+  const bad = (input, why) => {
+    let err = null;
+    try { parseSchedule(input, { now: NOW }); } catch (e) { err = e; }
+    ok(`refused: ${why}`, !!err, `accepted ${input}`);
+    return err;
+  };
+  // The one that would silently be an hour out on a UTC server.
+  const noOffset = bad('2026-09-24T12:00:00', 'no timezone offset');
+  ok('  …and the message explains why', /explicit offset/.test(noOffset?.message ?? ''));
+  bad('2026-09-24', 'a date with no time');
+  bad('in 2 hours', 'natural language');
+  bad('2026-09-24T09:00:00Z', 'in the past');
+  bad('', 'empty');
+  bad('2026-12-31T11:00:00Z', 'more than 30 days out');
+
+  eq('WAT is UTC+1 with no DST', inWAT(new Date('2026-01-15T23:30:00Z')), '2026-01-16 00:30 WAT');
+}
+
+console.log('\nThe scheduled instant reaches Resend');
+{
+  let body = null;
+  const fetchImpl = async (url, init) => {
+    body = JSON.parse(init.body);
+    return new Response(JSON.stringify({ id: 'msg_sched' }), {
+      status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  await sendEmail({
+    apiKey: FAKE_KEY, from: 'a@b.com', to: 'c@d.com', subject: 's', html: 'h', text: 't',
+    scheduledAt: '2026-09-24T11:00:00.000Z', fetchImpl,
+  });
+  eq('as scheduled_at, the field Resend reads', body.scheduled_at, '2026-09-24T11:00:00.000Z');
+
+  // Absent, the body must be exactly what it always was.
+  body = null;
+  await sendEmail({ apiKey: FAKE_KEY, from: 'a@b.com', to: 'c@d.com',
+                    subject: 's', html: 'h', text: 't', fetchImpl });
+  ok('an unscheduled send carries no scheduled_at key at all',
+     !('scheduled_at' in body), JSON.stringify(Object.keys(body)));
+}
+
+console.log('\nA test send is immediate unless it is explicitly scheduled');
+{
+  // Relative to the clock, not a fixed date: a test that starts failing on a
+  // particular morning is a test nobody trusts. Three days out at 11:00 UTC,
+  // which is noon in Lagos and well inside Resend's 30-day limit.
+  const when = new Date(Date.now() + 3 * 86_400_000);
+  when.setUTCHours(11, 0, 0, 0);
+  const WHEN_ISO = when.toISOString();
+  const WHEN_ARG = WHEN_ISO.replace('.000Z', 'Z');
+  const WHEN_WAT = inWAT(when);
+
+  const plain = runSender({ key: FAKE_KEY, args: ['--send', '--to', 'selftest@example.com', '--yes'] });
+  const q = plain.seen.requests.find(r => r.url.includes('api.resend.com'));
+  eq('no --schedule means no scheduled_at', q?.scheduledAt, null);
+  ok('and the output says immediate', /immediate/i.test(plain.stdout ?? ''));
+  eq('it succeeded', plain.status, 0);
+
+  const later = runSender({ key: FAKE_KEY, args: ['--send', '--to', 'selftest@example.com', '--yes',
+                                                  '--schedule', WHEN_ARG] });
+  const q2 = later.seen.requests.find(r => r.url.includes('api.resend.com'));
+  eq('an explicit --schedule on a test is honoured', q2?.scheduledAt, WHEN_ISO);
+  ok('and it is not called sent', !/\bsent\b/i.test((later.stdout ?? '').split('Resend accepted')[1] ?? ''));
+
+  // --schedule without --send is meaningless and must not be quietly ignored.
+  const noSend = runSender({ key: FAKE_KEY, args: ['--audit', '--schedule', WHEN_ARG] });
+  ok('--schedule without --send is refused',
+     /only applies to a send/.test(`${noSend.stdout ?? ''}${noSend.stderr ?? ''}`));
+  eq('and it fails', noSend.status, 1);
+}
+
+console.log('\nAccepted is reported as accepted, never as delivered');
+{
+  const when = new Date(Date.now() + 3 * 86_400_000);
+  when.setUTCHours(11, 0, 0, 0);
+  const WHEN_ARG = when.toISOString().replace('.000Z', 'Z');
+  const WHEN_WAT = inWAT(when);
+  const r = runSender({ key: FAKE_KEY, args: ['--send', '--to', 'selftest@example.com', '--yes',
+                                              '--schedule', WHEN_ARG] });
+  const out = r.stdout ?? '';
+  ok('the run says Resend HOLDS it', /holds it for/i.test(out), out.slice(-300));
+  ok('it prints the instant in WAT', out.includes(WHEN_WAT), WHEN_WAT);
+  ok('it does not claim delivery', !/delivered/i.test(out));
+}
+
+console.log('\nThe verifier judges Resend\'s answer, not our own hopes');
+{
+  const want = '2026-09-24T11:00:00.000Z';
+  const good = verdictFor({ last_event: 'scheduled', scheduled_at: want }, want);
+  ok('a correctly scheduled message passes', good.ok);
+
+  ok('a message with no scheduled_at fails',
+     verdictFor({ last_event: 'delivered', scheduled_at: null }, want).ok === false);
+  ok('the wrong instant fails',
+     verdictFor({ last_event: 'scheduled', scheduled_at: '2026-09-24T12:00:00.000Z' }, want).ok === false);
+  ok('a cancelled message fails',
+     verdictFor({ last_event: 'canceled', scheduled_at: want }, want).ok === false);
+  ok('an unreadable one fails rather than passing quietly',
+     verdictFor({ error: 'HTTP 404' }, want).ok === false);
+  ok('the same instant written differently still passes',
+     verdictFor({ last_event: 'scheduled', scheduled_at: '2026-09-24T12:00:00+01:00' }, want).ok);
 }
 
 console.log('\nWithout a key it refuses early, and says so in the right words');

@@ -46,7 +46,8 @@ function describe(status, body) {
  * successful send would double-email a guest.
  */
 export async function sendEmail({
-  apiKey, from, to, subject, html, text, replyTo, idempotencyKey, fetchImpl = fetch,
+  apiKey, from, to, subject, html, text, replyTo, idempotencyKey,
+  scheduledAt = null, fetchImpl = fetch,
 }) {
   // A caller that forgets this does not get an error — it gets the literal
   // string "Bearer undefined", and Resend answers "API key is invalid". That
@@ -74,6 +75,10 @@ export async function sendEmail({
     html,
     text,
     ...(replyTo ? { reply_to: replyTo } : {}),
+    // Resend holds the message and delivers it at this instant. Absent, it
+    // goes immediately — which is what every caller except a scheduled
+    // production run wants, so this is opt-in and never defaulted.
+    ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
   });
 
   let response;

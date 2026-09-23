@@ -63,7 +63,8 @@ import { validateDress } from './dress-code.mjs';
 import { renderFinalDetails } from './final-details.mjs';
 import { eventsForGuest } from './events.mjs';
 import { sendWithRetry, sleep, SendError } from './resend.mjs';
-import { idempotencyKey, newRunId } from './idempotency.mjs';
+import { idempotencyKey, newRunId, CAMPAIGN } from './idempotency.mjs';
+import { parseSchedule, inWAT } from './schedule.mjs';
 
 /**
  * One id for this invocation, used only by --to test sends.
@@ -93,6 +94,12 @@ Wedding Update #3 — final details
   --confirm-send-all   Required to send to everyone. Never implied.
   --send               Deliver. Must be paired with --to, --limit or
                        --confirm-send-all; alone it is refused.
+  --schedule <when>    Hand the messages to Resend now, for delivery at this
+                       instant. ISO 8601 with an explicit offset:
+                         2026-09-24T11:00:00Z       11:00 UTC = noon in Lagos
+                         2026-09-24T12:00:00+01:00  the same instant, in WAT
+                       Without it, everything goes immediately. A --to test
+                       is immediate unless you pass this as well.
   --camera-ready       Force the Instant Camera section on. It is already on
                        by default (CAMERA.enabled in config.mjs); this only
                        matters for previewing when that has been switched off.
@@ -110,6 +117,7 @@ function parseArgs(argv) {
   const args = {
     send: false, yes: false, dryRun: false, all: false,
     to: null, limit: null, cameraReady: false, previewTier: null, help: false,
+    schedule: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -122,12 +130,17 @@ function parseArgs(argv) {
       case '--yes': case '-y': args.yes = true; break;
       case '--help': case '-h': args.help = true; break;
       case '--to': args.to = argv[++i]; break;
+      case '--schedule': case '--schedule-at': args.schedule = argv[++i]; break;
       case '--preview-tier': args.previewTier = String(argv[++i] ?? '').toUpperCase(); break;
       case '--limit': args.limit = Number(argv[++i]); break;
       default: if (a.startsWith('--')) throw new Error(`Unknown option: ${a}`);
     }
   }
   if (args.send && args.dryRun) throw new Error('--dry-run and --send contradict each other. Pick one.');
+  // Scheduling only means anything for a run that delivers.
+  if (args.schedule !== null && !args.send) {
+    throw new Error('--schedule only applies to a send. Add --send, or drop --schedule.');
+  }
   if (args.send) {
     const scopes = [args.to && '--to', args.limit && '--limit', args.all && '--confirm-send-all'].filter(Boolean);
     if (scopes.length === 0) {
@@ -391,9 +404,22 @@ function apiKey() {
   return key;
 }
 
-async function deliver(targets, { cameraReady, siteUrl, assets, key }) {
+/**
+ * Hands each message to Resend.
+ *
+ * ── "accepted" is not "delivered" ──────────────────────────────────────────
+ * Resend answers a POST with a message id. That means it has the message, not
+ * that anybody has it. For an immediate send the gap is seconds and the
+ * distinction is pedantic; for a scheduled one the gap is hours, and calling
+ * it "sent" would be a claim about something that has not happened yet and
+ * might still fail. So the counter is `accepted`, the word "sent" does not
+ * appear in a scheduled run's output, and the ids come back so the result can
+ * be checked against Resend rather than believed.
+ */
+async function deliver(targets, { cameraReady, siteUrl, assets, key, scheduledAt = null }) {
   let sent = 0;
   const failed = [];
+  const accepted = [];
 
   for (const [i, entry] of targets.entries()) {
     const row = entry.row;
@@ -402,7 +428,7 @@ async function deliver(targets, { cameraReady, siteUrl, assets, key }) {
     const events = entry.source === 'test' ? null : eventsForRecipient(entry);
     const r = renderFinalDetails(row, { siteUrl, assets, cameraReady, events });
     try {
-      await sendWithRetry({
+      const pending = sendWithRetry({
         apiKey: key,
         from: process.env.INVITE_FROM || DEFAULT_FROM,
         replyTo: process.env.INVITE_REPLY_TO || DEFAULT_REPLY_TO,
@@ -414,21 +440,27 @@ async function deliver(targets, { cameraReady, siteUrl, assets, key }) {
         // second run must not email them twice. A test to your own address
         // carries this run's id, so changing the letter and sending another
         // one works instead of colliding with the first.
+        // Unchanged when absent: the body carries no scheduled_at and Resend
+        // delivers immediately, exactly as it always has.
+        scheduledAt,
         idempotencyKey: idempotencyKey({
           email: row.email,
           test: entry.source === 'test',
           runId: entry.source === 'test' ? RUN_ID : null,
         }),
       });
+      const id = await pending;
       sent++;
-      console.log(`  ${c.green('✓')} ${row.email}`);
+      accepted.push({ email: row.email, id, scheduledAt });
+      console.log(`  ${c.green('✓')} ${String(row.email).padEnd(34)} ` +
+                  `${c.dim(scheduledAt ? `queued ${id}` : `accepted ${id}`)}`);
     } catch (e) {
       failed.push({ row, error: e });
       console.log(`  ${c.red('✗')} ${row.email} — ${e instanceof SendError ? e.message : String(e)}`);
     }
     if (i < targets.length - 1) await sleep(RATE.delayMs ?? 600);
   }
-  return { sent, failed };
+  return { sent, failed, accepted };
 }
 
 /* ── Main ────────────────────────────────────────────────────────────────── */
@@ -467,6 +499,17 @@ async function main() {
   const siteUrl = process.env.INVITE_SITE_URL || 'https://princessandini.com';
   const assets = assetUrls({ siteUrl, baseUrl: process.env.INVITE_ASSET_BASE_URL });
 
+  // Checked before the audience is read and long before anything is sent, so
+  // a malformed time costs a second rather than being discovered after 140
+  // messages have been queued for the wrong instant.
+  const schedule = args.schedule === null ? null : parseSchedule(args.schedule, { now });
+  if (schedule) {
+    console.log(`\n${c.bold('Scheduled delivery')}`);
+    console.log(`  ${c.cyan(schedule.iso)}  ${c.dim('(UTC, what goes on the wire)')}`);
+    console.log(`  ${c.cyan(schedule.wat)}  ${c.dim('(the same instant, in Lagos)')}`);
+    console.log(`  ${c.dim(`in ${((schedule.date - now) / 60000).toFixed(0)} minutes`)}`);
+  }
+
   // --to is a test to an address that need not be a guest. It happens BEFORE
   // anything is read: a test message has no business touching the guest list
   // or the seating plan, and it should work when neither can be reached.
@@ -481,14 +524,19 @@ async function main() {
     const key = apiKey();
     console.log(`\n${c.bold('One test message')} to ${c.cyan(args.to)}`);
     console.log(`  ${c.dim('no guest list and no seating plan was read for this')}`);
+    console.log(`  ${c.dim(schedule ? `scheduled for ${schedule.wat}` : 'immediate — no --schedule given')}`);
     if (!args.yes && !(await confirm('SEND TEST'))) {
       console.log(c.dim('Not confirmed. Nothing sent.'));
       return;
     }
     const { sent, failed } = await deliver(
-      [{ row, source: 'test' }], { cameraReady: args.cameraReady, siteUrl, assets, key });
-    console.log(sent ? c.green('\nResend accepted the test message.')
-                     : c.red('\nResend did not accept it.'));
+      [{ row, source: 'test' }],
+      { cameraReady: args.cameraReady, siteUrl, assets, key, scheduledAt: schedule?.iso ?? null });
+    console.log(sent
+      ? c.green(schedule
+          ? `\nResend accepted the test message and holds it for ${schedule.wat}.`
+          : '\nResend accepted the test message.')
+      : c.red('\nResend did not accept it.'));
     if (failed.length) process.exitCode = 1;
     return;
   }
@@ -516,11 +564,16 @@ async function main() {
 
   if (args.all) {
     console.log(`\n${c.red(c.bold('  ────────────────────────────────────────────────────'))}`);
-    console.log(`${c.red(c.bold(`   THIS SENDS TO ${targets.length} REAL GUESTS. IT CANNOT BE UNDONE.`))}`);
+    console.log(`${c.red(c.bold(schedule
+      ? `   THIS QUEUES ${targets.length} REAL GUESTS FOR ${schedule.wat}.`
+      : `   THIS SENDS TO ${targets.length} REAL GUESTS. IT CANNOT BE UNDONE.`))}`);
     console.log(`${c.red(c.bold('  ────────────────────────────────────────────────────'))}`);
     console.log(`  ${c.dim(`subject: ${subjectFinal(DAYS_TO_GO)}`)}`);
     console.log(`  ${c.dim(`from:    ${process.env.INVITE_FROM || DEFAULT_FROM}`)}`);
     console.log(`  ${c.dim(`camera section: ${(args.cameraReady || CAMERA.enabled) ? 'INCLUDED' : 'omitted'}`)}`);
+    console.log(`  ${c.dim(schedule
+      ? `delivery: ${schedule.iso} — held by Resend until then, cancellable until it goes`
+      : 'delivery: IMMEDIATE')}`);
   }
   // --yes skips a pilot's confirmation but NEVER the full send's. A flag that
   // can turn a 120-person send into one keystroke is a flag that will.
@@ -529,8 +582,42 @@ async function main() {
     console.log(c.dim('Not confirmed. Nothing sent.'));
     return;
   }
-  const { sent, failed } = await deliver(targets, { cameraReady: args.cameraReady, siteUrl, assets, key });
-  console.log(`\n${c.bold('Done')}  ${c.green(`${sent} sent`)}${failed.length ? c.red(`, ${failed.length} failed`) : ''}`);
+  const { sent, failed, accepted } = await deliver(targets,
+    { cameraReady: args.cameraReady, siteUrl, assets, key, scheduledAt: schedule?.iso ?? null });
+
+  // "Accepted" for a scheduled run, deliberately. Resend has the messages; it
+  // has not delivered them, and saying otherwise would be a claim about
+  // something that has not happened.
+  if (schedule) {
+    console.log(`\n${c.bold('Queued')}  ${c.green(`${sent} accepted by Resend`)}` +
+                `${failed.length ? c.red(`, ${failed.length} refused`) : ''}`);
+    console.log(`  ${c.dim(`for delivery at ${schedule.iso} — ${schedule.wat}`)}`);
+    console.log(`  ${c.amber('Nothing has been delivered yet.')} ` +
+                c.dim('Verify with npm run email:final-details:verify'));
+  } else {
+    console.log(`\n${c.bold('Done')}  ${c.green(`${sent} sent`)}` +
+                `${failed.length ? c.red(`, ${failed.length} failed`) : ''}`);
+  }
+
+  // The receipt: every id Resend returned, so the run can be checked against
+  // Resend instead of trusted. Written even on a partial failure — especially
+  // then, because the question is which ones got through.
+  if (accepted.length) {
+    const dir = join(process.cwd(), 'scratch');
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, `final-details-${schedule ? 'scheduled' : 'sent'}.json`);
+    writeFileSync(path, `${JSON.stringify({
+      campaign: CAMPAIGN,
+      runAt: now.toISOString(),
+      scheduledAt: schedule?.iso ?? null,
+      scheduledAtWAT: schedule?.wat ?? null,
+      count: accepted.length,
+      failed: failed.map(f => ({ email: f.row.email, error: String(f.error?.message ?? f.error) })),
+      messages: accepted,
+    }, null, 2)}\n`);
+    console.log(`  ${c.dim(`receipt: ${path}`)}`);
+  }
+
   if (failed.length) process.exitCode = 1;
 }
 
