@@ -162,7 +162,7 @@ await page.waitForSelector('[data-testid="take-photo"]');
   eq('the input asks for the rear camera', await input.getAttribute('capture'), 'environment');
   eq('and accepts images', await input.getAttribute('accept'), 'image/*');
 
-  ok('no preview yet', !(await page.isVisible('[data-testid="preview-image"]')));
+  ok('no preview yet', !(await page.isVisible('[data-testid="roll-grid"]')));
   ok('no video element — getUserMedia is gone',
      (await page.locator('video').count()) === 0);
 
@@ -192,37 +192,50 @@ await page.waitForSelector('[data-testid="take-photo"]');
      `shutter ${Math.round(centres.shutter)} vs hint ${Math.round(centres.hint)}`);
 }
 
-/* ── Capture → preview ───────────────────────────────────────────────────── */
+/* ── Capture → the roll ──────────────────────────────────────────────────── */
 
-console.log('\nCapture and preview');
+console.log('\nCapture fills the roll, and touches nothing else');
 await takePhoto(page);
-await page.waitForSelector('[data-testid="preview-image"]');
+await page.waitForSelector('[data-testid="thumb-ready"]');
 {
-  ok('the photo is shown', await page.isVisible('[data-testid="preview-image"]'));
-  ok('Retake is offered', await page.isVisible('[data-testid="retake"]'));
-  ok('Send is offered', await page.isVisible('[data-testid="send-photo"]'));
+  eq('one photograph in the roll',
+     await page.locator('[data-testid="roll-grid"] img').count(), 1);
+  ok('the shutter is still there, and still live',
+     await page.locator('[data-testid="take-photo"]').isEnabled());
+  ok('Send is offered', await page.isVisible('[data-testid="send-photos"]'));
   // innerText reflects text-transform: uppercase, so compare case-insensitively.
-  eq('and reads Send Photo',
-     (await page.innerText('[data-testid="send-photo"]')).trim().toLowerCase(), 'send photo');
+  eq('and counts what it would send',
+     (await page.innerText('[data-testid="send-photos"]')).trim().toLowerCase(), 'send 1 photo');
   eq('nothing has been uploaded yet', uploadCalls, 0);
   eq('and nothing has been signed yet', signCalls, 0);
 }
 
-/* ── Retake ──────────────────────────────────────────────────────────────── */
-
-console.log('\nRetake');
-await page.click('[data-testid="retake"]');
-await page.waitForSelector('[data-testid="take-photo"]');
+console.log('\nA second photograph, without waiting for anything');
+await takePhoto(page, { width: 1200, height: 1600, name: 'IMG_0002.jpg' });
+await page.waitForFunction(() =>
+  document.querySelectorAll('[data-testid="thumb-ready"]').length === 2);
 {
-  ok('the preview is gone', !(await page.isVisible('[data-testid="preview-image"]')));
+  eq('two in the roll', await page.locator('[data-testid="roll-grid"] img').count(), 2);
+  eq('Send counts both',
+     (await page.innerText('[data-testid="send-photos"]')).trim().toLowerCase(), 'send 2 photos');
+  eq('and STILL nothing has been signed', signCalls, 0);
+  eq('nor uploaded', uploadCalls, 0);
+}
+
+/* ── Removing one ────────────────────────────────────────────────────────── */
+
+console.log('\nRemoving a photograph');
+await page.locator('[data-testid="remove-photo"]').last().click();
+await page.waitForFunction(() =>
+  document.querySelectorAll('[data-testid="roll-grid"] img').length === 1);
+{
+  eq('one left', await page.locator('[data-testid="roll-grid"] img').count(), 1);
   eq('and still nothing was sent', signCalls, 0);
 }
 
 /* ── Send ────────────────────────────────────────────────────────────────── */
 
 console.log('\nSending');
-await takePhoto(page);
-await page.waitForSelector('[data-testid="preview-image"]');
 
 // Hold the upload open so the in-flight state can actually be observed.
 let releaseUpload;
@@ -234,19 +247,21 @@ await page.route('https://storage.test/**', async (route) => {
   return route.fulfill({ status: 200, body: '' });
 });
 
-await page.click('[data-testid="send-photo"]');
+await page.click('[data-testid="send-photos"]');
 await page.waitForFunction(() =>
-  document.querySelector('[data-testid="send-photo"]')?.textContent?.includes('Sending'));
+  document.querySelector('[data-testid="send-photos"]')?.textContent?.includes('Sending'));
 {
   ok('Send is disabled while uploading',
-     await page.locator('[data-testid="send-photo"]').isDisabled());
-  ok('Retake is disabled too',
-     await page.locator('[data-testid="retake"]').isDisabled());
+     await page.locator('[data-testid="send-photos"]').isDisabled());
+  ok('the shutter is closed too — one batch at a time',
+     await page.locator('[data-testid="take-photo"]').isDisabled());
+  ok('and a photograph cannot be removed mid-flight',
+     await page.locator('[data-testid="remove-photo"]').count() === 0);
 
   // A double tap must not produce a second upload.
   const before = signCalls;
-  await page.locator('[data-testid="send-photo"]').dispatchEvent('click');
-  await page.locator('[data-testid="send-photo"]').dispatchEvent('click');
+  await page.locator('[data-testid="send-photos"]').dispatchEvent('click');
+  await page.locator('[data-testid="send-photos"]').dispatchEvent('click');
   await page.waitForTimeout(150);
   eq('a double tap signs nothing extra', signCalls, before);
 }
@@ -258,7 +273,7 @@ await page.waitForSelector('[data-testid="success"]');
   ok('the success screen appears', body.includes('Thank you'));
   ok('with the right words', body.includes('Thank you for capturing a piece of our day'));
   ok('and a count', /1 photo sent/i.test(body));
-  ok('Take Another is offered', await page.isVisible('[data-testid="take-another"]'));
+  ok('Take More is offered', await page.isVisible('[data-testid="take-another"]'));
   eq('exactly one sign call', signCalls, 1);
   eq('exactly one upload', uploadCalls, 1);
 }
@@ -270,7 +285,7 @@ console.log('\nWhat the client claimed');
   const sent = signBodies[0];
   eq('a jpeg', sent.contentType, 'image/jpeg');
   ok('a uuid session id', /^[0-9a-f-]{36}$/.test(sent.sessionId));
-  ok('downscaled to 2400 on the long edge', Math.max(sent.width, sent.height) === 2400,
+  ok('downscaled to 1920 on the long edge', Math.max(sent.width, sent.height) === 1920,
      `${sent.width}x${sent.height}`);
   ok('aspect ratio preserved (4032x3024 is 4:3)',
      Math.abs((sent.width / sent.height) - (4032 / 3024)) < 0.01,
@@ -288,15 +303,18 @@ await page.route('https://storage.test/**', async (route) => {
 });
 await page.click('[data-testid="take-another"]');
 await takePhoto(page, { width: 1200, height: 1600, name: 'IMG_0002.jpg' });
-await page.waitForSelector('[data-testid="preview-image"]');
+await page.waitForSelector('[data-testid="roll-grid"] img');
 {
-  ok('a second photo previews', await page.isVisible('[data-testid="preview-image"]'));
+  ok('a fresh roll takes the next photograph',
+     await page.locator('[data-testid="roll-grid"] img').count() === 1);
 }
-await page.click('[data-testid="send-photo"]');
+await page.click('[data-testid="send-photos"]');
 await page.waitForSelector('[data-testid="success"]');
 {
   const body = await page.innerText('body');
-  ok('the count went up', /2 photos sent/i.test(body), body.match(/\d+ photos? sent/i)?.[0]);
+  // The count is PER BATCH, not per sitting: this is a new batch of one.
+  ok('the new batch reports its own count', /1 photo sent/i.test(body),
+     body.match(/\d+ photos? sent/i)?.[0]);
   eq('two signs in total', signCalls, 2);
 
   const second = signBodies[1];
@@ -311,31 +329,32 @@ console.log('\nWhen the network drops');
 mode = 'network';
 await page.click('[data-testid="take-another"]');
 await takePhoto(page, { name: 'IMG_0003.jpg' });
-await page.waitForSelector('[data-testid="preview-image"]');
-await page.click('[data-testid="send-photo"]');
+await page.waitForSelector('[data-testid="roll-grid"]');
+await page.click('[data-testid="send-photos"]');
 
 // Two retries at 2s and 6s, plus the attempts themselves.
-await page.waitForSelector('[data-testid="send-error"]', { timeout: 30_000 });
+await page.waitForSelector('[data-testid="retry-failed"]', { timeout: 40_000 });
 {
-  ok('the photo is still on screen', await page.isVisible('[data-testid="preview-image"]'));
-  ok('an error explains why', (await page.innerText('[data-testid="send-error"]')).length > 0);
   const body = await page.innerText('body');
-  ok('and says the photo was kept', /still here/i.test(body));
-  eq('the button becomes Try Again',
-     (await page.innerText('[data-testid="send-photo"]')).trim().toLowerCase(), 'try again');
-  ok('and is enabled again', await page.locator('[data-testid="send-photo"]').isEnabled());
+  ok('the batch finishes rather than hanging', /almost/i.test(body));
+  ok('and says nothing was lost', /nothing has been lost/i.test(body));
+  eq('nothing is claimed as sent', /0 photos sent/i.test(body), true);
+  eq('retry offers exactly the one that failed',
+     (await page.innerText('[data-testid="retry-failed"]')).trim().toLowerCase(), 'retry 1 photo');
+  ok('the diagnostic says which stage',
+     /sign|upload/.test(await page.innerText('[data-testid="send-diagnostic"]')));
   ok('it retried rather than giving up at once', signCalls >= 5, `${signCalls} sign calls total`);
-  ok('no success screen', !(await page.isVisible('[data-testid="success"]')));
 }
 
-console.log('\nRetrying the same photo');
+console.log('\nRetrying the same photograph');
 mode = 'ok';
-await page.click('[data-testid="send-photo"]');
+await page.click('[data-testid="retry-failed"]');
 await page.waitForSelector('[data-testid="success"]');
 {
   const body = await page.innerText('body');
-  ok('the retry succeeds without retaking', /3 photos sent/i.test(body),
+  ok('the retry succeeds without retaking', /1 photo sent/i.test(body),
      body.match(/\d+ photos? sent/i)?.[0]);
+  ok('and the roll is now empty', /thank you/i.test(body));
 }
 
 /* ── A refusal is not retried ────────────────────────────────────────────── */
@@ -345,21 +364,27 @@ mode = 'reject';
 const beforeReject = signCalls;
 await page.click('[data-testid="take-another"]');
 await takePhoto(page, { name: 'IMG_0004.jpg' });
-await page.waitForSelector('[data-testid="preview-image"]');
-await page.click('[data-testid="send-photo"]');
-await page.waitForSelector('[data-testid="send-error"]');
+await page.waitForSelector('[data-testid="roll-grid"]');
+await page.click('[data-testid="send-photos"]');
+await page.waitForSelector('[data-testid="retry-failed"]', { timeout: 20_000 });
 {
   eq('a 4xx is asked exactly once', signCalls - beforeReject, 1);
-  ok('the reason is the server\'s own',
-     (await page.innerText('[data-testid="send-error"]')).includes('cannot send that kind of file'));
-  ok('and the photo is still held', await page.isVisible('[data-testid="preview-image"]'));
+  const body = await page.innerText('body');
+  ok('the reason is the server\'s own', body.includes('cannot send that kind of file'));
+  ok('and the photograph is still held, not discarded',
+     await page.isVisible('[data-testid="retry-failed"]'));
 }
 
 /* ── Oversized files never reach the server ──────────────────────────────── */
 
 console.log('\nToo large');
 mode = 'ok';
-await page.click('[data-testid="retake"]');
+// The refused photograph from the section above is still in the roll — that
+// is the point of it. Clear it the way a guest would, which also proves
+// removal works on a failed photograph.
+await page.locator('[data-testid="take-another"]').click();
+await page.waitForSelector('[data-testid="remove-photo"]');
+await page.locator('[data-testid="remove-photo"]').first().click();
 await page.waitForSelector('[data-testid="take-photo"]');
 {
   const before = signCalls;
@@ -370,7 +395,7 @@ await page.waitForSelector('[data-testid="take-photo"]');
   const text = await page.innerText('[data-testid="prepare-error"]');
   ok('the guest is told', /too large/i.test(text), text);
   eq('and nothing was signed', signCalls, before);
-  ok('no preview is shown', !(await page.isVisible('[data-testid="preview-image"]')));
+  ok('no preview is shown', !(await page.isVisible('[data-testid="roll-grid"]')));
 }
 
 console.log('\nA file that is not an image');
@@ -392,7 +417,7 @@ console.log('\nBacking out of the camera');
   const before = signCalls;
   await page.setInputFiles('[data-testid="camera-input"]', []);
   await page.waitForTimeout(200);
-  ok('no preview', !(await page.isVisible('[data-testid="preview-image"]')));
+  ok('no preview', !(await page.isVisible('[data-testid="roll-grid"]')));
   eq('nothing signed', signCalls, before);
   ok('the shutter is still there', await page.isVisible('[data-testid="take-photo"]'));
 }
@@ -429,12 +454,19 @@ console.log('\nPrepared sizes');
 mode = 'ok';
 
 async function measure(label, opts) {
-  await page.click('[data-testid="retake"]').catch(() => {});
+  // Empty the roll between measurements, so the thumbnail read below is
+  // always the photograph just taken.
+  for (const btn of await page.locator('[data-testid="remove-photo"]').all()) {
+    await btn.click().catch(() => {});
+  }
   await page.waitForSelector('[data-testid="take-photo"]').catch(() => {});
   await takePhoto(page, opts);
-  await page.waitForSelector('[data-testid="preview-image"]');
+  await page.waitForSelector('[data-testid="thumb-ready"]');
   const out = await page.evaluate(async () => {
-    const img = document.querySelector('[data-testid="preview-image"]');
+    // The PREPARED blob, not the raw-file preview: the thumbnail shows the
+    // original until preparation finishes, and it is the prepared one whose
+    // size and dimensions are the point of this measurement.
+    const img = document.querySelector('[data-testid="thumb-ready"] img');
     const blob = await fetch(img.src).then((r) => r.blob());
     const bmp = await createImageBitmap(blob);
     const dims = `${bmp.width}x${bmp.height}`;
@@ -448,14 +480,14 @@ async function measure(label, opts) {
 {
   // The number that actually matters for the storage budget.
   const real = await measure('12MP landscape, photograph-like', { width: 4032, height: 3024, busy: 'photo' });
-  eq('a photograph-like frame becomes 2400x1800', real.dims, '2400x1800');
+  eq('a photograph-like frame becomes 1920x1440', real.dims, '1920x1440');
   ok('and lands near a megabyte', real.bytes <= 2 * 1024 * 1024, `${real.bytes} bytes`);
 
   const realPortrait = await measure('12MP portrait, photograph-like', { width: 3024, height: 4032, busy: 'photo' });
-  eq('portrait becomes 1800x2400', realPortrait.dims, '1800x2400');
+  eq('portrait becomes 1440x1920', realPortrait.dims, '1440x1920');
 
   const landscape = await measure('12MP landscape, flat colour', { width: 4032, height: 3024 });
-  eq('a flat frame becomes 2400x1800 too', landscape.dims, '2400x1800');
+  eq('a flat frame becomes 1920x1440 too', landscape.dims, '1920x1440');
   ok('and is around a megabyte or less', landscape.bytes <= 1.5 * 1024 * 1024,
      `${landscape.bytes} bytes`);
 
@@ -463,8 +495,8 @@ async function measure(label, opts) {
   eq('a small photo keeps its own size', small.dims, '1200x1600');
 
   const busy = await measure('12MP busy/high-detail', { width: 4032, height: 3024, busy: true });
-  eq('a busy frame is still 2400 on the long edge',
-     busy.dims.split('x')[0], '2400');
+  eq('a busy frame is still 1920 on the long edge',
+     busy.dims.split('x')[0], '1920');
   ok('and stays well inside the 20MB ceiling', busy.bytes < 20 * 1024 * 1024,
      `${busy.bytes} bytes`);
   console.log('      (a busy frame is allowed to exceed ~1MB — there is no recompression loop)');

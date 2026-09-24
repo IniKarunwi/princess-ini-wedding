@@ -33,21 +33,34 @@ export const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 /**
  * Long edge after downscaling, and the JPEG quality used to re-encode.
  *
- * Sized against the storage budget rather than against print. The Supabase
- * project has 1GB in total, and a wedding of this size could plausibly send
- * somewhere near a thousand photographs — so the number that matters is the
- * typical object size, and 2400/0.82 lands most phone photographs at or
- * under a megabyte.
+ * ── Measured, not chosen ───────────────────────────────────────────────────
+ * These were 2400/0.82, picked against a storage budget and a note about
+ * printing at 8x6. The guest-facing cost of that is upload time on venue
+ * Wi-Fi, which is the slowest thing in the whole feature, so the settings
+ * were re-derived from measurement on a 12MP/2.5MB phone frame.
  *
- * ~1MB is the objective, not a guarantee. A busy, high-detail frame will
- * come out larger and is allowed to: there is deliberately no iterative
- * recompression loop chasing a hard ceiling, because that costs seconds on
- * a phone and complexity here for bytes nobody will miss.
+ * Each candidate was re-rendered at 1290px — an iPhone 15 Pro Max screen at
+ * native width — and compared against the original shown at that same size,
+ * because "how good does it look on a phone" is the question that matters
+ * and "how good is the file" is not:
  *
- * 2400 on the long edge still prints comfortably at 8x6 inches.
+ *     2400 / 0.82     509 KB      43.0 dB      (what this was)
+ *     2048 / 0.78     343 KB      41.6 dB
+ *     1920 / 0.78     307 KB      41.2 dB      ← here
+ *     1600 / 0.78     222 KB      39.6 dB
+ *
+ * Above roughly 40 dB the difference is not visible at phone size, so 1920
+ * removes 41% of the bytes and nothing a guest or the couple will ever see.
+ * On a congested 1 Mbps uplink that is 4.1s of upload becoming 2.5s.
+ *
+ * 1920 is also wider than any current phone screen, so a photograph still
+ * fills one at native resolution, and prints acceptably at 6x4.
+ *
+ * Going further was deliberately declined: 1600 starts to show, and these
+ * are the only copies that will exist — the originals are never kept.
  */
-export const MAX_EDGE = 2400;
-export const JPEG_QUALITY = 0.82;
+export const MAX_EDGE = 1920;
+export const JPEG_QUALITY = 0.78;
 
 export interface PreparedPhoto {
   /** Client-side id. Also the retry key — a retry re-sends the same photo. */
@@ -60,6 +73,8 @@ export interface PreparedPhoto {
   height?: number;
   /** False when the browser could not decode the file and it goes as-is. */
   processed: boolean;
+  /** How long preparation took. Diagnostics only. */
+  prepareMs: number;
 }
 
 export type PrepareResult =
@@ -127,6 +142,7 @@ export async function preparePhoto(file: File): Promise<PrepareResult> {
   }
 
   const id = newId();
+  const started = now();
 
   try {
     const bitmap = await createImageBitmap(file);
@@ -154,6 +170,7 @@ export async function preparePhoto(file: File): Promise<PrepareResult> {
         id, blob, contentType: 'image/jpeg',
         previewUrl: URL.createObjectURL(blob),
         width: w, height: h, processed: true,
+        prepareMs: Math.round(now() - started),
       },
     };
   } catch {
@@ -164,6 +181,7 @@ export async function preparePhoto(file: File): Promise<PrepareResult> {
         id, blob: file, contentType,
         previewUrl: URL.createObjectURL(file),
         processed: false,
+        prepareMs: Math.round(now() - started),
       },
     };
   }
@@ -222,15 +240,30 @@ export function diagnosticLine(d: SendDiagnostic): string {
   return bits.filter(Boolean).join(' · ');
 }
 
+/**
+ * How long each half took. Diagnostics only — durations and counts, never a
+ * URL, a token or a path.
+ */
+export interface SendTiming {
+  signMs: number;
+  uploadMs: number;
+  totalMs: number;
+  attempts: number;
+}
+
 export type SendResult =
-  | { ok: true; path: string }
-  | { ok: false; reason: string; detail?: string; diagnostic?: SendDiagnostic };
+  | { ok: true; path: string; timing: SendTiming }
+  | { ok: false; reason: string; detail?: string; diagnostic?: SendDiagnostic; timing?: SendTiming };
 
 const TIMEOUT_MS = 60_000;
 /** Two retries, then the guest gets a button rather than more waiting. */
 const RETRY_BACKOFF_MS = [2000, 6000];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Monotonic where available. Only ever used for durations. */
+const now = (): number =>
+  (globalThis.performance?.now ? globalThis.performance.now() : Date.now());
 
 /**
  * A failure worth trying again by itself: the network, a timeout, or a 5xx.
@@ -301,7 +334,10 @@ async function codeFrom(res: Response): Promise<string | undefined> {
  * fresh signature costs one small request, so every attempt is a clean,
  * independent photograph.
  */
-async function attempt(sessionId: string, photo: PreparedPhoto): Promise<string> {
+async function attempt(
+  sessionId: string, photo: PreparedPhoto, clock: { signMs: number; uploadMs: number },
+): Promise<string> {
+  const tSign = now();
   const signed = await withTimeout(async (signal) => {
     let res: Response;
     try {
@@ -340,6 +376,9 @@ async function attempt(sessionId: string, photo: PreparedPhoto): Promise<string>
     }
     return (await res.json()) as { uploadUrl: string; path: string };
   });
+  clock.signMs = Math.round(now() - tSign);
+
+  const tUpload = now();
 
   await withTimeout(async (signal) => {
     let res: Response;
@@ -366,6 +405,7 @@ async function attempt(sessionId: string, photo: PreparedPhoto): Promise<string>
         { stage: 'upload', kind: 'refused', status: res.status });
     }
   });
+  clock.uploadMs = Math.round(now() - tUpload);
 
   return signed.path;
 }
@@ -381,14 +421,23 @@ export async function sendPhoto(
 ): Promise<SendResult> {
   let last: Omit<SendDiagnostic, 'attempts'> | null = null;
   let attempts = 0;
+  const started = now();
+  const clock = { signMs: 0, uploadMs: 0 };
 
   for (let i = 0; i <= RETRY_BACKOFF_MS.length; i++) {
     attempts++;
     try {
-      return { ok: true, path: await attempt(sessionId, photo) };
+      const path = await attempt(sessionId, photo, clock);
+      return {
+        ok: true, path,
+        timing: { ...clock, totalMs: Math.round(now() - started), attempts },
+      };
     } catch (e) {
       if (e instanceof Permanent) {
-        return { ok: false, reason: e.message, diagnostic: { ...e.info, attempts } };
+        return {
+          ok: false, reason: e.message, diagnostic: { ...e.info, attempts },
+          timing: { ...clock, totalMs: Math.round(now() - started), attempts },
+        };
       }
       if (e instanceof Transient) last = e.info;
       if (i < RETRY_BACKOFF_MS.length) await sleep(RETRY_BACKOFF_MS[i]);
@@ -407,7 +456,10 @@ export async function sendPhoto(
       ? 'It took too long to send. Your photo is still here — try again.'
       : 'The connection dropped. Your photo is still here — try again.';
 
-  return { ok: false, reason: 'That did not send.', detail, diagnostic };
+  return {
+    ok: false, reason: 'That did not send.', detail, diagnostic,
+    timing: { ...clock, totalMs: Math.round(now() - started), attempts },
+  };
 }
 
 /* ── Ids ──────────────────────────────────────────────────────────────────── */

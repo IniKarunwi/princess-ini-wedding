@@ -38,7 +38,8 @@
     "test:camera-api": "node scripts/camera/api-test.mjs",
     "test:camera-ui": "node scripts/camera/ui-test.mjs",
     "test:camera-send": "node scripts/camera/send-test.mjs",
-    "test:camera-roundtrip": "node scripts/camera/roundtrip-test.mjs"
+    "test:camera-roundtrip": "node scripts/camera/roundtrip-test.mjs",
+    "test:camera-roll": "node scripts/camera/roll-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -66,6 +67,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "exceljs": "^4.4.0",
+    "fake-indexeddb": "^6.2.5",
     "globals": "^15.15.0",
     "postcss": "^8.5.6",
     "sharp": "^0.35.3",
