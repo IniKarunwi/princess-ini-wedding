@@ -45,6 +45,7 @@ const ROUTES = [
   'api/planner/publish.ts',
   'api/seating/published.ts',
   'api/seating/lookup.ts',
+  'api/photos/sign.ts',
 ];
 
 const results = [];

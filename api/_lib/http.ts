@@ -24,12 +24,24 @@ export function methodIs(req: VercelRequest, res: VercelResponse, ...allowed: st
   return false;
 }
 
-/** Turns thrown configuration and store errors into honest status codes. */
-export function fail(res: VercelResponse, err: unknown) {
+/**
+ * Turns thrown configuration and store errors into honest status codes.
+ *
+ * `scope` only changes the wording of the log line and of the caller-facing
+ * `detail`. It defaults to 'seating' so every existing call site behaves
+ * exactly as it did — the camera passes 'photos' so that a storage failure
+ * does not report itself as a seating-chart failure.
+ */
+export function fail(res: VercelResponse, err: unknown, scope: 'seating' | 'photos' = 'seating') {
+  const tag = `[${scope}]`;
+  const upstreamDetail = scope === 'photos'
+    ? 'The photo store did not answer.'
+    : 'The seating store did not answer.';
+
   if (err instanceof ConfigError) {
     // Names the variable that is missing. There is no way to guess this from
     // outside, and the name of an unset variable is not a secret.
-    console.error('[seating] not configured:', err.message);
+    console.error(`${tag} not configured:`, err.message);
     return json(res, 503, {
       error: 'not_configured',
       detail: err.message,
@@ -48,7 +60,7 @@ export function fail(res: VercelResponse, err: unknown) {
      * key travels in a header and is never echoed in an error body, so none
      * of this can leak it.
      */
-    console.error('[seating] store error:', {
+    console.error(`${tag} store error:`, {
       where: err.where,
       upstreamStatus: err.upstreamStatus,
       code: err.code,
@@ -58,7 +70,7 @@ export function fail(res: VercelResponse, err: unknown) {
     });
     return json(res, err.status, {
       error: 'upstream',
-      detail: 'The seating store did not answer.',
+      detail: upstreamDetail,
       upstreamStatus: err.upstreamStatus,
       where: err.where,
       code: err.code,
@@ -67,7 +79,7 @@ export function fail(res: VercelResponse, err: unknown) {
     });
   }
 
-  console.error('[seating] unhandled:', err);
+  console.error(`${tag} unhandled:`, err);
   return json(res, 500, {
     error: 'server_error',
     message: err instanceof Error ? err.message.slice(0, 200) : undefined,
@@ -134,13 +146,13 @@ export function clientIp(req: VercelRequest): string {
 }
 
 /** Records an attempt. Returns seconds to wait when the caller is over. */
-export function rateLimit(key: string): { allowed: boolean; retryAfter: number } {
+export function rateLimit(key: string, limit: number = LIMIT): { allowed: boolean; retryAfter: number } {
   const now = Date.now();
   const hits = (attempts.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
 
   if (attempts.size > 500) attempts.clear();   // crude, bounded, good enough
 
-  if (hits.length >= LIMIT) {
+  if (hits.length >= limit) {
     attempts.set(key, hits);
     return { allowed: false, retryAfter: Math.ceil((WINDOW_MS - (now - hits[0])) / 1000) };
   }

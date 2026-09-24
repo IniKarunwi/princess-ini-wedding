@@ -8,17 +8,26 @@
 /**
  * "The Wedding Through Your Eyes".
  *
- * OFF for Phase 1. The capture flow is built and tested, but photographs have
- * nowhere to go until supabase/migrations/0008_guest_photos.sql is applied,
- * and a guest who takes ten photographs and is then told they cannot be sent
- * has had a worse experience than one who was never offered the camera.
+ * ON for Phase 2.
+ *
+ * ── THE ORDER MATTERS ──────────────────────────────────────────────────────
+ * This branch must not reach Production before
+ * supabase/migrations/0008_guest_photos.sql has been applied. With the flag
+ * on and the bucket absent, a guest takes a photograph, taps Send, and is
+ * told it failed — which is worse than never being offered the camera at all.
+ *
+ *   1. apply 0008 in the Supabase SQL editor
+ *   2. confirm the bucket exists and is private
+ *   3. then merge and deploy
  *
  * While this is false:
  *   • the hub still shows the card, so the concept reads whole, but it is
  *     plain text rather than a link — nothing to tap and no dead end;
- *   • /wedding/camera redirects to the hub, so the unfinished camera cannot
- *     be reached by typing the URL either.
+ *   • /wedding/camera redirects to the hub, so the camera cannot be reached
+ *     by typing the URL either.
  *
- * Phase 2: apply 0008, flip this to true. Nothing else changes.
+ * Flipping this back to false is the kill switch if anything goes wrong on
+ * the day: one line, one deploy, and the card returns to Coming Soon without
+ * touching the bucket or a single stored photograph.
  */
-export const CAMERA_ENABLED = false;
+export const CAMERA_ENABLED = true;
