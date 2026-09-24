@@ -33,11 +33,12 @@
  * arriving, and the fifth stays on the phone, retryable.
  */
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { C, F, GUTTER } from '@/lib/design';
 import { Reveal } from '@/components/site/primitives';
 import { BackToWedding } from './MenuPage';
 import { useCameraRoll, MAX_ROLL, type RollPhoto } from '@/features/camera/useCameraRoll';
+import { useLiveCamera } from '@/features/camera/useLiveCamera';
 import { diagnosticLine } from '@/features/camera/photoService';
 
 /**
@@ -50,6 +51,7 @@ const SHOW_TIMINGS = typeof location !== 'undefined'
 
 export default function ThroughYourEyes() {
   const cam = useCameraRoll();
+  const live = useLiveCamera();
   const inputRef = useRef<HTMLInputElement>(null);
 
   /**
@@ -64,7 +66,29 @@ export default function ThroughYourEyes() {
     el.click();
   };
 
-  const dark = cam.stage === 'roll' || cam.stage === 'sending';
+  /**
+   * The live viewfinder if the browser will give us one, the OS camera if not.
+   *
+   * Tried on the guest's first tap rather than on mount, so the permission
+   * prompt arrives as an answer to something they did. If it is refused or
+   * unsupported we open the file input instead and never ask again — a guest
+   * at a table cannot undo a denied permission, and asking twice is worse
+   * than not asking.
+   */
+  const openCameraOrLive = async () => {
+    if (live.state === 'denied' || live.state === 'unavailable') return openCamera();
+    const ok = await live.start();
+    if (!ok) openCamera();
+  };
+
+  const viewfinder = live.state === 'live';
+
+  // The camera light goes off once a batch is away. Leaving a stream running
+  // behind a thank-you screen is rude to the battery and alarming to look at.
+  useEffect(() => {
+    if (cam.stage === 'done') live.stop();
+  }, [cam.stage, live]);
+  const dark = viewfinder || cam.stage === 'roll' || cam.stage === 'sending';
 
   return (
     <main style={{
@@ -90,11 +114,20 @@ export default function ThroughYourEyes() {
         data-testid="camera-input"
       />
 
-      {cam.stage === 'intro' && <Intro cam={cam} onTake={openCamera} />}
-      {(cam.stage === 'roll' || cam.stage === 'sending') && (
-        <Roll cam={cam} onTake={openCamera} />
+      {/* The viewfinder owns the screen whenever it is running, at every
+          stage except the result — the whole point is that it does not go
+          away between photographs. */}
+      {viewfinder && cam.stage !== 'done' && <Viewfinder cam={cam} live={live} />}
+
+      {!viewfinder && cam.stage === 'intro' && (
+        <Intro cam={cam} onTake={() => void openCameraOrLive()} />
       )}
-      {cam.stage === 'done' && <Result cam={cam} onTake={openCamera} />}
+      {!viewfinder && (cam.stage === 'roll' || cam.stage === 'sending') && (
+        <Roll cam={cam} onTake={() => void openCameraOrLive()} />
+      )}
+      {cam.stage === 'done' && (
+        <Result cam={cam} onTake={() => { live.stop(); void openCameraOrLive(); }} />
+      )}
     </main>
   );
 }
@@ -204,6 +237,179 @@ function Intro({ cam, onTake }: { cam: Cam; onTake: () => void }) {
     </div>
   );
 }
+/* ── The live viewfinder ──────────────────────────────────────────────────── */
+
+/**
+ * The camera, and it stays.
+ *
+ * Everything else floats over the video: the count at the top, the last
+ * photograph in the corner, the shutter and Send at the bottom. Taking a
+ * photograph changes none of it — a white flash, the thumbnail swaps, the
+ * count goes up, and the camera is still running. The next photograph is one
+ * tap away with nothing to dismiss first, which is the entire reason this
+ * exists.
+ */
+function Viewfinder({ cam, live }: { cam: Cam; live: ReturnType<typeof useLiveCamera> }) {
+  const [flash, setFlash] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const sending = cam.stage === 'sending';
+  const count = cam.photos.length;
+  const last = cam.photos[cam.photos.length - 1];
+
+  // Armed only once the stream is producing frames — see `ready` in
+  // useLiveCamera. Tapping before then used to do nothing at all.
+  const armed = live.ready && !busy && !sending && !cam.full;
+
+  const take = async () => {
+    if (!armed) return;
+    setBusy(true);
+    // The flash fires FIRST, before the frame is grabbed and encoded, so the
+    // feedback lands on the tap rather than ~100ms after it.
+    setFlash(true);
+    setTimeout(() => setFlash(false), 140);
+    const photo = await live.capture();
+    if (photo) await cam.addPrepared(photo);
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ position: 'relative', flex: 1, background: '#000', overflow: 'hidden' }}>
+      <video
+        ref={live.videoRef}
+        data-testid="viewfinder"
+        playsInline
+        muted
+        autoPlay
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%', objectFit: 'cover',
+        }}
+      />
+
+      {/* Shutter feedback. A brief white veil is what a camera does, and it
+          reads as "taken" without a word. */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute', inset: 0, background: '#fff',
+          opacity: flash ? 0.85 : 0,
+          transition: flash ? 'none' : 'opacity .28s ease-out',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Count, over the top of the picture. */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0,
+        padding: '1.1rem 1rem', textAlign: 'center',
+        background: 'linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0))',
+      }}>
+        <p data-testid="roll-count" style={{
+          fontFamily: F.sans, fontSize: '0.64rem', fontWeight: 600,
+          letterSpacing: '0.24em', textTransform: 'uppercase',
+          color: 'rgba(255,255,255,0.92)', margin: 0,
+        }}>
+          {sending && cam.progress
+            ? `${cam.progress.done} of ${cam.progress.total} sent`
+            : `${count} ${count === 1 ? 'photo' : 'photos'} · up to ${MAX_ROLL}`}
+        </p>
+      </div>
+
+      <div style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0,
+        padding: '1rem 1.1rem calc(1.4rem + env(safe-area-inset-bottom))',
+        background: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.62) 38%)',
+      }}>
+        <Timings lines={cam.timings} />
+
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: '0.9rem',
+        }}>
+          {/* The most recent photograph, small, in the corner — proof it was
+              taken, and the way into the roll to remove one. */}
+          <button
+            type="button"
+            onClick={() => cam.stage !== 'sending' && live.stop()}
+            aria-label={count ? `Review ${count} photos` : 'No photos yet'}
+            data-testid="review-roll"
+            disabled={!count || sending}
+            style={{
+              width: 52, height: 52, flex: '0 0 52px', padding: 0,
+              borderRadius: 6, overflow: 'hidden', cursor: count ? 'pointer' : 'default',
+              border: `1.5px solid ${count ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.25)'}`,
+              background: 'rgba(255,255,255,0.08)',
+            }}
+          >
+            {last && (
+              <img
+                src={last.previewUrl}
+                alt=""
+                data-testid="last-thumb"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            )}
+          </button>
+
+          {/* The shutter. Unchanged in behaviour from the one on the intro —
+              a ring, like a camera. */}
+          <button
+            type="button"
+            onClick={() => void take()}
+            disabled={!armed}
+            aria-label="Take a photo"
+            data-testid="take-photo"
+            style={{
+              width: 76, height: 76, borderRadius: '50%',
+              border: '3px solid rgba(255,255,255,0.92)', background: 'transparent',
+              display: 'inline-grid', placeItems: 'center', padding: 0,
+              cursor: armed ? 'pointer' : 'default',
+              opacity: !live.ready || sending || cam.full ? 0.4 : 1,
+              transform: busy ? 'scale(0.92)' : 'scale(1)',
+              transition: 'transform .12s ease, opacity .25s ease',
+            }}
+          >
+            <span style={{
+              width: 62, height: 62, borderRadius: '50%',
+              background: '#fff', display: 'block',
+            }} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void cam.send()}
+            disabled={sending || !count}
+            data-testid="send-photos"
+            style={{
+              flex: '0 0 auto', maxWidth: '7.5rem',
+              fontFamily: F.sans, fontSize: '0.6rem', fontWeight: 600,
+              letterSpacing: '0.14em', textTransform: 'uppercase',
+              color: C.green, background: C.goldSoft,
+              border: `1px solid ${C.goldSoft}`, borderRadius: 4,
+              padding: '0.8rem 0.7rem', lineHeight: 1.3,
+              cursor: sending || !count ? 'default' : 'pointer',
+              opacity: sending || !count ? 0.4 : 1,
+            }}
+          >
+            {sending ? 'Sending…' : `Send ${count || ''} ${count === 1 ? 'photo' : 'photos'}`}
+          </button>
+        </div>
+
+        <p style={{
+          fontFamily: F.serif, fontStyle: 'italic', fontSize: '0.8rem',
+          color: 'rgba(255,255,255,0.66)', textAlign: 'center', margin: '0.9rem 0 0',
+        }}>
+          {cam.full
+            ? 'That’s ten — send these and you can take more.'
+            : sending
+              ? 'Keeping your photos until each one is safely away.'
+              : 'Keep shooting. Send them when you’re ready.'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ── The roll: everything taken, not yet sent ─────────────────────────────── */
 
 function Roll({ cam, onTake }: { cam: Cam; onTake: () => void }) {

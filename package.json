@@ -39,7 +39,8 @@
     "test:camera-ui": "node scripts/camera/ui-test.mjs",
     "test:camera-send": "node scripts/camera/send-test.mjs",
     "test:camera-roundtrip": "node scripts/camera/roundtrip-test.mjs",
-    "test:camera-roll": "node scripts/camera/roll-test.mjs"
+    "test:camera-roll": "node scripts/camera/roll-test.mjs",
+    "test:camera-live": "node scripts/camera/live-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

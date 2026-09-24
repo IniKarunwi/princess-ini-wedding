@@ -78,6 +78,15 @@ export interface CameraRoll {
   timings: string[];
 
   accept(file: File | null | undefined): Promise<void>;
+  /**
+   * A frame from the live viewfinder, already prepared.
+   *
+   * The same roll, the same store, the same send. The only difference from
+   * `accept` is that there is nothing left to downscale, so it skips the
+   * preparation queue entirely and is in the roll before the shutter
+   * animation has finished.
+   */
+  addPrepared(photo: PreparedPhoto): Promise<void>;
   send(): Promise<void>;
   remove(id: string): void;
   discard(): void;
@@ -193,6 +202,30 @@ export function useCameraRoll(): CameraRoll {
     } finally {
       preparing.current = false;
     }
+  }, []);
+
+  const addPrepared = useCallback(async (prepared: PreparedPhoto) => {
+    if (live.current.length >= MAX_ROLL) {
+      releasePhoto(prepared);
+      return;
+    }
+    setError(null);
+    setDetail(null);
+
+    setPhotos((list) => [...list, {
+      id: prepared.id, status: 'ready', photo: prepared,
+      previewUrl: prepared.previewUrl, takenAt: Date.now(),
+    }]);
+    setStage('roll');
+    setTimings((t) => [...t, `prepare ${prepared.prepareMs}ms`]);
+
+    // Persisted immediately, for the same reason as a captured file: the page
+    // can be reclaimed at any moment and the roll has to outlive that.
+    await store.put({
+      id: prepared.id, blob: prepared.blob, contentType: prepared.contentType,
+      width: prepared.width, height: prepared.height,
+      takenAt: Date.now(), status: 'ready',
+    });
   }, []);
 
   const accept = useCallback(async (file: File | null | undefined) => {
@@ -332,6 +365,6 @@ export function useCameraRoll(): CameraRoll {
     stage, photos, sentCount, progress, error, detail,
     full: photos.length >= MAX_ROLL,
     persistent, timings,
-    accept, send, remove, discard, takeMore,
+    accept, addPrepared, send, remove, discard, takeMore,
   };
 }
