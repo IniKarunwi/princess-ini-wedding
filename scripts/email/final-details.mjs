@@ -179,14 +179,27 @@ const swatchRows = () => {
  */
 export function renderFinalDetails(row, {
   siteUrl, now = new Date(), assets, cameraReady = false, events: eventsOverride = null,
+  days: daysOverride = null, headline: headlineOverride = null,
 } = {}) {
   const name = firstName(row);
   const events = eventsOverride ?? eventsForGuest(row);
-  // Written down in config.mjs, not read off the clock. See DAYS_TO_GO there:
-  // the countdown is in the subject line, and a send that crosses midnight —
-  // or a machine on the wrong timezone — must not put two different numbers
-  // in two guests' inboxes from one run.
-  const days = DAYS_TO_GO;
+  /*
+   * Written down in config.mjs, not read off the clock. See DAYS_TO_GO there:
+   * the countdown is in the subject line, and a send that crosses midnight —
+   * or a machine on the wrong timezone — must not put two different numbers
+   * in two guests' inboxes from one run.
+   *
+   * `days` overrides it for a one-off sent on a different day from the main
+   * campaign — a handful of guests picked up the morning after. It is passed
+   * explicitly by that sender and by nobody else, so the 140-recipient run
+   * still reads the constant and cannot be shifted by accident.
+   *
+   * `headline` overrides the masthead wording alongside it. At one day
+   * UPDATE_FINAL.headline() says "One Day to Go", which is right for a letter
+   * that chose its own words and wrong for one whose subject line was
+   * specified as "1 Day to Go!" — the two would disagree in the same inbox.
+   */
+  const days = daysOverride ?? DAYS_TO_GO;
   const backdrop = assets?.backdrop ?? null;
 
   // The phones note names the CEREMONY, so it is gated on the tier. See the
@@ -211,7 +224,7 @@ export function renderFinalDetails(row, {
             <tr><td height="1" style="height:1px;background:${P.rule};font-size:0;line-height:0;">&nbsp;</td></tr>
           </table>
           <h1 class="h1" style="margin:0 0 8px;font:700 32px/1.2 ${SERIF};color:${P.green};">
-            ${UPDATE_FINAL.headline(days)} &#128141;
+            ${headlineOverride ?? UPDATE_FINAL.headline(days)} &#128141;
           </h1>
           <p style="margin:0;font:400 15px/1.6 ${SANS};color:${P.muted};letter-spacing:.5px;">
             ${esc(UPDATE_FINAL.title)}
@@ -397,7 +410,8 @@ ${camera ? `
      no ceremony paragraph, and neither version mentions the camera when it is
      off. */
   const text = [
-    `${UPDATE_FINAL.label().toUpperCase()} — ${UPDATE_FINAL.headline(days).replace(/&rsquo;/g, "'")}`,
+    `${UPDATE_FINAL.label().toUpperCase()} — `
+      + `${(headlineOverride ?? UPDATE_FINAL.headline(days)).replace(/&rsquo;/g, "'")}`,
     UPDATE_FINAL.title,
     '',
     `Dear ${name},`,

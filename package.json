@@ -55,7 +55,9 @@
     "test:camera-send": "node scripts/camera/send-test.mjs",
     "test:camera-roundtrip": "node scripts/camera/roundtrip-test.mjs",
     "test:camera-roll": "node scripts/camera/roll-test.mjs",
-    "test:camera-live": "node scripts/camera/live-test.mjs"
+    "test:camera-live": "node scripts/camera/live-test.mjs",
+    "email:one-more-day": "node --env-file-if-exists=.env scripts/email/one-more-day.mjs",
+    "test:email:one-more-day": "node scripts/email/selftest-one-more-day.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
