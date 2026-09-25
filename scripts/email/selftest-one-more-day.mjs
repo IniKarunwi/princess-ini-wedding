@@ -16,7 +16,7 @@
  */
 
 import {
-  RECIPIENTS, CAMPAIGN, DAYS, SUBJECT, HEADLINE, classify,
+  RECIPIENTS, CAMPAIGN, DAYS, SUBJECT, HEADLINE, prepare,
 } from './one-more-day.mjs';
 import { DAYS_TO_GO, subjectFinal } from './config.mjs';
 import { renderFinalDetails } from './final-details.mjs';
@@ -41,75 +41,59 @@ const rsvp = (over = {}) => ({
 console.log('\nSix addresses, and no way to get a seventh');
 {
   eq('six', RECIPIENTS.length, 6);
-  ok('frozen', Object.isFrozen(RECIPIENTS));
-  ok('they are the six given', RECIPIENTS.join(',') === [
-    'umohandikanbassey@gmail.com',
-    'victorinyang2@gmail.com',
-    'gracestevev@gmail.com',
-    'clairebensonidoko@gmail.com',
-    'fabiangabriel807@gmail.com',
-    'Olamie23@gmail.com',
-  ].join(','), RECIPIENTS.join(','));
-  eq('no duplicates', new Set(RECIPIENTS.map(a => a.toLowerCase())).size, 6);
+  ok('the list is frozen', Object.isFrozen(RECIPIENTS));
+  ok('and so is every entry', RECIPIENTS.every(r => Object.isFrozen(r)));
+  eq('no duplicate addresses',
+     new Set(RECIPIENTS.map(r => r.email.toLowerCase())).size, 6);
 
-  // An RSVP table full of approved, attending, reception guests must not add
-  // a single recipient. This is the property that keeps a one-off one-off.
-  const crowd = Array.from({ length: 140 }, (_, i) =>
-    rsvp({ id: i + 100, full_name: `Guest ${i}`, email: `guest${i}@example.com` }));
-  const verdicts = classify(RECIPIENTS, crowd);
-  eq('140 qualifying rows add nobody', verdicts.length, 6);
-  ok('and the addresses are still ours',
-     verdicts.every((v, i) => v.address === RECIPIENTS[i]));
+  const expected = [
+    ['umohandikanbassey@gmail.com', 'Andikan'],
+    ['victorinyang2@gmail.com', 'Victor'],
+    ['gracestevev@gmail.com', 'Gracemary'],
+    ['clairebensonidoko@gmail.com', 'Claire'],
+    ['fabiangabriel807@gmail.com', 'Fabian'],
+    ['Olamie23@gmail.com', 'Ola'],
+  ];
+  for (const [i, [email, name]] of expected.entries()) {
+    eq(`${i + 1}. ${email}`, RECIPIENTS[i].email, email);
+    eq(`   greeted as ${name}`, RECIPIENTS[i].name, name);
+    eq('   confirmed JOINING', RECIPIENTS[i].tier, 'JOINING');
+  }
+
+  // prepare() takes the list and nothing else. There is no second argument
+  // for a database to arrive through, which is what keeps this at six.
+  // (.length is 0 because the one parameter has a default, so the signature
+  // is checked in the source instead of inferred from the function object.)
+  const v = prepare();
+  eq('six verdicts', v.length, 6);
+  eq('all six JOINING', v.filter(x => x.joining).length, 6);
+  eq('none reception-only', v.filter(x => !x.joining).length, 0);
 }
 
-/* ── Classification follows the data ─────────────────────────────────────── */
+/* ── The overrides are the whole truth ──────────────────────────────────── */
 
-console.log('\nEach of the six gets the letter their tier earns');
+console.log('\nNames and tiers are supplied, never derived');
 {
-  const rows = [
-    rsvp({ id: 1, full_name: 'Umoh Andikan Bassey', email: 'umohandikanbassey@gmail.com',
-           approved_for: 'JOINING' }),
-    rsvp({ id: 2, full_name: 'Victor Inyang', email: 'victorinyang2@gmail.com',
-           approved_for: 'RECEPTION' }),
-    // Case and spacing differ from the list. An address is an address.
-    rsvp({ id: 3, full_name: 'Grace Steve', email: '  GraceStevev@Gmail.com ',
-           approved_for: 'JOINING' }),
-    rsvp({ id: 4, full_name: 'Claire Benson-Idoko', email: 'clairebensonidoko@gmail.com',
-           approved_for: 'Reception + After Party' }),
-    // Not in the table at all.
-    rsvp({ id: 5, full_name: 'Someone Else', email: 'nobody@example.com' }),
-  ];
-  const v = classify(RECIPIENTS, rows);
-  const at = (addr) => v.find(x => x.address === addr);
+  const v = prepare();
+  const at = (e) => v.find(x => x.email === e);
 
-  eq('a JOINING tier is JOINING', at('umohandikanbassey@gmail.com').joining, true);
-  eq('a RECEPTION tier is not', at('victorinyang2@gmail.com').joining, false);
-  ok('matching ignores case and stray spaces', at('gracestevev@gmail.com').matched,
-     at('gracestevev@gmail.com').reason);
-  eq('…and reads its tier', at('gracestevev@gmail.com').joining, true);
-  eq('a combined tier is parsed, not guessed at',
-     at('clairebensonidoko@gmail.com').events.map(e => e.key).join('+'),
-     'RECEPTION+AFTERPARTY');
-  eq('and is not a ceremony guest', at('clairebensonidoko@gmail.com').joining, false);
+  eq('the greeting is the supplied name, verbatim',
+     at('gracestevev@gmail.com').row.full_name, 'Gracemary');
+  eq('a JOINING tier opens the whole day',
+     at('gracestevev@gmail.com').events.map(e => e.key).join('+'),
+     'JOINING+RECEPTION+AFTERPARTY');
+  ok('every one of the six is a ceremony guest', v.every(x => x.joining));
 
-  const missing = at('fabiangabriel807@gmail.com');
-  eq('an address with no row is not matched', missing.matched, false);
-  ok('and says why', /no RSVP row/.test(missing.reason), missing.reason);
-  ok('it is not guessed into JOINING', !missing.joining);
-  eq('every address is accounted for', v.length, 6);
-}
-
-console.log('\nTwo rows on one address is reported, never resolved');
-{
-  const rows = [
-    rsvp({ id: 1, full_name: 'One Person', email: 'Olamie23@gmail.com' }),
-    rsvp({ id: 2, full_name: 'Another Person', email: 'olamie23@gmail.com' }),
-  ];
-  const v = classify(RECIPIENTS, rows).find(x => x.address === 'Olamie23@gmail.com');
-  eq('not matched', v.matched, false);
-  eq('flagged ambiguous', v.ambiguous, true);
-  eq('with both rows shown', v.rows.length, 2);
-  ok('and no tier is inferred', !v.joining);
+  // The file must not read the rsvps table at all any more.
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('./one-more-day.mjs', import.meta.url), 'utf8');
+  const code = src.split('\n')
+    .filter(l => !/^\s*\*/.test(l) && !/^\s*\/\//.test(l))
+    .join('\n');
+  ok('no rsvps table is named', !/rest\/v1|\bTABLE\b/.test(code), 'database reference');
+  ok('no Supabase credentials are read', !/SUPABASE_/.test(code));
+  ok('prepare has exactly one parameter, and it defaults to the list',
+     /export function prepare\(recipients = RECIPIENTS\)/.test(code));
 }
 
 /* ── What the letter says ────────────────────────────────────────────────── */
@@ -185,8 +169,8 @@ console.log('\nNothing here can read an audience out of the database');
      /\['--send'\]\.includes\(a\)/.test(code) || /!\['--send'\]/.test(code), 'parser shape');
   ok('and nothing reads a limit or a target address',
      !/args\.includes\('--limit'\)/.test(code) && !/args\.includes\('--to'\)/.test(code));
-  ok('and the only thing it sends to is RECIPIENTS',
-     /to: v\.address/.test(src) && !/to: row\.email/.test(src));
+  ok('and the only thing it sends to is the frozen list',
+     /to: v\.email/.test(src) && !/to: row\.email/.test(src));
   ok('it writes its own receipt, not the campaign\'s',
      /one-more-day-sent\.json/.test(src) && !/final-details-scheduled\.json/.test(src));
   ok('and it issues no write to Supabase',

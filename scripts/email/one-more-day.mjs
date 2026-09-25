@@ -22,9 +22,15 @@
  * code path here that reads the rsvps table for an audience, no --limit, no
  * --confirm-send-all, and RECIPIENTS is a frozen constant.
  *
- * The RSVP table is read for exactly two things, and only for these six
- * addresses: a name to greet them by, and whether they are approved for
- * JOINING. It is never used to decide WHO gets this.
+ * ── Nothing is derived ─────────────────────────────────────────────────────
+ * An earlier draft looked each address up in the RSVP table for a name and a
+ * tier. The couple have since supplied both by hand, and confirmed all six as
+ * ceremony guests, so the lookup is gone rather than left in to be
+ * second-guessed by data that disagreed.
+ *
+ * That makes this file the whole truth about the send: the addresses, the
+ * names in the greeting and the tier are all right here, and there is no
+ * database read anywhere in it. What you see below is what goes out.
  *
  * ── Its own idempotency namespace ──────────────────────────────────────────
  * CAMPAIGN below is not the one the 24th used. Resend remembers a key for 24
@@ -39,7 +45,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 
 import {
-  TABLE, RATE, DEFAULT_FROM, DEFAULT_REPLY_TO,
+  RATE, DEFAULT_FROM, DEFAULT_REPLY_TO,
   WEDDING, CAMERA, assetUrls,
 } from './config.mjs';
 import { eventsForGuest, parseTiers } from './events.mjs';
@@ -49,18 +55,26 @@ import { validateDress } from './dress-code.mjs';
 import { sendWithRetry, sleep, SendError } from './resend.mjs';
 
 /**
- * The six. Written down, not derived.
+ * The six. Address, greeting and tier, all supplied by the couple.
  *
- * Changing who receives this means editing this list, which is a commit and
- * a review rather than a command-line argument typed at speed.
+ * `name` is used verbatim as the greeting — "Dear Andikan," — and is not a
+ * full name, a lookup key, or anything the letter parses. It is what these
+ * people are called.
+ *
+ * `tier` is confirmed by the couple, not inferred. All six are ceremony
+ * guests, so all six receive the Wedding Service sections and the note about
+ * phones. Nothing here consults approved_for.
+ *
+ * Changing who receives this means editing this list, which is a commit and a
+ * review rather than a command-line argument typed at speed.
  */
 export const RECIPIENTS = Object.freeze([
-  'umohandikanbassey@gmail.com',
-  'victorinyang2@gmail.com',
-  'gracestevev@gmail.com',
-  'clairebensonidoko@gmail.com',
-  'fabiangabriel807@gmail.com',
-  'Olamie23@gmail.com',
+  Object.freeze({ email: 'umohandikanbassey@gmail.com', name: 'Andikan',   tier: 'JOINING' }),
+  Object.freeze({ email: 'victorinyang2@gmail.com',     name: 'Victor',    tier: 'JOINING' }),
+  Object.freeze({ email: 'gracestevev@gmail.com',       name: 'Gracemary', tier: 'JOINING' }),
+  Object.freeze({ email: 'clairebensonidoko@gmail.com', name: 'Claire',    tier: 'JOINING' }),
+  Object.freeze({ email: 'fabiangabriel807@gmail.com',  name: 'Fabian',    tier: 'JOINING' }),
+  Object.freeze({ email: 'Olamie23@gmail.com',          name: 'Ola',       tier: 'JOINING' }),
 ]);
 
 /** One day. Not read from the clock — see DAYS_TO_GO in config.mjs. */
@@ -98,63 +112,36 @@ const c = {
 
 const norm = (e) => String(e ?? '').trim().toLowerCase();
 
-/* ── Classification ──────────────────────────────────────────────────────── */
+/* ── The letter each one gets ────────────────────────────────────────────── */
 
 /**
- * Matches the six against the RSVP table, by address alone.
+ * Turns the frozen list into what the renderer wants.
  *
- * Address, not name: these were given as addresses, and an address is an
- * exact key. The name matcher exists for the seating plan, where the only
- * thing on offer is a name written by somebody else — that ambiguity is not
- * present here and importing it would only create it.
- *
- * Returns one entry per address, always, in the order given. An address with
- * no row is REPORTED, never guessed at.
+ * Pure, and it takes nothing but the list — there is no second argument for a
+ * database to arrive through, which is the point. `full_name` carries the
+ * supplied first name because that is what firstName() reads, and these are
+ * already first names, so it comes back out exactly as written.
  */
-export function classify(addresses, rows) {
-  const byEmail = new Map();
-  for (const row of rows) {
-    const k = norm(row.email);
-    if (!k) continue;
-    // Two rows on one inbox is a household. Keep both so it can be reported
-    // rather than silently resolved.
-    if (!byEmail.has(k)) byEmail.set(k, []);
-    byEmail.get(k).push(row);
-  }
-
-  return addresses.map((address) => {
-    const matches = byEmail.get(norm(address)) ?? [];
-
-    if (matches.length === 0) {
-      return { address, matched: false, ambiguous: false, row: null,
-               reason: 'no RSVP row with this address' };
-    }
-    if (matches.length > 1) {
-      return { address, matched: false, ambiguous: true, rows: matches, row: null,
-               reason: `${matches.length} RSVP rows share this address` };
-    }
-
-    const row = matches[0];
-    const tiers = parseTiers(row.approved_for);
+export function prepare(recipients = RECIPIENTS) {
+  return recipients.map((r) => {
+    const row = { full_name: r.name, email: r.email, approved_for: r.tier };
     const events = eventsForGuest(row);
-    const joining = tiers.includes('JOINING');
-
     return {
-      address, matched: true, ambiguous: false, row,
-      name: row.full_name ?? null,
-      tiers,
+      email: r.email,
+      name: r.name,
+      tier: r.tier,
+      row,
       events,
-      joining,
-      // The letter is about a reception seat. A tier that does not include
-      // the reception is worth seeing before this goes.
-      reception: events.some(e => e.key === 'RECEPTION'),
-      sendable: isSendableEmail(row.email),
+      // From the supplied tier, which for all six is JOINING. Still computed
+      // rather than assumed, so a future edit to one entry is honoured.
+      joining: parseTiers(r.tier).includes('JOINING'),
+      sendable: isSendableEmail(r.email),
     };
   });
 }
 
-/** What a matched guest is shown. Identical rule to the main campaign. */
-const eventsFor = (v) => (v.matched ? v.events : null);
+/** What each one is shown — their supplied tier, expanded the usual way. */
+const eventsFor = (v) => v.events;
 
 /* ── Report ──────────────────────────────────────────────────────────────── */
 
@@ -163,7 +150,7 @@ function report(verdicts) {
 
   console.log(`\n${c.bold('═══ ONE-OFF SEND — "1 DAY TO GO" — AUDIT ═══')}`);
   console.log(`  ${c.dim(`campaign: ${CAMPAIGN}`)}`);
-  console.log(`  ${c.dim('audience: a frozen list of six. Nothing here reads an audience from data.')}`);
+  console.log(`  ${c.dim('audience, names and tiers: supplied by hand. No database is read.')}`);
   console.log(`  ${c.dim('read-only: nothing written, nothing sent')}`);
 
   console.log(`\n${c.bold('Subject')}`);
@@ -174,70 +161,27 @@ function report(verdicts) {
   console.log(`  opening  : ${c.cyan(`It’s ${DAYS === 1 ? '1 day' : `${DAYS} days`} to our wedding…`)}`);
 
   console.log(`\n${c.bold('The six')}`);
+  console.log(`      ${c.dim('email'.padEnd(34))}${c.dim('greeting'.padEnd(14))}${c.dim('tier')}`);
   for (const [i, v] of verdicts.entries()) {
     const n = String(i + 1).padStart(2);
-    if (!v.matched) {
-      console.log(`  ${n}. ${c.amber('?')} ${v.address.padEnd(34)} ${c.amber('UNMATCHED')}`);
-      console.log(`      ${c.dim(v.reason)}`);
-      if (v.rows) {
-        for (const r of v.rows) {
-          console.log(`      ${c.dim(`· ${r.full_name} — ${r.approved_for ?? '(no tier)'}`)}`);
-        }
-      }
-      continue;
-    }
-    const tier = v.joining ? c.cyan('JOINING') : c.green('reception-only');
-    console.log(`  ${n}. ${c.green('✓')} ${v.address.padEnd(34)} ${String(v.name ?? '(no name)').padEnd(28)} ${tier}`);
-    console.log(`      ${c.dim(`approved_for: ${v.row.approved_for ?? '(none)'} → ${v.events.map(e => e.name).join(' + ') || '(no events)'}`)}`);
-    if (!v.reception) {
-      console.log(`      ${c.amber('⚠ this tier does not include the Reception — the letter is about a reception seat')}`);
-    }
-    if (!v.sendable) {
-      console.log(`      ${c.red('✗ the address on their RSVP row is not sendable')}`);
-    }
+    const tier = v.joining ? c.cyan('JOINING') : c.amber('reception-only');
+    console.log(`  ${n}. ${c.green('✓')} ${v.email.padEnd(34)}${`Dear ${v.name},`.padEnd(14)}${tier}`);
+    console.log(`      ${c.dim(`→ ${v.events.map(e => e.name).join(' + ')}`)}`);
+    if (!v.sendable) console.log(`      ${c.red('✗ that address is not sendable')}`);
   }
 
-  const matched = verdicts.filter(v => v.matched);
-  const joining = matched.filter(v => v.joining);
+  const joining = verdicts.filter(v => v.joining);
 
   console.log(`\n${c.bold('Counts')}`);
-  const line = (l, n, col = (s) => s) =>
+  const line = (l, n, col = (s2) => s2) =>
     console.log(`  ${l.padEnd(46, '.')} ${col(String(n).padStart(4))}`);
-  line('addresses on the list', RECIPIENTS.length, c.bold);
-  line('matched to an RSVP row', matched.length, c.green);
-  line('UNMATCHED — flagged for you', verdicts.length - matched.length,
-       verdicts.length - matched.length ? c.amber : c.green);
+  line('TOTAL RECIPIENTS', verdicts.length, c.bold);
   line('JOINING — ceremony + phones section', joining.length, c.cyan);
-  line('reception-only — no ceremony section', matched.length - joining.length, c.cyan);
-  line('TOTAL RECIPIENTS IF SENT', RECIPIENTS.length, c.bold);
+  line('reception-only — no ceremony section', verdicts.length - joining.length,
+       verdicts.length - joining.length ? c.amber : c.green);
+  line('derived from RSVP data', 0, c.green);
 
-  console.log(`\n  ${c.dim('An unmatched address still receives the letter, in its reception-only')}`);
-  console.log(`  ${c.dim('form — the safe direction: it never shows the ceremony to somebody')}`);
-  console.log(`  ${c.dim('who was not invited to it. Remove them from RECIPIENTS if that is wrong.')}`);
-
-  return { subject, matched, joining };
-}
-
-/* ── Reading ─────────────────────────────────────────────────────────────── */
-
-function creds() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error(
-      'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are needed to look up these six.\n' +
-      'Run with --env-file=.env.');
-  }
-  return { url: url.replace(/\/+$/, ''), key };
-}
-
-async function fetchRows() {
-  const { url, key } = creds();
-  const res = await fetch(`${url}/rest/v1/${TABLE}?select=*`, {
-    headers: { apikey: key, authorization: `Bearer ${key}` },
-  });
-  if (!res.ok) throw new Error(`Could not read ${TABLE}: ${res.status} ${await res.text()}`);
-  return res.json();
+  return { subject, joining };
 }
 
 /* ── Previews ────────────────────────────────────────────────────────────── */
@@ -248,14 +192,30 @@ function writePreviews(verdicts, { siteUrl, assets }) {
   const written = [];
 
   for (const v of verdicts) {
-    const row = v.matched ? v.row : { full_name: null, email: v.address };
-    const r = renderFinalDetails(row, {
+    const r = renderFinalDetails(v.row, {
       siteUrl, assets, days: DAYS, headline: HEADLINE, events: eventsFor(v),
     });
-    const safe = v.address.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    const safe = v.email.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
     const path = join(dir, `${safe}.html`);
     writeFileSync(path, r.html);
-    written.push({ address: v.address, path, ceremony: r.ceremony, days: r.days });
+    written.push({
+      email: v.email, name: v.name, path,
+      ceremony: r.ceremony, days: r.days,
+      // Read back out of the rendered letter, not assumed from the input.
+      greeting: r.html.match(/Dear ([^,<]+),/)?.[1] ?? '(none)',
+      /*
+       * The ceremony-only content, by what it actually says.
+       *
+       * Checked for "Wedding Service" first, which failed for all six — and
+       * the letter was right. "Wedding Service" is the internal name of the
+       * JOINING tier in config.mjs; it is not a phrase this letter uses. What
+       * a ceremony guest actually gets, and a reception-only guest does not,
+       * is the note about phones: "We're having a no-personal-photography
+       * ceremony." That block is the thing to look for.
+       */
+      phonesNote: /no-personal-photography/.test(r.html)
+               && /A Little Note About Phones|note about phones/i.test(r.html),
+    });
   }
   return { dir, written };
 }
@@ -275,8 +235,7 @@ async function deliver(verdicts, { siteUrl, assets, key }) {
   const failed = [];
 
   for (const [i, v] of verdicts.entries()) {
-    const row = v.matched ? v.row : { full_name: null, email: v.address };
-    const r = renderFinalDetails(row, {
+    const r = renderFinalDetails(v.row, {
       siteUrl, assets, days: DAYS, headline: HEADLINE, events: eventsFor(v),
     });
     try {
@@ -284,19 +243,18 @@ async function deliver(verdicts, { siteUrl, assets, key }) {
         apiKey: key,
         from: process.env.INVITE_FROM || DEFAULT_FROM,
         replyTo: process.env.INVITE_REPLY_TO || DEFAULT_REPLY_TO,
-        // The address from the LIST, not from the matched row. The list is
-        // the audience; the row only supplies a name and a tier.
-        to: v.address,
+        // Straight off the frozen list.
+        to: v.email,
         subject,
         html: r.html,
         text: r.text,
-        idempotencyKey: `${CAMPAIGN}:${norm(v.address)}`,
+        idempotencyKey: `${CAMPAIGN}:${norm(v.email)}`,
       });
-      accepted.push({ address: v.address, id });
-      console.log(`  ${c.green('✓')} ${v.address.padEnd(34)} ${c.dim(id)}`);
+      accepted.push({ address: v.email, name: v.name, id });
+      console.log(`  ${c.green('✓')} ${v.email.padEnd(34)} ${c.dim(id)}`);
     } catch (e) {
-      failed.push({ address: v.address, error: e });
-      console.log(`  ${c.red('✗')} ${v.address.padEnd(34)} ` +
+      failed.push({ address: v.email, error: e });
+      console.log(`  ${c.red('✗')} ${v.email.padEnd(34)} ` +
                   `${e instanceof SendError ? e.message : String(e)}`);
     }
     if (i < verdicts.length - 1) await sleep(RATE.delayMs ?? 600);
@@ -322,8 +280,7 @@ async function main() {
   console.log(`\n${c.bold('One more day — a one-off to six guests')}`);
   console.log(`  ${c.dim(`${WEDDING.dateLong} · camera section: ${CAMERA.enabled ? 'included' : 'omitted'}`)}`);
 
-  const rows = await fetchRows();
-  const verdicts = classify(RECIPIENTS, rows);
+  const verdicts = prepare();
   const { subject } = report(verdicts);
 
   const siteUrl = process.env.INVITE_SITE_URL || 'https://princessandini.com';
@@ -332,30 +289,39 @@ async function main() {
   const { dir, written } = writePreviews(verdicts, { siteUrl, assets });
   console.log(`\n${c.bold('Previews')}  ${c.dim(dir)}`);
   for (const w of written) {
-    console.log(`  ${w.address.padEnd(34)} ${c.dim(`${w.ceremony ? 'ceremony section' : 'no ceremony'} · ${w.days} day`)}`);
+    console.log(`  ${w.email.padEnd(34)} ${c.dim(
+      `greets “Dear ${w.greeting},” · ` +
+      `${w.ceremony ? 'ceremony section' : c.red('NO CEREMONY')} · ` +
+      `${w.phonesNote ? 'phones note' : c.red('NO PHONES NOTE')} · ${w.days} day`)}`);
   }
 
   /* ── The checks that must hold before anything goes ─────────────────── */
   const problems = [];
-  if (verdicts.length !== RECIPIENTS.length) problems.push('the audience changed size');
-  if (new Set(verdicts.map(v => norm(v.address))).size !== RECIPIENTS.length) {
+  if (verdicts.length !== 6) problems.push(`${verdicts.length} recipients, expected 6`);
+  if (new Set(verdicts.map(v => norm(v.email))).size !== 6) {
     problems.push('the list contains a duplicate address');
   }
   if (!/^1 Day to Go!/.test(subject)) problems.push(`the subject is wrong: ${subject}`);
-  for (const w of written) if (w.days !== 1) problems.push(`${w.address} says ${w.days} days`);
-  for (const v of verdicts) {
-    if (!v.matched) continue;
-    const r = renderFinalDetails(v.row, {
-      siteUrl, assets, days: DAYS, headline: HEADLINE, events: eventsFor(v) });
-    if (r.ceremony !== v.joining) {
-      problems.push(`${v.address}: ceremony section ${r.ceremony} but JOINING ${v.joining}`);
+  if (verdicts.some(v => !v.joining)) problems.push('not every recipient is JOINING');
+
+  // Read back out of the rendered HTML, not asserted from the input. The
+  // question is what these six will actually open, and the only honest way to
+  // answer it is to look at the letter.
+  for (const w of written) {
+    if (w.days !== 1) problems.push(`${w.email} says ${w.days} days`);
+    if (!w.ceremony) problems.push(`${w.email} has no ceremony section`);
+    if (!w.phonesNote) problems.push(`${w.email} is missing the ceremony note about phones`);
+    const wanted = verdicts.find(v => v.email === w.email)?.name;
+    if (w.greeting !== wanted) {
+      problems.push(`${w.email} is greeted "${w.greeting}", expected "${wanted}"`);
     }
   }
   if (problems.length) {
     throw new Error('The send failed its own checks, so nothing was sent:\n  · ' +
                     problems.join('\n  · '));
   }
-  console.log(`\n  ${c.green('✓')} checks passed: six addresses, one day, ceremony only where JOINING`);
+  console.log(`\n  ${c.green('✓')} checks passed: six addresses, one day, all six get the`);
+  console.log(`    ${c.green(' ')} ceremony sections, and each is greeted by the supplied name`);
 
   if (!send) {
     console.log(`\n${c.dim('Audit only. Nothing was sent. Add --send when you are ready.')}\n`);
@@ -370,7 +336,7 @@ async function main() {
   console.log(`${c.red(c.bold('  ──────────────────────────────────────────────'))}`);
   console.log(`  ${c.dim(`subject: ${subject}`)}`);
   console.log(`  ${c.dim(`from:    ${process.env.INVITE_FROM || DEFAULT_FROM}`)}`);
-  for (const a of RECIPIENTS) console.log(`  ${c.dim(`to:      ${a}`)}`);
+  for (const r of RECIPIENTS) console.log(`  ${c.dim(`to:      ${r.email.padEnd(34)} (Dear ${r.name},)`)}`);
 
   if (!(await confirm(`SEND ONE MORE DAY TO ${RECIPIENTS.length} GUESTS`))) {
     console.log(c.dim('Not confirmed. Nothing sent.'));
