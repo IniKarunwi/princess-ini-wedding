@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
-import Coming from "./pages/Coming";
 import Wedding from "./pages/Wedding";
 import SeatingChart from "./pages/SeatingChart";
 import RegistryPage from "./pages/RegistryPage";
@@ -9,6 +8,7 @@ import Music from "./components/site/Music";
 import WeddingHub from "./pages/WeddingHub";
 import MenuPage from "./pages/MenuPage";
 import ThroughYourEyes from "./pages/ThroughYourEyes";
+import ProgramPage from "./pages/ProgramPage";
 import { FOOD_MENU, MENU_TITLE } from "./features/weddingday/menu";
 import { CAMERA_ENABLED } from "./features/weddingday/phase";
 
@@ -28,15 +28,10 @@ export default function App() {
         {/* The redesigned wedding-day homepage. */}
         <Route path="/" element={<Home />} />
 
-        {/* Content not written yet. Deliberately honest rather than invented —
-            these URLs go on printed table cards, so they must resolve now. */}
-        <Route path="/program" element={
-          <Coming
-            eyebrow="The Service"
-            title="Order of Service"
-            note="The order of service is still being finalised. It will be here before the day, and printed copies will be waiting for you at the ceremony."
-          />
-        } />
+        {/* The placeholder here promised the programme would arrive before
+            the day. It has: the real order of service, transcribed from the
+            printed sheet. See src/features/weddingday/program.ts. */}
+        <Route path="/program" element={<ProgramPage />} />
         <Route path="/menu" element={
           <MenuPage
             eyebrow="At the Reception"
